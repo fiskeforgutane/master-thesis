@@ -1,4 +1,7 @@
-use std::ops::{AddAssign, Index, IndexMut};
+use std::{
+    iter::Sum,
+    ops::{AddAssign, Index, IndexMut},
+};
 
 /// A point in Euclidean 2d-space.
 pub struct Point(f64, f64);
@@ -9,6 +12,11 @@ type InventoryType = f64;
 type Distance = f64;
 /// The typs used for cost.
 type Cost = f64;
+
+type NodeIndex = usize;
+type VesselIndex = usize;
+type TimeIndex = usize;
+type ProductIndex = usize;
 
 #[derive(Debug, Clone)]
 pub struct Problem {
@@ -24,11 +32,64 @@ pub struct Problem {
     distances: Vec<Vec<Distance>>,
 }
 
+impl Problem {
+    /// The vessels available for use in the problem. Ordered by index (continuous, starting at 0)
+    pub fn vessels(&self) -> &[Vessel] {
+        &self.vessels
+    }
+
+    /// The nodes of this problem. This contains both consumption and production nodes.
+    pub fn nodes(&self) -> &[Node] {
+        &self.nodes
+    }
+
+    /// The number of time steps in the problem
+    pub fn timesteps(&self) -> usize {
+        self.timesteps
+    }
+
+    /// The distance between two nodes
+    pub fn distance(&self, from: NodeIndex, to: NodeIndex) -> Distance {
+        self.distances[from][to]
+    }
+}
+
 pub enum ProblemConstructionError {
+    /// The size of the distance matrix is not as expected,
     DistanceSizeMismatch {
         expected: (usize, usize),
         actual: (usize, usize),
     },
+    /// The number of time steps must be strictly positive
+    NoTimeSteps,
+    /// There must be at least one product
+    NoProducts,
+    /// This node has zero compartments (must be at least one).
+    NoCompartments(Node),
+    /// Incorrect number of inventory changes. Should match timesteps (-1 ?)
+    InventoryChangeSizeMismatch {
+        node: Node,
+        expected: usize,
+        actual: usize,
+    },
+    /// Node `node` has negative inventory capacity for feed type `feed_type`
+    NegativeInventoryCapacity { node: Node, feed_type: usize },
+    /// Node `node` has wrong dimension for the inventory
+    NodeInventorySizeMismatch {
+        node: Node,
+        expected: usize,
+        actual: usize,
+    },
+    /// Vessel `vessel` has the wrong dimension for the inventory
+    VesselInventorySizeMismatch {
+        node: Node,
+        expected: usize,
+        actual: usize,
+    },
+    /// Speed of vessel is zero.
+    SpeedIsZero { vessel: Vessel },
+    /// Origin is not a valid node index
+    OriginDoesNotExist { vessel: Vessel },
 }
 
 impl Problem {
@@ -71,6 +132,53 @@ pub struct Vessel {
     class: String,
 }
 
+impl Vessel {
+    /// The compartments available on the vessel.
+    pub fn compartments(&self) -> &[Compartment] {
+        &self.compartments
+    }
+    /// The cruising speed of this vessel, in distance units per time step
+    pub fn speed(&self) -> f64 {
+        self.speed
+    }
+
+    /// The cost per time step of travel
+    pub fn travel_unit_cost(&self) -> Cost {
+        self.travel_unit_cost
+    }
+
+    /// The cost when travelling without a load
+    pub fn empty_travel_unit_cost(&self) -> Cost {
+        self.empty_travel_unit_cost
+    }
+
+    /// The cost per time unit
+    pub fn time_unit_cost(&self) -> Cost {
+        self.time_unit_cost
+    }
+
+    /// The cost per time step while docked at a port
+    pub fn port_unit_cost(&self) -> Cost {
+        self.port_unit_cost
+    }
+    /// The time step from which the vessel becomes available
+    pub fn available_from(&self) -> TimeIndex {
+        self.available_from
+    }
+    /// The initial inventory available for this vessel
+    pub fn initial_inventory(&self) -> &FixedInventory {
+        &self.initial_inventory
+    }
+    /// The origin node of the vessel
+    pub fn origin(&self) -> NodeIndex {
+        self.origin
+    }
+    /// The vessel class this belongs to
+    pub fn class(&self) -> &str {
+        self.class.as_str()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum NodeType {
     Consumption,
@@ -80,7 +188,7 @@ pub enum NodeType {
 #[derive(Debug, Clone)]
 pub struct Node {
     /// The name of the node
-    pub name: String,
+    name: String,
     /// The type of node
     r#type: NodeType,
     /// The index of the node
@@ -88,19 +196,64 @@ pub struct Node {
     /// The maximum number of vehicles that can be present at the node at any time step
     port_capacity: Vec<usize>,
     /// The minimum amount that can be unloaded in a single time step
-    min_unloading_amount: Inventory,
+    min_unloading_amount: InventoryType,
     /// The maximum amount that can be loaded in a single time step
-    max_loading_amount: Inventory,
+    max_loading_amount: InventoryType,
     /// The fixed fee associated with visiting the port
     port_fee: Cost,
     /// The maximum inventory capacity of the farm
     capacity: FixedInventory,
-    /// The change in inventory during each time step
+    /// The change in inventory during each time step.
     inventory_changes: Vec<InventoryChange>,
     /// The revenue associated with a unit sale at a farm
     /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
     /// all instances uses a constant value across the entire planning period.
     revenue: Cost,
+}
+
+impl Node {
+    /// The name of the node
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+    /// The type of node
+    pub fn r#type(&self) -> NodeType {
+        self.r#type
+    }
+    /// The index of the node
+    pub fn index(&self) -> NodeIndex {
+        self.index
+    }
+    /// The maximum number of vehicles that can be present at the node at any time step
+    pub fn port_capacity(&self) -> &[usize] {
+        &self.port_capacity
+    }
+    /// The minimum amount that can be unloaded in a single time step
+    pub fn min_unloading_amount(&self) -> InventoryType {
+        self.min_unloading_amount
+    }
+    /// The maximum amount that can be loaded in a single time step
+    pub fn max_loading_amount(&self) -> InventoryType {
+        self.max_loading_amount
+    }
+    /// The fixed fee associated with visiting the port
+    pub fn port_fee(&self) -> Cost {
+        self.port_fee
+    }
+    /// The maximum inventory capacity of the farm
+    pub fn capacity(&self) -> &FixedInventory {
+        &self.capacity
+    }
+    /// The change in inventory during each time step.
+    pub fn inventory_changes(&self) -> &[InventoryChange] {
+        &self.inventory_changes
+    }
+    /// The revenue associated with a unit sale at a farm
+    /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
+    /// all instances uses a constant value across the entire planning period.
+    pub fn revenue(&self) -> Cost {
+        self.revenue
+    }
 }
 
 /// Inventory at either a node or a vessel.
@@ -232,5 +385,17 @@ impl<'a> AddAssign<Inventory> for Inventory {
                 lhs[0] += value;
             }
         }
+    }
+}
+
+impl<'a> Sum<&'a Inventory> for Inventory {
+    fn sum<I: Iterator<Item = &'a Inventory>>(iter: I) -> Self {
+        let mut sum = Inventory(RawInventory::Single(0.0));
+
+        for i in iter {
+            sum += i;
+        }
+
+        sum
     }
 }
