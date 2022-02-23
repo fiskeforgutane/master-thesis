@@ -209,6 +209,8 @@ pub struct Node {
     /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
     /// all instances uses a constant value across the entire planning period.
     revenue: Cost,
+    /// The initial inventory of the node
+    initial_inventory: FixedInventory,
 }
 
 impl Node {
@@ -253,6 +255,10 @@ impl Node {
     /// all instances uses a constant value across the entire planning period.
     pub fn revenue(&self) -> Cost {
         self.revenue
+    }
+    /// The initial inventory of the node
+    pub fn initial_inventory(&self) -> &FixedInventory {
+        &self.initial_inventory
     }
 }
 
