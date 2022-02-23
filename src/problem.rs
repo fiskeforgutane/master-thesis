@@ -7,16 +7,16 @@ use std::{
 pub struct Point(f64, f64);
 
 /// The type used for inventory quantity
-type InventoryType = f64;
+pub type InventoryType = f64;
 /// The type used for distance
-type Distance = f64;
+pub type Distance = f64;
 /// The typs used for cost.
-type Cost = f64;
+pub type Cost = f64;
 
-type NodeIndex = usize;
-type VesselIndex = usize;
-type TimeIndex = usize;
-type ProductIndex = usize;
+pub type NodeIndex = usize;
+pub type VesselIndex = usize;
+pub type TimeIndex = usize;
+pub type ProductIndex = usize;
 
 #[derive(Debug, Clone)]
 pub struct Problem {
