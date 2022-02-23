@@ -13,20 +13,39 @@ type Cost = f64;
 #[derive(Debug, Clone)]
 pub struct Problem {
     /// The vessels available for use in the problem. Assumed to be ordered by index
-    pub vessels: Vec<Vessel>,
+    vessels: Vec<Vessel>,
     /// The nodes of this problem. This contains both consumption and production nodes.
-    pub nodes: Vec<Node>,
+    nodes: Vec<Node>,
     /// The number of time steps in the problem
-    pub timesteps: usize,
+    timesteps: usize,
     /// The number of different products
-    pub products: usize,
+    products: usize,
     /// A distance matrix between the different nodes.
-    pub distances: Vec<Vec<Distance>>,
+    distances: Vec<Vec<Distance>>,
+}
+
+pub enum ProblemConstructionError {
+    DistanceSizeMismatch {
+        expected: (usize, usize),
+        actual: (usize, usize),
+    },
+}
+
+impl Problem {
+    pub fn new(
+        _vessels: Vec<Vessel>,
+        _nodes: Vec<Node>,
+        _timesteps: usize,
+        _products: usize,
+        _distances: Vec<Vec<Distance>>,
+    ) -> Result<Problem, ProblemConstructionError> {
+        todo!()
+    }
 }
 
 // A compartment is used to hold fed during transport
 #[derive(Debug, Clone, Copy)]
-pub struct Compartment(InventoryType);
+pub struct Compartment(pub InventoryType);
 
 #[derive(Debug, Clone)]
 pub struct Vessel {

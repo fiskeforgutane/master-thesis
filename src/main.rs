@@ -1,5 +1,7 @@
 mod problem;
+use problem::*;
 fn main() {
-    let x = vec![1, 2, 3, 4, 5, 6, 7, 8];
+    let test = Inventory::new(&[1.0]).unwrap();
+    println!("{:?}", test);
     println!("Hello, world!");
 }
