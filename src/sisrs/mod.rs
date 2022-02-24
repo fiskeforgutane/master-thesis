@@ -1,4 +1,4 @@
-use crate::problem::{InventoryType, NodeIndex, Problem, ProductIndex, TimeIndex};
+use crate::problem::{NodeIndex, Problem, ProductIndex, Quantity, TimeIndex};
 
 /// Routes for each vessel, where each route is
 pub struct Solution(Vec<Vec<(TimeIndex, NodeIndex)>>);
@@ -7,9 +7,9 @@ pub struct SlackInductionByStringRemoval<'p, 'o> {
     /// The problem we're trying to solve
     problem: &'p Problem,
     /// The orders we're trying to satisfy
-    orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, InventoryType)],
+    orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, Quantity)],
     /// The current solution
-    solution: Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, InventoryType)>>,
+    solution: Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, Quantity)>>,
 }
 
 pub struct SortingWeights {
@@ -72,7 +72,7 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
     /// Create a new instance of SISRs for the given problem and set of orders
     pub fn new(
         problem: &'p Problem,
-        orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, InventoryType)],
+        orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, Quantity)],
     ) -> Self {
         Self {
             problem,
@@ -84,8 +84,8 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
     /// Warm start a SISRs from a previous solution
     pub fn warm_start(
         problem: &'p Problem,
-        orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, InventoryType)],
-        solution: Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, InventoryType)>>,
+        orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, Quantity)],
+        solution: Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, Quantity)>>,
     ) -> Self {
         Self {
             problem,
@@ -96,8 +96,8 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
 
     /// Determine which of the orders that are *not* fulfilled
     pub fn unfulfilled(
-        orders: &[(NodeIndex, TimeIndex, TimeIndex, ProductIndex, InventoryType)],
-        solution: &Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, InventoryType)>>,
+        orders: &[(NodeIndex, TimeIndex, TimeIndex, ProductIndex, Quantity)],
+        solution: &Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, Quantity)>>,
     ) {
     }
 
