@@ -212,6 +212,8 @@ pub struct Node {
     /// The cumulative inventory at the node if no loading/unloading is done. Used to allow efficient lookup
     /// of cumulative consumption between two time periods etc.
     cumulative_inventory: Vec<Vec<InventoryType>>,
+    /// The initial inventory of the node
+    initial_inventory: FixedInventory,
 }
 
 impl Node {
@@ -262,6 +264,10 @@ impl Node {
     /// all instances uses a constant value across the entire planning period.
     pub fn revenue(&self) -> Cost {
         self.revenue
+    }
+    /// The initial inventory of the node
+    pub fn initial_inventory(&self) -> &FixedInventory {
+        &self.initial_inventory
     }
 }
 
