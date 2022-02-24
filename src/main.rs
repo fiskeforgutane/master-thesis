@@ -1,4 +1,5 @@
 pub mod problem;
+pub mod quants;
 pub mod sisrs;
 use problem::*;
 fn main() {

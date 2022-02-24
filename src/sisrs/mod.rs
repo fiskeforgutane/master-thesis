@@ -3,10 +3,13 @@ use std::{
     ops::{Range, RangeInclusive},
 };
 
-use rand::distributions::Uniform;
 use rand::{self, prelude::Distribution};
+use rand::{distributions::Uniform, Rng};
 
-use crate::problem::{NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex};
+use crate::{
+    problem::{NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex},
+    quants::Order,
+};
 
 /// Routes for each vessel, where each route is
 pub struct Solution(Vec<Vec<(TimeIndex, NodeIndex)>>);
@@ -15,9 +18,9 @@ pub struct SlackInductionByStringRemoval<'p, 'o> {
     /// The problem we're trying to solve
     problem: &'p Problem,
     /// The orders we're trying to satisfy
-    orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, Quantity)],
+    orders: &'o [Order],
     /// The current solution
-    solution: Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, Quantity)>>,
+    solution: Vec<Vec<Visit>>,
 }
 
 pub struct SortingWeights {
@@ -68,6 +71,14 @@ pub struct Config {
     pub weights: SortingWeights,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Visit {
+    time: TimeIndex,
+    node: NodeIndex,
+    product: ProductIndex,
+    quantity: Quantity,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -85,10 +96,7 @@ impl Default for Config {
 
 impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
     /// Create a new instance of SISRs for the given problem and set of orders
-    pub fn new(
-        problem: &'p Problem,
-        orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, Quantity)],
-    ) -> Self {
+    pub fn new(problem: &'p Problem, orders: &'o [Order]) -> Self {
         Self {
             problem,
             orders,
@@ -99,8 +107,8 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
     /// Warm start a SISRs from a previous solution
     pub fn warm_start(
         problem: &'p Problem,
-        orders: &'o [(NodeIndex, TimeIndex, TimeIndex, ProductIndex, Quantity)],
-        solution: Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, Quantity)>>,
+        orders: &'o [Order],
+        solution: Vec<Vec<Visit>>,
     ) -> Self {
         Self {
             problem,
@@ -110,11 +118,7 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
     }
 
     /// Determine which of the orders that are *not* fulfilled
-    pub fn unfulfilled(
-        orders: &[(NodeIndex, TimeIndex, TimeIndex, ProductIndex, Quantity)],
-        solution: &Vec<Vec<(TimeIndex, NodeIndex, ProductIndex, Quantity)>>,
-    ) {
-    }
+    pub fn unfulfilled(orders: &[Order], solution: &Vec<Vec<Visit>>) {}
 
     pub fn average_tour_cardinality(&self) -> f64 {
         let total_length = self.solution.iter().map(|xs| xs.len()).sum::<usize>();
@@ -136,7 +140,7 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
         &self,
         node: NodeIndex,
         vehicles_used: &HashSet<VesselIndex>,
-        time_period: RangeInclusive<TimeIndex>,
+        time_period: &RangeInclusive<TimeIndex>,
     ) -> Vec<(VesselIndex, usize)> {
         Vec::new()
     }
@@ -150,24 +154,73 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
             Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rand::thread_rng()) as usize;
 
         let (seed_vehicle, seed_index) = self.select_random_visit();
-        let (seed_time, seed_node, seed_product, seed_quantity) =
-            self.solution[seed_vehicle][seed_index];
+        let seed = self.solution[seed_vehicle][seed_index];
 
         // The strings we will remove, indexed as (vehicle, index range)
         let mut strings = Vec::with_capacity(k_s);
         // A list of the vehicle's who's tour we have removed.
-        let mut vehicles_covered = HashSet::with_capacity(k_s);
+        let mut vehicles_used = HashSet::with_capacity(k_s);
         // A list of the time periods covered by the strings that will be removed.
         let mut time_periods = {
             let mut v = Vec::with_capacity(k_s);
-            v.push(seed_time..=seed_time);
+            v.push(seed.time..=seed.time);
             v
         };
 
         // The SISRs paper by Christiaens et al. only considers adjacency based on distance, which makes sense when there is no time aspect.
         // However, we need to considers adjacency in both space and time. It makes sense to find a nearby node that is visited in the same
         // time period as the time period of the strings that have been selected for removal so far.
-        while strings.len() < k_s {}
+        while strings.len() < k_s {
+            let adjacents = self.adjacent(
+                seed.node,
+                &vehicles_used,
+                &time_periods[time_periods.len() - 1],
+            );
+
+            if adjacents.is_empty() {
+                break;
+            }
+
+            for (v, idx) in adjacents {
+                // The maximum cardinality we allow for this string.
+                let t = self.solution[v].len();
+                let l_max = t.min(ls_max as usize);
+                // Draw a random cardinality uniformly form [1, max]
+                let l = Uniform::new(1, l_max + 1).sample(&mut rand::thread_rng());
+                // We will now select a continuous string containing `idx`
+                // Base case: draw the continuous range [idx..idx + l].
+                // Using an offset: draw from the continuous range [idx - offset..idx + l - offset].
+                // For an offset to be valid, we want it to have the correct length.
+                // Let max_offset be the largest offset < l such that idx - offset >= 0,
+                // i.e. offset <= l + 1 && offset <= idx.
+                // and let min_offset be the smallest offset such that idx + l - offset <= t
+                // i.e. offset >= idx + l - t and offset >= 0
+                let ub = (l + 1).min(idx);
+                let lb = (idx + l - t).max(0);
+                // The range of allowed offsets that also gives a slice of size `l`
+                let range = lb..ub;
+
+                let chosen = match range.is_empty() {
+                    true => 0..t,
+                    false => {
+                        let offset = rand::thread_rng().gen_range(range);
+                        idx - offset..idx + l - offset
+                    }
+                };
+
+                // This should hold, unless there's a bug in the above calculations.
+                assert!(
+                    ((lb..ub).is_empty() && chosen.len() == t)
+                        | (!(lb..ub).is_empty() && chosen.len() == l)
+                );
+
+                vehicles_used.insert(v);
+                time_periods.push(
+                    self.solution[v][chosen.start].time..=self.solution[v][chosen.end - 1].time,
+                );
+                strings.push((v, chosen));
+            }
+        }
 
         strings
     }
