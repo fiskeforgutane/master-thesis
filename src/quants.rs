@@ -7,6 +7,10 @@ pub struct Quantities {
 }
 
 impl Quantities {
+    pub fn new(problem: Problem) -> Quantities {
+        Quantities { problem }
+    }
+
     /// Returns the initial orders only considering the problem
     pub fn initial_orders(&self) -> Vec<Order> {
         return (0..self.problem.products())
@@ -160,7 +164,10 @@ impl Quantities {
             let open = if accumulated_pickups <= node.initial_inventory()[product] {
                 0
             } else {
-                node.inventory_change_at_least(product, accumulated_pickups)
+                node.inventory_change_at_least(
+                    product,
+                    accumulated_pickups - node.initial_inventory()[product],
+                )
             };
 
             // the window must close when production cause a capacity breach.
@@ -181,6 +188,7 @@ impl Quantities {
     }
 }
 
+#[derive(Debug)]
 pub struct Order {
     node: NodeIndex,
     open: TimeIndex,
