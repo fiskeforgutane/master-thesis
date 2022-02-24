@@ -1,4 +1,5 @@
 pub mod problem;
+pub mod sisrs;
 
 #[cfg(test)]
 mod tests {
