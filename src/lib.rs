@@ -1,4 +1,5 @@
 pub mod problem;
+pub mod quants;
 
 #[cfg(test)]
 mod tests {
@@ -8,5 +9,3 @@ mod tests {
         assert_eq!(result, 4);
     }
 }
-
-pub mod quants;
