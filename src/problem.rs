@@ -48,6 +48,11 @@ impl Problem {
         self.timesteps
     }
 
+    /// The products in the problem
+    pub fn products(&self) -> usize {
+        self.products
+    }
+
     /// The distance between two nodes
     pub fn distance(&self, from: NodeIndex, to: NodeIndex) -> Distance {
         self.distances[from][to]
@@ -269,6 +274,19 @@ impl Node {
     pub fn initial_inventory(&self) -> &FixedInventory {
         &self.initial_inventory
     }
+
+    /// The timestep before the node has consumed/produced at least the given amount of the given product
+    pub fn inventory_change_at_least(&self, product: ProductIndex, amount: Quantity) -> TimeIndex {
+        let initial_inv = self.initial_inventory()[product];
+
+        match self
+            .inventory_without_deliveries(product)
+            .binary_search_by(|k| k.partial_cmp(&(initial_inv + amount)).unwrap())
+        {
+            Ok(x) => x,
+            Err(x) => x - 1,
+        }
+    }
 }
 
 /// Inventory at either a node or a vessel.
@@ -321,6 +339,12 @@ impl IndexMut<usize> for Inventory {
 /// An inventory that can not be changed.
 #[derive(Debug, Clone)]
 pub struct FixedInventory(Inventory);
+
+impl FixedInventory {
+    pub fn as_inv(&self) -> &Inventory {
+        &self.0
+    }
+}
 
 impl From<Inventory> for FixedInventory {
     fn from(inventory: Inventory) -> Self {
@@ -409,6 +433,18 @@ impl<'a> Sum<&'a Inventory> for Inventory {
 
         for i in iter {
             sum += i;
+        }
+
+        sum
+    }
+}
+
+impl<'a> Sum<&'a FixedInventory> for Inventory {
+    fn sum<I: Iterator<Item = &'a FixedInventory>>(iter: I) -> Self {
+        let mut sum = Inventory(RawInventory::Single(0.0));
+
+        for i in iter {
+            sum += i.as_inv();
         }
 
         sum
