@@ -275,7 +275,7 @@ impl Node {
         &self.initial_inventory
     }
 
-    /// The timestep in which the node has consumed/produced at least the given amount of the given product
+    /// The timestep before the node has consumed/produced at least the given amount of the given product
     pub fn inventory_change_at_least(&self, product: ProductIndex, amount: Quantity) -> TimeIndex {
         let initial_inv = self.initial_inventory()[product];
 
@@ -284,7 +284,7 @@ impl Node {
             .binary_search_by(|k| k.partial_cmp(&(initial_inv + amount)).unwrap())
         {
             Ok(x) => x,
-            Err(x) => x + 1,
+            Err(x) => x - 1,
         }
     }
 }

@@ -9,5 +9,4 @@ mod tests {
     }
 }
 
-mod problem;
-mod quants;
+pub mod quants;
