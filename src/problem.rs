@@ -209,6 +209,9 @@ pub struct Node {
     /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
     /// all instances uses a constant value across the entire planning period.
     revenue: Cost,
+    /// The cumulative inventory at the node if no loading/unloading is done. Used to allow efficient lookup
+    /// of cumulative consumption between two time periods etc.
+    cumulative_inventory: Vec<Vec<InventoryType>>,
 }
 
 impl Node {
@@ -248,6 +251,12 @@ impl Node {
     pub fn inventory_changes(&self) -> &[InventoryChange] {
         &self.inventory_changes
     }
+
+    /// The inventory at a given time step for a given product, assuming no deliveries.
+    pub fn inventory_without_deliveries(&self, product: ProductIndex) -> &[InventoryType] {
+        self.cumulative_inventory[product].as_slice()
+    }
+
     /// The revenue associated with a unit sale at a farm
     /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
     /// all instances uses a constant value across the entire planning period.
