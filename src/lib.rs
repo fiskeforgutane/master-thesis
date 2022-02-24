@@ -8,3 +8,6 @@ mod tests {
         assert_eq!(result, 4);
     }
 }
+
+mod problem;
+mod quants;

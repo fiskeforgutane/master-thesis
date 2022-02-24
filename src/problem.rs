@@ -48,6 +48,11 @@ impl Problem {
         self.timesteps
     }
 
+    /// The products in the problem
+    pub fn products(&self) -> usize {
+        self.products
+    }
+
     /// The distance between two nodes
     pub fn distance(&self, from: NodeIndex, to: NodeIndex) -> Distance {
         self.distances[from][to]
@@ -313,6 +318,12 @@ impl IndexMut<usize> for Inventory {
 #[derive(Debug, Clone)]
 pub struct FixedInventory(Inventory);
 
+impl FixedInventory {
+    pub fn as_inv(&self) -> &Inventory {
+        &self.0
+    }
+}
+
 impl From<Inventory> for FixedInventory {
     fn from(inventory: Inventory) -> Self {
         Self(inventory)
@@ -400,6 +411,18 @@ impl<'a> Sum<&'a Inventory> for Inventory {
 
         for i in iter {
             sum += i;
+        }
+
+        sum
+    }
+}
+
+impl<'a> Sum<&'a FixedInventory> for Inventory {
+    fn sum<I: Iterator<Item = &'a FixedInventory>>(iter: I) -> Self {
+        let mut sum = Inventory(RawInventory::Single(0.0));
+
+        for i in iter {
+            sum += i.as_inv();
         }
 
         sum
