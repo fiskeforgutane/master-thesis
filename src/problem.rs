@@ -7,7 +7,7 @@ use std::{
 pub struct Point(f64, f64);
 
 /// The type used for inventory quantity
-pub type InventoryType = f64;
+pub type Quantity = f64;
 /// The type used for distance
 pub type Distance = f64;
 /// The typs used for cost.
@@ -111,7 +111,7 @@ impl Problem {
 
 // A compartment is used to hold fed during transport
 #[derive(Debug, Clone, Copy)]
-pub struct Compartment(pub InventoryType);
+pub struct Compartment(pub Quantity);
 
 #[derive(Debug, Clone)]
 pub struct Vessel {
@@ -195,15 +195,15 @@ pub struct Node {
     /// The name of the node
     name: String,
     /// The type of node
-    r#type: NodeType,
+    kind: NodeType,
     /// The index of the node
     index: usize,
     /// The maximum number of vehicles that can be present at the node at any time step
     port_capacity: Vec<usize>,
     /// The minimum amount that can be unloaded in a single time step
-    min_unloading_amount: InventoryType,
+    min_unloading_amount: Quantity,
     /// The maximum amount that can be loaded in a single time step
-    max_loading_amount: InventoryType,
+    max_loading_amount: Quantity,
     /// The fixed fee associated with visiting the port
     port_fee: Cost,
     /// The maximum inventory capacity of the farm
@@ -214,6 +214,9 @@ pub struct Node {
     /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
     /// all instances uses a constant value across the entire planning period.
     revenue: Cost,
+    /// The cumulative inventory at the node if no loading/unloading is done. Used to allow efficient lookup
+    /// of cumulative consumption between two time periods etc.
+    cumulative_inventory: Vec<Vec<Quantity>>,
     /// The initial inventory of the node
     initial_inventory: FixedInventory,
 }
@@ -225,7 +228,7 @@ impl Node {
     }
     /// The type of node
     pub fn r#type(&self) -> NodeType {
-        self.r#type
+        self.kind
     }
     /// The index of the node
     pub fn index(&self) -> NodeIndex {
@@ -236,11 +239,11 @@ impl Node {
         &self.port_capacity
     }
     /// The minimum amount that can be unloaded in a single time step
-    pub fn min_unloading_amount(&self) -> InventoryType {
+    pub fn min_unloading_amount(&self) -> Quantity {
         self.min_unloading_amount
     }
     /// The maximum amount that can be loaded in a single time step
-    pub fn max_loading_amount(&self) -> InventoryType {
+    pub fn max_loading_amount(&self) -> Quantity {
         self.max_loading_amount
     }
     /// The fixed fee associated with visiting the port
@@ -255,6 +258,12 @@ impl Node {
     pub fn inventory_changes(&self) -> &[InventoryChange] {
         &self.inventory_changes
     }
+
+    /// The inventory at a given time step for a given product, assuming no deliveries.
+    pub fn inventory_without_deliveries(&self, product: ProductIndex) -> &[Quantity] {
+        self.cumulative_inventory[product].as_slice()
+    }
+
     /// The revenue associated with a unit sale at a farm
     /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
     /// all instances uses a constant value across the entire planning period.
@@ -271,16 +280,16 @@ impl Node {
 #[derive(Debug, Clone)]
 enum RawInventory {
     /// Inventory when we only have a single product type.
-    Single(InventoryType),
+    Single(Quantity),
     /// Inventory for the case of multiple products.
-    Multiple(Vec<InventoryType>),
+    Multiple(Vec<Quantity>),
 }
 
 #[derive(Debug, Clone)]
 pub struct Inventory(RawInventory);
 
 impl Inventory {
-    pub fn new(value: &[InventoryType]) -> Option<Self> {
+    pub fn new(value: &[Quantity]) -> Option<Self> {
         match value.len() {
             0 => None,
             1 => Some(Inventory(RawInventory::Single(value[0]))),
@@ -295,7 +304,7 @@ impl From<FixedInventory> for Inventory {
 }
 
 impl Index<usize> for Inventory {
-    type Output = InventoryType;
+    type Output = Quantity;
 
     fn index(&self, index: usize) -> &Self::Output {
         match self {
