@@ -1,4 +1,5 @@
 pub mod problem;
+pub mod quants;
 pub mod sisrs;
 
 #[cfg(test)]
@@ -9,5 +10,3 @@ mod tests {
         assert_eq!(result, 4);
     }
 }
-
-pub mod quants;

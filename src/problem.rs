@@ -3,6 +3,8 @@ use std::{
     ops::{AddAssign, Index, IndexMut},
 };
 
+use derive_more::Constructor;
+
 /// A point in Euclidean 2d-space.
 pub struct Point(f64, f64);
 
@@ -18,7 +20,7 @@ pub type VesselIndex = usize;
 pub type TimeIndex = usize;
 pub type ProductIndex = usize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Constructor)]
 pub struct Problem {
     /// The vessels available for use in the problem. Assumed to be ordered by index
     vessels: Vec<Vessel>,
@@ -59,6 +61,7 @@ impl Problem {
     }
 }
 
+#[derive(Debug)]
 pub enum ProblemConstructionError {
     /// The size of the distance matrix is not as expected,
     DistanceSizeMismatch {
@@ -98,7 +101,7 @@ pub enum ProblemConstructionError {
 }
 
 impl Problem {
-    pub fn new(
+    /* pub fn new(
         _vessels: Vec<Vessel>,
         _nodes: Vec<Node>,
         _timesteps: usize,
@@ -106,14 +109,14 @@ impl Problem {
         _distances: Vec<Vec<Distance>>,
     ) -> Result<Problem, ProblemConstructionError> {
         todo!()
-    }
+    } */
 }
 
 // A compartment is used to hold fed during transport
 #[derive(Debug, Clone, Copy)]
 pub struct Compartment(pub Quantity);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Constructor)]
 pub struct Vessel {
     /// The compartments available on the vessel.
     compartments: Vec<Compartment>,
@@ -190,7 +193,7 @@ pub enum NodeType {
     Production,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Constructor)]
 pub struct Node {
     /// The name of the node
     name: String,
@@ -278,13 +281,12 @@ impl Node {
     /// The timestep before the node has consumed/produced at least the given amount of the given product
     pub fn inventory_change_at_least(&self, product: ProductIndex, amount: Quantity) -> TimeIndex {
         let initial_inv = self.initial_inventory()[product];
-
         match self
             .inventory_without_deliveries(product)
-            .binary_search_by(|k| k.partial_cmp(&(initial_inv + amount)).unwrap())
+            .binary_search_by(|k| k.partial_cmp(&(amount + initial_inv)).unwrap())
         {
             Ok(x) => x,
-            Err(x) => x - 1,
+            Err(x) => x,
         }
     }
 }
