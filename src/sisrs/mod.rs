@@ -73,9 +73,13 @@ pub struct Config {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Visit {
-    time: TimeIndex,
+    /// The node we're visiting.
     node: NodeIndex,
+    /// The product being delivered.
     product: ProductIndex,
+    /// The time at which delivery starts.
+    time: TimeIndex,
+    /// The quantity delivered.
     quantity: Quantity,
 }
 
@@ -117,8 +121,55 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
         }
     }
 
-    /// Determine which of the orders that are *not* fulfilled
-    pub fn unfulfilled(orders: &[Order], solution: &Vec<Vec<Visit>>) {}
+    /// Determine the set of orders that are not covered by visits.
+    /// Returns the indices of the orders that are not covered by the solution.
+    pub fn uncovered(config: &Config, solution: &[Vec<Visit>], orders: &[Order]) -> Vec<usize> {
+        // Order = { node, product, quantity, time window }
+        // Visit = { node, product, quantity, time }
+        // Assumptions:
+        //   - Each (node, product)-pair of has a disjoint set of time windows in the set of orders.
+        //     In other words: we do not have multiple orders with overlapping time windows that relate
+        //     to the same (node, product)-pair
+        //   - Each vessel solution is sorted in ascending order by (node, product, time, quantity).
+        //     This allows us to find all deliveries to each order by a binary search on (node, product, time window low, MAX_NEG), (node, product, time window high, MAX_POS)
+        //
+        // The above assumption(s) significantly reduce the complexity of assigning visits to orders.
+        // Each visit at a (node, product)-pair can only be assigned to the unique order with (node, product) that
+        // has a time-window containint visit.time (if one such order exists).
+
+        // We will flatten and sort the set of visits
+        let mut sorted = solution
+            .iter()
+            .flat_map(|xs| xs)
+            .cloned()
+            .collect::<Vec<_>>();
+        sorted.sort_by_key(|v| (v.node, v.product, v.time));
+
+        // The amount delivered for each order. (Same order)
+        let mut delivered = vec![0.0; orders.len()];
+
+        for (order, d) in orders.iter().zip(&mut delivered) {
+            let open = (order.node(), order.product(), order.open());
+            let close = (order.node(), order.product(), order.close());
+            // `start` is the first element containing relevant deliveries, while `end` is the (exclusive) end.
+            // Note that `start` == `end` iff there are not deliveries that are relevant for the order.
+            let start = sorted.partition_point(|v| (v.node, v.product, v.time) < open);
+            let end = sorted.partition_point(|v| (v.node, v.product, v.time) <= close);
+            // The total amount delivered is simply the sum of deliveries to the relevant (node, product)-pair over the
+            // course of the time window specified by the order.
+            *d = sorted[start..end].iter().map(|v| v.quantity).sum();
+        }
+
+        delivered
+            .iter()
+            .zip(orders)
+            .enumerate()
+            .filter_map(|(i, (&x, order))| match x >= order.quantity() {
+                true => Some(i),
+                false => None,
+            })
+            .collect()
+    }
 
     pub fn average_tour_cardinality(solution: &[Vec<Visit>]) -> f64 {
         let total_length = solution.iter().map(|xs| xs.len()).sum::<usize>();
@@ -240,12 +291,30 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
             // Select strings for removal, and create a new solution without them
             let strings = SlackInductionByStringRemoval::select_strings(config, &self.solution);
             let mut solution = self.solution.clone();
+            // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
+            // There can not occur any case where one range is "displaced" due to another range being removed from the same Vec.
             for (vessel, range) in strings {
                 drop(solution[vessel].drain(range));
             }
 
-            // Then attempt to repair the solution
-            let uncovered = SlackInductionByStringRemoval::repair(config, &solution, self.orders);
+            // Determine the orders that are uncovered
+            let uncovered =
+                SlackInductionByStringRemoval::uncovered(config, &solution, self.orders);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::problem::{Problem, Vessel};
+
+    use super::Config;
+
+    pub fn test_instance() {}
+
+    #[test]
+    fn it_works() {
+        let result = 2 + 2;
+        assert_eq!(result, 4);
     }
 }
