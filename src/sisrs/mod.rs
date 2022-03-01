@@ -120,41 +120,47 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
     /// Determine which of the orders that are *not* fulfilled
     pub fn unfulfilled(orders: &[Order], solution: &Vec<Vec<Visit>>) {}
 
-    pub fn average_tour_cardinality(&self) -> f64 {
-        let total_length = self.solution.iter().map(|xs| xs.len()).sum::<usize>();
-        let tour_count = self.solution.len();
+    pub fn average_tour_cardinality(solution: &[Vec<Visit>]) -> f64 {
+        let total_length = solution.iter().map(|xs| xs.len()).sum::<usize>();
+        let tour_count = solution.len();
 
         (total_length as f64) / (tour_count as f64)
     }
 
-    pub fn select_random_visit(&self) -> (VesselIndex, usize) {
+    pub fn select_random_visit(solution: &[Vec<Visit>]) -> (VesselIndex, usize) {
         // Choose a vessel whose solution we will draw from, and then an index from that vessel's solution
-        let v = Uniform::new(0, self.solution.len()).sample(&mut rand::thread_rng());
-        let i = Uniform::new(0, self.solution[v].len()).sample(&mut rand::thread_rng());
+        let v = Uniform::new(0, solution.len()).sample(&mut rand::thread_rng());
+        let i = Uniform::new(0, solution[v].len()).sample(&mut rand::thread_rng());
 
         (v, i)
     }
 
     /// Returns the node that is closest to `node` that is visited by an uncovered vehicle during `time_period`
     pub fn adjacent(
-        &self,
         node: NodeIndex,
         vehicles_used: &HashSet<VesselIndex>,
         time_period: &RangeInclusive<TimeIndex>,
+        solution: &[Vec<Visit>],
     ) -> Vec<(VesselIndex, usize)> {
         Vec::new()
     }
 
     /// The method used to select strings for removal
-    fn select_strings(&self, config: &Config) -> Vec<(VesselIndex, Range<usize>)> {
-        let ls_max = (config.max_cardinality as f64).min(self.average_tour_cardinality());
+    pub fn select_strings(
+        config: &Config,
+        solution: &[Vec<Visit>],
+    ) -> Vec<(VesselIndex, Range<usize>)> {
+        let ls_max = (config.max_cardinality as f64).min(
+            SlackInductionByStringRemoval::average_tour_cardinality(solution),
+        );
         let ks_max = (4.0 * config.average_removal as f64) / (1.0 + ls_max) - 1.0;
         // The number of strings that will be removed.
         let k_s =
             Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rand::thread_rng()) as usize;
 
-        let (seed_vehicle, seed_index) = self.select_random_visit();
-        let seed = self.solution[seed_vehicle][seed_index];
+        let (seed_vehicle, seed_index) =
+            SlackInductionByStringRemoval::select_random_visit(solution);
+        let seed = solution[seed_vehicle][seed_index];
 
         // The strings we will remove, indexed as (vehicle, index range)
         let mut strings = Vec::with_capacity(k_s);
@@ -171,10 +177,11 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
         // However, we need to considers adjacency in both space and time. It makes sense to find a nearby node that is visited in the same
         // time period as the time period of the strings that have been selected for removal so far.
         while strings.len() < k_s {
-            let adjacents = self.adjacent(
+            let adjacents = SlackInductionByStringRemoval::adjacent(
                 seed.node,
                 &vehicles_used,
                 &time_periods[time_periods.len() - 1],
+                solution,
             );
 
             if adjacents.is_empty() {
@@ -183,7 +190,7 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
 
             for (v, idx) in adjacents {
                 // The maximum cardinality we allow for this string.
-                let t = self.solution[v].len();
+                let t = solution[v].len();
                 let l_max = t.min(ls_max as usize);
                 // Draw a random cardinality uniformly form [1, max]
                 let l = Uniform::new(1, l_max + 1).sample(&mut rand::thread_rng());
@@ -215,9 +222,8 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
                 );
 
                 vehicles_used.insert(v);
-                time_periods.push(
-                    self.solution[v][chosen.start].time..=self.solution[v][chosen.end - 1].time,
-                );
+                time_periods
+                    .push(solution[v][chosen.start].time..=solution[v][chosen.end - 1].time);
                 strings.push((v, chosen));
             }
         }
@@ -225,6 +231,21 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
         strings
     }
 
+    /// Attempt to repair a solution
+    pub fn repair(config: &Config, solution: &[Vec<Visit>], orders: &[Order]) {}
+
     /// Run SISRs with the given configuration
-    pub fn run(&mut self, config: &Config) {}
+    pub fn run(&mut self, config: &Config) {
+        for _ in 0..config.iterations {
+            // Select strings for removal, and create a new solution without them
+            let strings = SlackInductionByStringRemoval::select_strings(config, &self.solution);
+            let mut solution = self.solution.clone();
+            for (vessel, range) in strings {
+                drop(solution[vessel].drain(range));
+            }
+
+            // Then attempt to repair the solution
+            let uncovered = SlackInductionByStringRemoval::repair(config, &solution, self.orders);
+        }
+    }
 }
