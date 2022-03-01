@@ -59,6 +59,30 @@ impl Problem {
     pub fn distance(&self, from: NodeIndex, to: NodeIndex) -> Distance {
         self.distances[from][to]
     }
+
+    /// Returns the consumption nodes of the problem
+    /// **VERY BAD** should be done once in the constructor
+    pub fn consumption_nodes(&self) -> Vec<&Node> {
+        self.nodes()
+            .iter()
+            .filter_map(|n: &Node| match n.r#type() {
+                NodeType::Consumption => Some(n),
+                NodeType::Production => None,
+            })
+            .collect()
+    }
+
+    /// Returns the production nodes of the problem
+    /// **VERY BAD** should be done once in the constructor
+    pub fn production_nodes(&self) -> Vec<&Node> {
+        self.nodes()
+            .iter()
+            .filter_map(|n: &Node| match n.r#type() {
+                NodeType::Consumption => None,
+                NodeType::Production => Some(n),
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug)]
@@ -217,7 +241,7 @@ pub struct Node {
     /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
     /// all instances uses a constant value across the entire planning period.
     revenue: Cost,
-    /// The cumulative inventory at the node if no loading/unloading is done. Used to allow efficient lookup
+    /// The cumulative inventory at the node at the **END** of all timesteps if no loading/unloading is done. Used to allow efficient lookup
     /// of cumulative consumption between two time periods etc.
     cumulative_inventory: Vec<Vec<Quantity>>,
     /// The initial inventory of the node
@@ -265,6 +289,18 @@ impl Node {
     /// The inventory at a given time step for a given product, assuming no deliveries.
     pub fn inventory_without_deliveries(&self, product: ProductIndex) -> &[Quantity] {
         self.cumulative_inventory[product].as_slice()
+    }
+
+    /// Returns the change in inventory in the **inclusive range** [from - to] for the given product.
+    /// I.e. it will return the quantity produced or consumed of the given product from the beginning of the from-period to the end of the to-period
+    /// ## Note
+    /// It is assumed that there are no deliveries/pickups at the node
+    ///
+    /// If the node is a conumption node, the result will be a negative number, and positive in the case of production ondes
+    pub fn inventory_change(&self, from: TimeIndex, to: TimeIndex, product: ProductIndex) -> f64 {
+        self.inventory_without_deliveries(product)[to]
+            - (self.inventory_without_deliveries(product)[from]
+                - self.inventory_changes()[from][product]) // subtract the inventory produced or consumed in the from-period
     }
 
     /// The revenue associated with a unit sale at a farm
