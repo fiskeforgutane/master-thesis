@@ -28,27 +28,7 @@ impl Quantities {
         */
         // {k.key(): sum(k.consumption) for k in problem.nodes()}
 
-        // calculate how much of the given product type that must be (un)loaded at each node
-        let t = self.problem.timesteps();
-        let consumption = |node: &Node| {
-            (0..t)
-                .map(|time| node.inventory_changes()[time][product])
-                .sum::<f64>()
-        };
-
-        let quantities: HashMap<NodeIndex, Quantity> = self
-            .problem
-            .nodes()
-            .iter()
-            .map(|node| {
-                (
-                    node.index(),
-                    consumption(node) - node.initial_inventory()[product],
-                )
-            })
-            .collect();
-
-        let deliveries = self.find_deliveries(quantities);
+        let deliveries = self.find_deliveries(self.quantities(product));
 
         let mut orders = Vec::new();
         for node in self.problem.nodes() {
@@ -59,6 +39,108 @@ impl Quantities {
             }
         }
         orders
+    }
+
+    /// Calculates the quantities that are to be either delivered or picked up at the nodes
+    fn quantities(&self, product: ProductIndex) -> HashMap<NodeIndex, Quantity> {
+        /*
+        1. Assign quantites to production nodes such that all owerflow is handled and to consumption nodes such that all shortage is covered
+        2. If the total demanded quanitity is larger than the quanitity pickup up at production nodes, increase the amount picked up at the production nodes
+            by the quantity they have available but that is not already picked up.
+        */
+
+        // calculate how much of the given product type that must be (un)loaded at each node
+        let consumption = |node: &Node| {
+            node.inventory_change(0, self.problem.timesteps() - 1, product)
+                .abs()
+        };
+
+        let total_consumption_demand: Quantity = self
+            .problem
+            .nodes()
+            .iter()
+            .map(|n| match n.r#type() {
+                NodeType::Consumption => consumption(n),
+                NodeType::Production => 0.0,
+            })
+            .sum();
+
+        let mut quantities: HashMap<NodeIndex, Quantity> = self
+            .problem
+            .nodes()
+            .iter()
+            .map(|node| {
+                (
+                    node.index(),
+                    match node.r#type() {
+                        // consumption not covered by initial inventory
+                        NodeType::Consumption => {
+                            f64::max(consumption(node) - node.initial_inventory()[product], 0.0)
+                        }
+                        // production that there isn't room for
+                        NodeType::Production => {
+                            let production = consumption(node);
+                            f64::max(
+                                production
+                                    - (node.capacity()[product]
+                                        - node.initial_inventory()[product]),
+                                0.0,
+                            )
+                        }
+                    },
+                )
+            })
+            .collect();
+
+        let picked_up: Quantity = self
+            .problem
+            .nodes()
+            .iter()
+            .map(|n| match n.r#type() {
+                NodeType::Consumption => 0.0,
+                NodeType::Production => quantities[&n.index()],
+            })
+            .sum();
+
+        if picked_up < total_consumption_demand {
+            let mut not_covered = total_consumption_demand - picked_up;
+            let num_prod_nodes = self.problem.production_nodes().len();
+
+            // production nodes sorted on the capacity for the given product
+            let mut prod_nodes = self.problem.production_nodes().clone();
+
+            prod_nodes.sort_by(|a, b| {
+                a.capacity()[product]
+                    .partial_cmp(&b.capacity()[product])
+                    .unwrap()
+            });
+            let mut count = 0;
+            for prod_node in prod_nodes {
+                // the remaining demand not covered equally distributed over the remaining production nodes
+                let eq_share = not_covered / ((num_prod_nodes - count) as f64);
+                count += 1;
+
+                // current quantity being picked up at the production node
+                let curr = quantities[&prod_node.index()];
+
+                // excess product that hasn't been picked up
+                let excess = if curr > 0.0 {
+                    prod_node.capacity()[product]
+                } else {
+                    prod_node.initial_inventory()[product] + consumption(prod_node)
+                };
+
+                // extra product to be picked up at the production node to help satisfy the total consumption demand
+                let added_pickup = f64::min(excess, eq_share);
+
+                // update the demand not covered
+                not_covered -= added_pickup;
+
+                // update the demand picked up at the production node
+                *quantities.get_mut(&prod_node.index()).unwrap() += added_pickup;
+            }
+        }
+        quantities
     }
 
     /// Calculate the number of deliveries per node and the quantities
@@ -183,7 +265,7 @@ impl Quantities {
         windows
     }
 
-    pub fn orders(&self, sisrs_out: SisrsOutput) {
+    pub fn orders_pool(&self, out: SisrsOutput) {
         todo!()
     }
 }
@@ -232,5 +314,16 @@ impl Order {
 }
 
 pub struct SisrsOutput {
-    pub routes: Vec<Vec<(Node, TimeIndex)>>,
+    routes: Vec<Vec<(Node, TimeIndex)>>,
+    loads: Vec<Vec<Vec<Quantity>>>,
+}
+
+impl SisrsOutput {
+    pub fn routes(&self) -> &Vec<Vec<(Node, TimeIndex)>> {
+        &self.routes
+    }
+
+    pub fn loads(&self) -> &Vec<Vec<Vec<Quantity>>> {
+        &self.loads
+    }
 }
