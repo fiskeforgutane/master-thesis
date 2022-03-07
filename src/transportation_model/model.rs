@@ -1,4 +1,5 @@
 use crate::problem::ProductIndex;
+use log::info;
 
 use super::sets_and_params::{Parameters, Sets};
 use grb::prelude::*;
@@ -8,11 +9,13 @@ pub struct TransportationSolver {}
 
 impl TransportationSolver {
     /// builds the transportation model
-    fn build(
+    pub fn build(
         sets: &Sets,
         parameters: &Parameters,
         product: usize,
     ) -> grb::Result<(Model, Variables)> {
+        info!("Building transportation model for product {}", product);
+
         let mut model = Model::new(&format!("transport_model_{}", product))?;
 
         //*************CREATE VARIABLES*************//
@@ -60,7 +63,6 @@ impl TransportationSolver {
         model.update().unwrap();
 
         // ******************** ADD CONSTRAINTS ********************
-
         // ensure that enough is picked up at the production nodes
         for i in &sets.N {
             if parameters.J[*i] < 0 {
@@ -69,7 +71,7 @@ impl TransportationSolver {
             let lhs = iproduct!(&sets.N, &sets.H)
                 .map(|(j, h)| &x[*i][*j][*h])
                 .grb_sum();
-            model.add_constr(&format!("1_{i}"), c!(lhs >= parameters.Q[*i][product]))?;
+            model.add_constr(&format!("1_{i}"), c!(lhs >= parameters.Q[product][*i]))?;
         }
 
         // ensure that enough is delivered at the consumption nodes
@@ -80,13 +82,13 @@ impl TransportationSolver {
             let lhs = iproduct!(&sets.N, &sets.H)
                 .map(|(i, h)| &x[*i][*j][*h])
                 .grb_sum();
-            model.add_constr(&format!("2_{j}"), c!(lhs >= parameters.Q[*j][product]))?;
+            model.add_constr(&format!("2_{j}"), c!(lhs >= parameters.Q[product][*j]))?;
         }
 
         // lower limit on transportation amount
         for (i, j, h) in iproduct!(&sets.N, &sets.N, &sets.H) {
             // lower bound on how much can be transported from node i to node j
-            let lhs = parameters.lower_Q[*i][*j][product] * y[*i][*j][*h];
+            let lhs = parameters.lower_Q[product][*i][*j] * y[*i][*j][*h];
             model.add_constr(
                 &format!("lower_transportation_limit_{i}_{j}_{h}"),
                 c!(lhs <= x[*i][*j][*h]),
@@ -96,7 +98,7 @@ impl TransportationSolver {
         // lower limit on transportation amount
         for (i, j, h) in iproduct!(&sets.N, &sets.N, &sets.H) {
             // lower bound on how much can be transported from node i to node j
-            let rhs = parameters.upper_Q[*i][*j][product] * y[*i][*j][*h];
+            let rhs = parameters.upper_Q[product][*i][*j] * y[*i][*j][*h];
             model.add_constr(
                 &format!("upper_transportation_limit_{i}_{j}_{h}"),
                 c!(x[*i][*j][*h] <= rhs),
@@ -111,8 +113,28 @@ impl TransportationSolver {
             )?;
         }
 
+        // set objective which is the cost of transporting the cargoes that exist
+        let transport_costs = iproduct!(&sets.N, &sets.N, &sets.H)
+            .map(|(i, j, h)| parameters.C[*i][*j] * parameters.epsilon[*i][*j] * y[*i][*j][*h])
+            .grb_sum();
+        let variable_port_costs = iproduct!(&sets.N, &sets.N, &sets.H)
+            .map(|(i, j, h)| (parameters.C_port[*i] + parameters.C_port[*j]) * x[*i][*j][*h])
+            .grb_sum();
+        let fixed_port_costs = iproduct!(&sets.N, &sets.N, &sets.H)
+            .map(|(i, j, h)| (parameters.C_fixed[*i] + parameters.C_fixed[*j]) * y[*i][*j][*h])
+            .grb_sum();
+
+        model.set_objective(
+            transport_costs + variable_port_costs + fixed_port_costs,
+            Minimize,
+        )?;
+
         model.update()?;
 
+        info!(
+            "Successfully built transportation model for product {}",
+            product
+        );
         Ok((model, Variables::new(x, y)))
         //Ok(model)
     }
@@ -133,6 +155,7 @@ impl TransportationSolver {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct TransportationResult {
     /// nonzero quantities transported from node i to j with cargo h
     pub x: Vec<Vec<Vec<f64>>>,
