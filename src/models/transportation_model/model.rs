@@ -1,12 +1,13 @@
-use crate::problem::ProductIndex;
-use log::info;
-
 use super::sets_and_params::{Parameters, Sets};
+use crate::models::utils::AddVars;
+use crate::problem::ProductIndex;
 use grb::prelude::*;
 use itertools::iproduct;
+use log::info;
 
 pub struct TransportationSolver {}
 
+#[allow(non_snake_case)]
 impl TransportationSolver {
     /// builds the transportation model
     pub fn build(
@@ -19,48 +20,17 @@ impl TransportationSolver {
         let mut model = Model::new(&format!("transport_model_{}", product))?;
 
         //*************CREATE VARIABLES*************//
+        let N = sets.N.len();
+        let H = sets.H.len();
 
         // quantity transported from node i to node j with cargo h
-        let x: Vec<Vec<Vec<Var>>> = sets
-            .N
-            .iter()
-            .map(|i| {
-                sets.N
-                    .iter()
-                    .map(|j| {
-                        sets.H
-                            .iter()
-                            .map(|h| {
-                                add_ctsvar!(model, name: &format!("x_{}_{}_{}",i,j,h), bounds:0.0..)
-                                    .unwrap()
-                            })
-                            .collect()
-                    })
-                    .collect()
-            })
-            .collect();
+        let x: Vec<Vec<Vec<Var>>> = (N, N, H).cont(&mut model, &"x")?;
 
         // 1 if the h'th cargo from node i to node j exists, 0 otherwise
-        let y: Vec<Vec<Vec<Var>>> = sets
-            .N
-            .iter()
-            .map(|i| {
-                sets.N
-                    .iter()
-                    .map(|j| {
-                        sets.H
-                            .iter()
-                            .map(|h| {
-                                add_binvar!(model, name: &format!("y_{}_{}_{}", i, j, h)).unwrap()
-                            })
-                            .collect()
-                    })
-                    .collect()
-            })
-            .collect();
+        let y: Vec<Vec<Vec<Var>>> = (N, N, H).binary(&mut model, &"y")?;
 
         // itegrate all the variables into the model
-        model.update().unwrap();
+        model.update()?;
 
         // ******************** ADD CONSTRAINTS ********************
         // ensure that enough is picked up at the production nodes
@@ -136,7 +106,6 @@ impl TransportationSolver {
             product
         );
         Ok((model, Variables::new(x, y)))
-        //Ok(model)
     }
 
     pub fn solve(
