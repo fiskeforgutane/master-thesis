@@ -1,4 +1,4 @@
-use crate::models::utils::AddVars;
+use crate::models::utils::{AddVars, NObjectives};
 use grb::prelude::*;
 use itertools::iproduct;
 use log::info;
@@ -50,6 +50,18 @@ impl PathFlowSolver {
                 })
             })
             .collect::<Result<Vec<Vec<Vec<Vec<Vec<Var>>>>>, grb::Error>>()?;
+
+        // ******************** ADD OBJECTIVES ********************
+        let shortage = iproduct!(0..sets.N, 0..sets.T, 0..sets.P)
+            .map(|(n, t, p)| v_plus[n][t][p] + v_minus[n][t][p])
+            .grb_sum();
+
+        let cost = iproduct!(0..sets.R, 0..sets.V, 0..sets.T)
+            .map(|(r, v, t)| parameters.C_r[r][v] * x[r][0][v][t])
+            .grb_sum();
+
+        model.set_objective_N(cost, 0, 0, &"cost")?;
+        model.set_objective_N(shortage, 1, 1, &"shortage")?;
 
         // ******************** ADD CONSTRAINTS ********************
 
