@@ -73,15 +73,15 @@ impl PathFlowSolver {
         // if a route is finished, the vessel can start a new route
         for r in 0..sets.R {
             // routes with the same start as the end of route r
-            let N_R: Vec<usize> = (0..sets.R)
+            let possible_routes: Vec<usize> = (0..sets.R)
                 .filter(|n_r| parameters.N_R[r][sets.I_R[r] - 1] == parameters.N_R[*n_r][0])
                 .collect();
 
             for (v, t) in iproduct!(0..sets.V, 0..sets.T) {
                 let lhs = x[r][sets.I_R[r] - 1][v][t];
-                let rhs = N_R.iter().map(|n_r| x[*n_r][0][v][t]).grb_sum()
+                let rhs = possible_routes.iter().map(|n_r| x[*n_r][0][v][t]).grb_sum()
                     + x[r][sets.I_R[r] - 1][v][t + 1];
-                model.add_constr(&format!("2_{}_{}_{}", r, v, t), c!(lhs == rhs));
+                model.add_constr(&format!("2_{}_{}_{}", r, v, t), c!(lhs == rhs))?;
             }
         }
 
@@ -92,7 +92,7 @@ impl PathFlowSolver {
             let lhs = possible_routes
                 .map(|r| x[r][0][v][parameters.T_0[v]])
                 .grb_sum();
-            model.add_constr(&format!("start_{}", v), c!(lhs <= 1));
+            model.add_constr(&format!("start_{}", v), c!(lhs <= 1))?;
         }
 
         // a vessel must reside in the end of a route at the end of the planning period if a route is initiated
@@ -104,7 +104,7 @@ impl PathFlowSolver {
             let rhs = (0..sets.R)
                 .map(|r| x[r][sets.I_R[r] - 1][v][sets.T - 1])
                 .grb_sum();
-            model.add_constr(&format!("end_criterion_{}", v), c!(lhs == rhs));
+            model.add_constr(&format!("end_criterion_{}", v), c!(lhs == rhs))?;
         }
 
         // ************* NODE INVENTORY ************
@@ -114,7 +114,7 @@ impl PathFlowSolver {
             model.add_constr(
                 &format!("initial_inv_{}_{}", n, p),
                 c!(s[n][0][p] == parameters.S_0[n][p]),
-            );
+            )?;
         }
 
         // logging of inventory at node n
@@ -130,21 +130,21 @@ impl PathFlowSolver {
             let lhs = s[n][t][p];
             let rhs =
                 s[n][t - 1][p] + parameters.kind(n) * (parameters.D[n][t][p] as isize) - delivered;
-            model.add_constr(&format!("node_inv_{}_{}_{}", n, p, t), c!(lhs == rhs));
+            model.add_constr(&format!("node_inv_{}_{}_{}", n, p, t), c!(lhs == rhs))?;
         }
 
         // shortage logging
         for (n, t, p) in iproduct!(sets.N_C, 0..sets.T, 0..sets.P) {
             let lhs = parameters.S_min[n][p][t];
             let rhs = s[n][p][t] + v_minus[n][t][p];
-            model.add_constr(&format!("overflow_{}_{}_{}", n, t, p), c!(lhs <= rhs));
+            model.add_constr(&format!("overflow_{}_{}_{}", n, t, p), c!(lhs <= rhs))?;
         }
 
         // shortage logging
         for (n, t, p) in iproduct!(sets.N_P, 0..sets.T, 0..sets.P) {
             let lhs = parameters.S_max[n][p][t];
             let rhs = s[n][p][t] - v_plus[n][t][p];
-            model.add_constr(&format!("shortage_{}_{}_{}", n, t, p), c!(lhs <= rhs));
+            model.add_constr(&format!("shortage_{}_{}_{}", n, t, p), c!(lhs <= rhs))?;
         }
 
         // ************* VESSEL LOAD ************
@@ -153,7 +153,7 @@ impl PathFlowSolver {
         for (v, p) in iproduct!(0..sets.V, 0..sets.P) {
             let lhs = l[v][parameters.T_0[v]][p];
             let rhs = parameters.L_0[v][p];
-            model.add_constr(&format!("initial_load_{}_{}", v, p), c!(lhs == rhs));
+            model.add_constr(&format!("initial_load_{}_{}", v, p), c!(lhs == rhs))?;
         }
 
         // load logging
@@ -168,7 +168,7 @@ impl PathFlowSolver {
                 .grb_sum();
             let lhs = l[v][t][p];
             let rhs = l[v][t - 1][p] + change;
-            model.add_constr(&format!("load_{}_{}_{}", v, t, p), c!(lhs == rhs));
+            model.add_constr(&format!("load_{}_{}_{}", v, t, p), c!(lhs == rhs))?;
         }
 
         todo!()
