@@ -1,6 +1,5 @@
+use grb::{Expr, Model, Result, Var, VarType};
 use std::ops::Range;
-
-use grb::{Model, Result, Var, VarType};
 
 pub trait AddVars {
     type Out;
@@ -220,5 +219,64 @@ impl AddVars for (usize, usize, usize, usize, usize) {
         }
 
         Ok(out)
+    }
+}
+
+use grb::prelude::*;
+#[allow(non_snake_case)]
+pub trait NObjectives {
+    /// Adds a new objective to the model
+    ///
+    /// # Arugments
+    ///
+    /// *`expr` - An expression of type `Expr`, must be linear
+    ///
+    /// *`priority` - The priority of the objective. Lowest priority is assigned the value 0.
+    ///
+    /// *`index` - The index of the objective, i.e. objective numer *i* in the model. **Starts at 0.**
+    ///
+    /// *`name` - A string slice that holds the name of the constraint.
+    fn set_objective_N(
+        &mut self,
+        expr: impl Into<Expr>,
+        priority: i32,
+        index: i32,
+        name: &str,
+    ) -> grb::Result<()>;
+}
+
+impl NObjectives for Model {
+    fn set_objective_N(
+        &mut self,
+        expr: impl Into<Expr>,
+        priority: i32,
+        index: i32,
+        name: &str,
+    ) -> grb::Result<()> {
+        self.update()?;
+        let expr: Expr = expr.into();
+        let expr = if expr.is_linear() {
+            expr.into_linexpr()
+        } else {
+            let error = grb::Error::AlgebraicError(
+                format!("Tried to add multiple objectives where at least one is non linear\nNon linear objective:{:?}",expr),
+            );
+            Err(error)
+        }?;
+
+        let (coeff_map, obj_cons) = expr.into_parts();
+
+        // number of objective is set to the max of the current number and the index+1
+        let num_objectives = i32::max(self.get_attr(attr::NumObj)?, index + 1);
+        self.set_attr(attr::NumObj, num_objectives)?;
+
+        // set the objNumber which is the number of the object that is currently worked with
+        self.set_param(param::ObjNumber, index)?;
+        self.set_obj_attr_batch(attr::ObjN, coeff_map)?;
+        self.set_attr(attr::ObjNCon, obj_cons)?;
+        self.set_attr(attr::ObjNPriority, priority)?;
+        self.set_attr(attr::ObjNName, name)?;
+
+        Ok(())
     }
 }
