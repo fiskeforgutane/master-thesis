@@ -2,6 +2,8 @@ use crate::problem::NodeIndex;
 
 type RouteIndex = usize;
 type VisitIndex = usize;
+
+#[allow(non_snake_case)]
 pub struct Sets {
     /// Set of routes
     pub R: usize,
@@ -23,6 +25,7 @@ pub struct Sets {
     pub N_C: Vec<usize>,
 }
 
+#[allow(non_snake_case)]
 pub struct Parameters {
     /// Cost of route r for vessel v
     /// This includes the travel cost and fixed port fees,
@@ -54,6 +57,7 @@ pub struct Parameters {
     pub F_max: Vec<Vec<f64>>,
 }
 
+#[allow(unused)]
 impl Parameters {
     pub fn kind(&self, n: NodeIndex) -> isize {
         todo!();

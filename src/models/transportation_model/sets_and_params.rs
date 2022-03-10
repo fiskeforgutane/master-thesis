@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use itertools::iproduct;
-
 use crate::{problem::Problem, quants::Quantities};
 
 type NodeIndex = usize;
@@ -12,6 +10,7 @@ type CompartmentIndex = usize;
 
 /// sets for the transportation model
 #[derive(Debug)]
+#[allow(non_snake_case)]
 pub struct Sets {
     /// Set of nodes
     pub N: Vec<NodeIndex>,
@@ -26,6 +25,7 @@ pub struct Sets {
 }
 
 /// parameters for the transportation model
+#[allow(non_snake_case)]
 pub struct Parameters {
     /// 1 if node i is a producer, -1 if node i is a consumer
     pub J: Vec<isize>,
@@ -49,6 +49,7 @@ pub struct Parameters {
     pub delta: Vec<Vec<f64>>,
 }
 
+#[allow(non_snake_case)]
 impl Sets {
     pub fn new(problem: &Problem) -> Sets {
         let O = problem
@@ -82,13 +83,14 @@ impl Sets {
             let num_trips = (problem.timesteps() as f64 / round_trip_time as f64).floor() as usize;
             res.insert(node.index(), num_trips);
         }
-        let sum = res.iter().map(|(k, v)| v).sum();
+        let sum = res.iter().map(|(_, v)| v).sum();
 
         let H = (0..sum).collect();
         H
     }
 }
 
+#[allow(non_snake_case)]
 impl Parameters {
     pub fn new(problem: &Problem, sets: &Sets) -> Parameters {
         let J = problem
@@ -108,7 +110,7 @@ impl Parameters {
         let lower_Q = sets
             .P
             .iter()
-            .map(|p| {
+            .map(|_| {
                 problem
                     .nodes()
                     .iter()
@@ -191,13 +193,13 @@ impl Parameters {
         let pertubation = problem
             .nodes()
             .iter()
-            .map(|i| problem.nodes().iter().map(|j| 1.0).collect())
+            .map(|_| problem.nodes().iter().map(|_| 1.0).collect())
             .collect();
 
         let pertubation2 = problem
             .nodes()
             .iter()
-            .map(|i| problem.nodes().iter().map(|j| 1.0).collect())
+            .map(|_| problem.nodes().iter().map(|_| 1.0).collect())
             .collect();
 
         Parameters {
