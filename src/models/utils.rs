@@ -302,70 +302,22 @@ where
     }
 } */
 
+impl<T: ConvertVars> ConvertVars for Vec<T> {
+    type Out = Vec<T::Out>;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.len());
+        for e in self {
+            out.push(e.convert(model)?);
+        }
+        Ok(out)
+    }
+}
+
 impl ConvertVars for Var {
     type Out = f64;
 
     fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
         model.get_obj_attr(attr::X, self)
-    }
-}
-
-impl ConvertVars for Vec<Var> {
-    type Out = Vec<f64>;
-
-    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
-        let mut out = Vec::with_capacity(self.len());
-        for e in self {
-            out.push(e.convert(model)?);
-        }
-        Ok(out)
-    }
-}
-
-impl ConvertVars for Vec<Vec<Var>> {
-    type Out = Vec<Vec<f64>>;
-
-    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
-        let mut out = Vec::with_capacity(self.len());
-        for e in self {
-            out.push(e.convert(model)?);
-        }
-        Ok(out)
-    }
-}
-
-impl ConvertVars for Vec<Vec<Vec<Var>>> {
-    type Out = Vec<Vec<Vec<f64>>>;
-
-    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
-        let mut out = Vec::with_capacity(self.len());
-        for e in self {
-            out.push(e.convert(model)?);
-        }
-        Ok(out)
-    }
-}
-
-impl ConvertVars for Vec<Vec<Vec<Vec<Var>>>> {
-    type Out = Vec<Vec<Vec<Vec<f64>>>>;
-
-    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
-        let mut out = Vec::with_capacity(self.len());
-        for e in self {
-            out.push(e.convert(model)?);
-        }
-        Ok(out)
-    }
-}
-
-impl ConvertVars for Vec<Vec<Vec<Vec<Vec<Var>>>>> {
-    type Out = Vec<Vec<Vec<Vec<Vec<f64>>>>>;
-
-    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
-        let mut out = Vec::with_capacity(self.len());
-        for e in self {
-            out.push(e.convert(model)?);
-        }
-        Ok(out)
     }
 }
