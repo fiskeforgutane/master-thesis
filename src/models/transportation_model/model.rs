@@ -1,5 +1,5 @@
 use super::sets_and_params::{Parameters, Sets};
-use crate::models::utils::AddVars;
+use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::ProductIndex;
 use grb::prelude::*;
 use itertools::iproduct;
@@ -131,23 +131,13 @@ pub struct TransportationResult {
     /// nonzero y variables, not necessary fo results but good for testing
     pub y: Vec<Vec<Vec<f64>>>,
 }
+
 impl TransportationResult {
     pub fn new(variables: &Variables, model: &Model) -> Result<TransportationResult, grb::Error> {
-        let x = TransportationResult::convert(&variables.x, model)?;
-        let y = TransportationResult::convert(&variables.y, model)?;
+        let x = variables.x.convert(model)?;
+        let y = variables.y.convert(model)?;
 
         Ok(TransportationResult { x, y })
-    }
-
-    fn convert(vars: &Vec<Vec<Vec<Var>>>, model: &Model) -> Result<Vec<Vec<Vec<f64>>>, grb::Error> {
-        let get_value = |var| model.get_obj_attr(attr::X, var);
-        vars.iter()
-            .map(|i| {
-                i.iter()
-                    .map(|e| e.iter().map(|v| get_value(v)).collect())
-                    .collect()
-            })
-            .collect()
     }
 }
 

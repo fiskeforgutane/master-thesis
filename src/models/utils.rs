@@ -280,3 +280,92 @@ impl NObjectives for Model {
         Ok(())
     }
 }
+
+/// Trait that converts gurobi varaibles to f64
+pub trait ConvertVars {
+    type Out;
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out>;
+}
+
+/* impl<T> ConvertVars<T> for Vec<T>
+where
+    T: ConvertVars<T>,
+{
+    type Out = Vec<<T as ConvertVars<T>>::Out>;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.len());
+        for e in self {
+            out.push(e.convert(model)?);
+        }
+        Ok(out)
+    }
+} */
+
+impl ConvertVars for Var {
+    type Out = f64;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        model.get_obj_attr(attr::X, self)
+    }
+}
+
+impl ConvertVars for Vec<Var> {
+    type Out = Vec<f64>;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.len());
+        for e in self {
+            out.push(e.convert(model)?);
+        }
+        Ok(out)
+    }
+}
+
+impl ConvertVars for Vec<Vec<Var>> {
+    type Out = Vec<Vec<f64>>;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.len());
+        for e in self {
+            out.push(e.convert(model)?);
+        }
+        Ok(out)
+    }
+}
+
+impl ConvertVars for Vec<Vec<Vec<Var>>> {
+    type Out = Vec<Vec<Vec<f64>>>;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.len());
+        for e in self {
+            out.push(e.convert(model)?);
+        }
+        Ok(out)
+    }
+}
+
+impl ConvertVars for Vec<Vec<Vec<Vec<Var>>>> {
+    type Out = Vec<Vec<Vec<Vec<f64>>>>;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.len());
+        for e in self {
+            out.push(e.convert(model)?);
+        }
+        Ok(out)
+    }
+}
+
+impl ConvertVars for Vec<Vec<Vec<Vec<Vec<Var>>>>> {
+    type Out = Vec<Vec<Vec<Vec<Vec<f64>>>>>;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.len());
+        for e in self {
+            out.push(e.convert(model)?);
+        }
+        Ok(out)
+    }
+}

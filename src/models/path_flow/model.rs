@@ -5,8 +5,6 @@ use log::info;
 
 use super::sets_and_parameters::{Parameters, Sets};
 
-pub struct Variables {}
-
 pub struct PathFlowSolver {}
 
 impl PathFlowSolver {
@@ -183,6 +181,33 @@ impl PathFlowSolver {
             model.add_constr(&format!("load_{}_{}_{}", v, t, p), c!(lhs == rhs))?;
         }
 
-        todo!()
+        info!("Successfully built path-flow model");
+
+        Ok((
+            model,
+            Variables {
+                x,
+                s,
+                v_plus,
+                v_minus,
+                l,
+                q,
+            },
+        ))
     }
+}
+
+pub struct Variables {
+    /// 1 if vessel v follows route r and is at the route's i'th stop at the beginning of time step t, indexed (r,i,v,t)
+    pub x: Vec<Vec<Vec<Vec<Var>>>>,
+    /// inventory at node n at *the end* time step t of product p
+    pub s: Vec<Vec<Vec<Var>>>,
+    /// overflow at node n at time step t of product p
+    pub v_plus: Vec<Vec<Vec<Var>>>,
+    /// shortage at node n at time step t of product p
+    pub v_minus: Vec<Vec<Vec<Var>>>,
+    /// load of vessel v in time period t of product p
+    pub l: Vec<Vec<Vec<Var>>>,
+    /// semicontinuous variable indicated quantity loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,t)
+    pub q: Vec<Vec<Vec<Vec<Vec<Var>>>>>,
 }
