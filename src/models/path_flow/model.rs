@@ -1,5 +1,5 @@
-use crate::models::utils::{AddVars, NObjectives};
-use grb::prelude::*;
+use crate::models::utils::{AddVars, ConvertVars, NObjectives};
+use grb::{prelude::*, Result};
 use itertools::iproduct;
 use log::info;
 
@@ -19,7 +19,7 @@ impl PathFlowSolver {
         // 1 if vessel v follows route r and is at the route's i'th stop at the beginning of time step t, indexed (r,i,v,t)
         let x: Vec<Vec<Vec<Vec<Var>>>> = (0..sets.R)
             .map(|r| (sets.I_R[r], sets.V, sets.T).binary(&mut model, &format!("x_{}", r)))
-            .collect::<Result<Vec<Vec<Vec<Vec<Var>>>>, grb::Error>>()?;
+            .collect::<Result<Vec<Vec<Vec<Vec<Var>>>>>>()?;
 
         // inventory at node n at *the end* time step t of product p
         let s: Vec<Vec<Vec<Var>>> = (sets.N, sets.T, sets.P).free(&mut model, &"s")?;
@@ -47,7 +47,7 @@ impl PathFlowSolver {
                     )
                 })
             })
-            .collect::<Result<Vec<Vec<Vec<Vec<Vec<Var>>>>>, grb::Error>>()?;
+            .collect::<Result<Vec<Vec<Vec<Vec<Vec<Var>>>>>>>()?;
 
         // ******************** ADD OBJECTIVES ********************
         let shortage = iproduct!(0..sets.N, 0..sets.T, 0..sets.P)
@@ -210,4 +210,32 @@ pub struct Variables {
     pub l: Vec<Vec<Vec<Var>>>,
     /// semicontinuous variable indicated quantity loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,t)
     pub q: Vec<Vec<Vec<Vec<Vec<Var>>>>>,
+}
+
+pub struct PathFlowResult {
+    /// 1 if vessel v follows route r and is at the route's i'th stop at the beginning of time step t, indexed (r,i,v,t)
+    pub x: Vec<Vec<Vec<Vec<f64>>>>,
+    /// inventory at node n at *the end* time step t of product p
+    pub s: Vec<Vec<Vec<f64>>>,
+    /// overflow at node n at time step t of product p
+    pub v_plus: Vec<Vec<Vec<f64>>>,
+    /// shortage at node n at time step t of product p
+    pub v_minus: Vec<Vec<Vec<f64>>>,
+    /// load of vessel v in time period t of product p
+    pub l: Vec<Vec<Vec<f64>>>,
+    /// semicontinuous variable indicated quantity loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,t)
+    pub q: Vec<Vec<Vec<Vec<Vec<f64>>>>>,
+}
+
+impl PathFlowResult {
+    pub fn new(variables: Variables, model: &Model) -> Result<PathFlowResult> {
+        Ok(PathFlowResult {
+            x: variables.x.convert(model)?,
+            s: variables.s.convert(model)?,
+            v_plus: variables.v_plus.convert(model)?,
+            v_minus: variables.v_minus.convert(model)?,
+            l: variables.l.convert(model)?,
+            q: variables.q.convert(model)?,
+        })
+    }
 }
