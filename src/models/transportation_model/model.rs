@@ -87,17 +87,12 @@ impl TransportationSolver {
         let transport_costs = iproduct!(&sets.N, &sets.N, &sets.H)
             .map(|(i, j, h)| parameters.C[*i][*j] * parameters.epsilon[*i][*j] * y[*i][*j][*h])
             .grb_sum();
-        let variable_port_costs = iproduct!(&sets.N, &sets.N, &sets.H)
-            .map(|(i, j, h)| (parameters.C_port[*i] + parameters.C_port[*j]) * x[*i][*j][*h])
-            .grb_sum();
+
         let fixed_port_costs = iproduct!(&sets.N, &sets.N, &sets.H)
             .map(|(i, j, h)| (parameters.C_fixed[*i] + parameters.C_fixed[*j]) * y[*i][*j][*h])
             .grb_sum();
 
-        model.set_objective(
-            transport_costs + variable_port_costs + fixed_port_costs,
-            Minimize,
-        )?;
+        model.set_objective(transport_costs + fixed_port_costs, Minimize)?;
 
         model.update()?;
 

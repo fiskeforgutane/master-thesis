@@ -39,8 +39,7 @@ pub struct Parameters {
     pub Q: Vec<Vec<f64>>,
     /// minimum transportation cost from node i to j (C_ij = min(C_ijv, i,j in N, for v in Vessels))
     pub C: Vec<Vec<f64>>,
-    /// unit cost of loading or unloading at node i
-    pub C_port: Vec<f64>,
+
     /// fixed port costs
     pub C_fixed: Vec<f64>,
     /// pertubations of the objective coefficients for cargoes from node i to node j
@@ -173,21 +172,6 @@ impl Parameters {
             res
         };
 
-        let C_port = {
-            let mut res = Vec::new();
-            let cheapest_vessel = problem
-                .vessels()
-                .iter()
-                .min_by(|a, b| a.port_unit_cost().partial_cmp(&b.port_unit_cost()).unwrap())
-                .unwrap();
-            for n in problem.nodes() {
-                let max_rate = n.max_loading_amount();
-                let cost_per_unit = cheapest_vessel.port_unit_cost() / max_rate;
-                res.push(cost_per_unit);
-            }
-            res
-        };
-
         let C_fixed = problem.nodes().iter().map(|n| n.port_fee()).collect();
 
         let pertubation = problem
@@ -208,7 +192,6 @@ impl Parameters {
             upper_Q,
             Q,
             C,
-            C_port,
             C_fixed,
             epsilon: pertubation,
             delta: pertubation2,
