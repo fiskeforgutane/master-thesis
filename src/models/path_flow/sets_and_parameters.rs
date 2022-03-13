@@ -66,7 +66,7 @@ pub struct Sets {
 }
 
 impl Sets {
-    pub fn new(problem: &Problem, routes: RoutePool) -> Sets {
+    pub fn new(problem: &Problem, routes: &RoutePool) -> Sets {
         Sets {
             R: routes.len(),
             V: problem.vessels().len(),

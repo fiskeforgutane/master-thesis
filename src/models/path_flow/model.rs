@@ -60,8 +60,8 @@ impl PathFlowSolver {
                         &format!("q_{}_{}_{}_{}_{}", r, i, v, t, p),
                         SemiCont,
                         0.0,
-                        parameters.F_min[parameters.node(r, i).unwrap()][p],
-                        parameters.F_max[parameters.node(r, i).unwrap()][p],
+                        0.0, //parameters.F_min[parameters.node(r, i).unwrap()][p],
+                        0.0, //parameters.F_max[parameters.node(r, i).unwrap()][p],
                         std::iter::empty(),
                     )
                 })
@@ -116,7 +116,7 @@ impl PathFlowSolver {
                 .filter(|n_r| parameters.N_r[r][sets.I_r[r] - 1] == parameters.N_r[*n_r][0])
                 .collect();
 
-            for (v, t) in iproduct!(0..sets.V, 0..sets.T) {
+            for (v, t) in iproduct!(0..sets.V, 0..sets.T - 1) {
                 let lhs = x[r][sets.I_r[r] - 1][v][t];
                 let rhs = possible_routes.iter().map(|n_r| x[*n_r][0][v][t]).grb_sum()
                     + x[r][sets.I_r[r] - 1][v][t + 1];
@@ -177,14 +177,14 @@ impl PathFlowSolver {
         // shortage logging
         for (n, t, p) in iproduct!(&sets.N_C, 0..sets.T, 0..sets.P) {
             let lhs = parameters.S_min[*n][p][t];
-            let rhs = s[*n][p][t] + v_minus[*n][t][p];
+            let rhs = s[*n][t][p] + v_minus[*n][t][p];
             model.add_constr(&format!("overflow_{}_{}_{}", n, t, p), c!(lhs <= rhs))?;
         }
 
         // shortage logging
         for (n, t, p) in iproduct!(&sets.N_P, 0..sets.T, 0..sets.P) {
             let lhs = parameters.S_max[*n][p][t];
-            let rhs = s[*n][p][t] - v_plus[*n][t][p];
+            let rhs = s[*n][t][p] - v_plus[*n][t][p];
             model.add_constr(&format!("shortage_{}_{}_{}", n, t, p), c!(lhs <= rhs))?;
         }
 

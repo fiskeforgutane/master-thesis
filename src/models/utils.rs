@@ -108,7 +108,7 @@ impl AddVars for (usize, usize) {
     {
         let mut out = Vec::with_capacity(self.0);
         for i in 0..self.0 {
-            out.push(self.0.vars_with(|j| func((i, j)))?);
+            out.push(self.1.vars_with(|j| func((i, j)))?);
         }
 
         Ok(out)
