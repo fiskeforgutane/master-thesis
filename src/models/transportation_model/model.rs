@@ -1,9 +1,10 @@
-use super::sets_and_params::{Parameters, Sets};
 use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::ProductIndex;
 use grb::prelude::*;
 use itertools::iproduct;
 use log::info;
+
+use super::sets_and_parameters::{Parameters, Sets};
 
 pub struct TransportationSolver {}
 
