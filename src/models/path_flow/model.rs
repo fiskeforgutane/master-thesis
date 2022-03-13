@@ -1,7 +1,7 @@
 use crate::models::utils::{AddVars, ConvertVars, NObjectives};
 use grb::{prelude::*, Result};
 use itertools::iproduct;
-use log::info;
+use log::{info, warn};
 
 use super::sets_and_parameters::{Parameters, Sets};
 
@@ -52,7 +52,7 @@ impl PathFlowSolver {
         // load of vessel v in time period t of product p
         let l: Vec<Vec<Vec<Var>>> = (sets.V, sets.T, sets.P).cont(model, &"l")?;
 
-        // loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,t)
+        // loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,t,p)
         let q: Vec<Vec<Vec<Vec<Vec<Var>>>>> = (from_route..sets.R)
             .map(|r| {
                 (sets.I_r[r], sets.V, sets.T, sets.P).vars_with(|(i, v, t, p)| {
@@ -60,8 +60,8 @@ impl PathFlowSolver {
                         &format!("q_{}_{}_{}_{}_{}", r, i, v, t, p),
                         SemiCont,
                         0.0,
-                        0.0, //parameters.F_min[parameters.node(r, i).unwrap()][p],
-                        0.0, //parameters.F_max[parameters.node(r, i).unwrap()][p],
+                        parameters.F_min[parameters.node(r, i).unwrap()][p],
+                        parameters.F_max[parameters.node(r, i).unwrap()][p],
                         std::iter::empty(),
                     )
                 })
@@ -169,8 +169,8 @@ impl PathFlowSolver {
                 })
                 .grb_sum();
             let lhs = s[n][t][p];
-            let rhs =
-                s[n][t - 1][p] + parameters.kind(n) * (parameters.D[n][t][p] as isize) - delivered;
+            let rhs = s[n][t - 1][p] + parameters.kind(n) * (parameters.D[n][t][p] as isize)
+                - parameters.kind(n) * delivered;
             model.add_constr(&format!("node_inv_{}_{}_{}", n, p, t), c!(lhs == rhs))?;
         }
 
@@ -185,7 +185,7 @@ impl PathFlowSolver {
         for (n, t, p) in iproduct!(&sets.N_P, 0..sets.T, 0..sets.P) {
             let lhs = parameters.S_max[*n][p][t];
             let rhs = s[*n][t][p] - v_plus[*n][t][p];
-            model.add_constr(&format!("shortage_{}_{}_{}", n, t, p), c!(lhs <= rhs))?;
+            model.add_constr(&format!("shortage_{}_{}_{}", n, t, p), c!(lhs >= rhs))?;
         }
 
         // ************* VESSEL LOAD ************
@@ -210,6 +210,18 @@ impl PathFlowSolver {
             let lhs = l[v][t][p];
             let rhs = l[v][t - 1][p] + change;
             model.add_constr(&format!("load_{}_{}_{}", v, t, p), c!(lhs == rhs))?;
+        }
+
+        // ************* LOADING/UNLOADING ************
+
+        // do not load or unload unless actually there
+        for r in 0..sets.R {
+            for (i, v, t) in iproduct!((0..sets.I_r[r]), (0..sets.V), (0..sets.T)) {
+                let lhs = (0..sets.P).map(|p| q[r][i][v][t][p]).grb_sum();
+                warn!("tighten this bound");
+                let rhs = 10000 * x[r][i][v][t];
+                model.add_constr(&format!("loading_{r}_{i}_{v}_{t}"), c!(lhs <= rhs))?;
+            }
         }
 
         Ok(())
