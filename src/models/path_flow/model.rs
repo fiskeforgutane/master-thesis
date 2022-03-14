@@ -1,3 +1,5 @@
+use std::{collections::HashMap, hash::Hash};
+
 use crate::models::utils::{AddVars, ConvertVars, NObjectives};
 use grb::{prelude::*, Result};
 use itertools::iproduct;
@@ -97,14 +99,37 @@ impl PathFlowSolver {
         // A vessel at the i'th stop of a route has two chioces
         // 1. Travel to the next stop
         // 2. Stay at the current node until the next time period
+        // If the vessel is at a visit in a route in the last possible time step allowing the vessel
+        // to finish within the planning period, the only option is to go to the next visit/stop
         for r in from_route..sets.R {
             for (i, v) in iproduct!(0..(sets.I_r[r] - 1), 0..sets.V) {
-                for t in 0..(sets.T_r[r][v][i] - 1) {
+                for t in 0..(sets.T_r[r][v][i] + 1) {
                     // travel time between the i'th and (i+1)'th visit of route r for vessel v
                     let t_time = parameters.travel[r][i][v];
                     let lhs = x[r][i][v][t];
-                    let rhs = x[r][i + 1][v][t + t_time] + x[r][i][v][t + 1];
-                    model.add_constr(&format!("1_{}_{}_{}_{}", r, i, v, t), c!(lhs == rhs))?;
+                    let rhs = if t < sets.T_r[r][v][i] {
+                        x[r][i + 1][v][t + t_time] + x[r][i][v][t + 1] // if it is possible to stay
+                    } else {
+                        x[r][i + 1][v][t + t_time] + 0 // must move on to finish in time
+                    };
+
+                    model.add_constr(&format!("1_{}_{}_{}_{}", r, i, v, t), c!(lhs <= rhs))?;
+                }
+            }
+        }
+
+        // Ensure that the lhs of constraint 1 cannot exceed one.
+        for r in from_route..sets.R {
+            for (i, v) in iproduct!(0..(sets.I_r[r] - 1), 0..sets.V) {
+                for t in 0..(sets.T_r[r][v][i] + 1) {
+                    // travel time between the i'th and (i+1)'th visit of route r for vessel v
+                    let t_time = parameters.travel[r][i][v];
+                    let lhs = x[r][i + 1][v][t + t_time] + x[r][i][v][t + 1];
+
+                    model.add_constr(
+                        &format!("bound_1_lhs_{}_{}_{}_{}", r, i, v, t),
+                        c!(lhs <= 1),
+                    )?;
                 }
             }
         }
@@ -115,12 +140,27 @@ impl PathFlowSolver {
             let possible_routes: Vec<usize> = (0..sets.R)
                 .filter(|n_r| parameters.N_r[r][sets.I_r[r] - 1] == parameters.N_r[*n_r][0])
                 .collect();
-
             for (v, t) in iproduct!(0..sets.V, 0..sets.T - 1) {
                 let lhs = x[r][sets.I_r[r] - 1][v][t];
                 let rhs = possible_routes.iter().map(|n_r| x[*n_r][0][v][t]).grb_sum()
                     + x[r][sets.I_r[r] - 1][v][t + 1];
-                model.add_constr(&format!("2_{}_{}_{}", r, v, t), c!(lhs == rhs))?;
+                model.add_constr(&format!("new_route_{}_{}_{}", r, v, t), c!(lhs <= rhs))?;
+            }
+        }
+
+        // bound the lhs of the new route constraint
+        for r in from_route..sets.R {
+            // routes with the same start as the end of route r
+            let possible_routes: Vec<usize> = (0..sets.R)
+                .filter(|n_r| parameters.N_r[r][sets.I_r[r] - 1] == parameters.N_r[*n_r][0])
+                .collect();
+            for (v, t) in iproduct!(0..sets.V, 0..sets.T - 1) {
+                let lhs = possible_routes.iter().map(|n_r| x[*n_r][0][v][t]).grb_sum()
+                    + x[r][sets.I_r[r] - 1][v][t + 1];
+                model.add_constr(
+                    &format!("bound_new_route_lhs_{}_{}_{}", r, v, t),
+                    c!(lhs <= 1),
+                )?;
             }
         }
 
@@ -146,6 +186,34 @@ impl PathFlowSolver {
                 .map(|r| x[r][sets.I_r[r] - 1][v][sets.T - 1])
                 .grb_sum();
             model.add_constr(&format!("end_criterion_{}", v), c!(lhs == rhs))?;
+        }
+
+        // a vessel can not be at a visit in a route at a time where it cannot reach the end of the route
+        for r in 0..sets.R {
+            for i in 0..sets.I_r[r] {
+                for v in 0..sets.V {
+                    for t in (sets.T_r[r][v][i] + 1)..sets.T {
+                        model.add_constr(
+                            &format!("force_zero_{}_{}_{}_{}", r, i, v, t),
+                            c!(x[r][i][v][t] == 0),
+                        )?;
+                    }
+                }
+            }
+        }
+
+        // ensure that x-variables for last visits in routes are zero before it is possible to arrive there
+        //(this is not taken care of in constraint 1, as it is not defined for certain time stesp)
+        for (r, v, t) in iproduct!(0..sets.R, 0..sets.V, 0..sets.T) {
+            let second_last_node = parameters.node(r, sets.I_r[r] - 2).unwrap();
+            let t_time = parameters.travel[r][second_last_node][v];
+            if t < t_time {
+                let i = sets.I_r[r] - 1;
+                model.add_constr(
+                    &format!("force zero_{}_{}_{}_{}", r, i, v, t),
+                    c!(x[r][i][v][t] == 0),
+                )?;
+            }
         }
 
         // ************* NODE INVENTORY ************
@@ -345,5 +413,26 @@ impl PathFlowResult {
             l: variables.l.convert(model)?,
             q: variables.q.convert(model)?,
         })
+    }
+
+    pub fn non_zero_4_d(vec: Vec<Vec<Vec<Vec<f64>>>>) -> Vec<((usize, usize, usize, usize), f64)> {
+        let mut res = Vec::new();
+        for (r, r_) in vec.iter().enumerate() {
+            for (i, i_) in r_.iter().enumerate() {
+                for (v, v_) in i_.iter().enumerate() {
+                    for (t, t_) in v_.iter().enumerate() {
+                        if t_ > &0.0 {
+                            res.push(((r, i, v, t), *t_));
+                        }
+                    }
+                }
+            }
+        }
+        res.sort_by(|a, b| a.0 .3.cmp(&b.0 .3));
+        //res.sort_by(|a, b| a.0 .2.cmp(&b.0 .2));
+        //res.sort_by(|a, b| a.0 .1.cmp(&b.0 .1));
+        //res.sort_by(|a, b| a.0 .0.cmp(&b.0 .0));
+
+        res
     }
 }

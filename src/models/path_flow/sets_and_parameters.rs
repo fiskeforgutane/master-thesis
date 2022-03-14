@@ -55,7 +55,7 @@ pub struct Sets {
     pub P: usize,
     /// Set of time steps
     pub T: usize,
-    /// Set of last time steps that vessel v can be at visit i in route R indexed (rvi)
+    /// Set of the last time step that vessel v can be at visit i in route R indexed (rvi)
     pub T_r: Vec<Vec<Vec<usize>>>,
     /// # The number of visits of route r
     pub I_r: Vec<usize>,
@@ -93,9 +93,11 @@ impl Sets {
         // we assume that all production nodes always are feasible destination nodes, i.e. the end of the route is always good
         let mut vessel_res = Vec::new();
         for v in problem.vessels() {
-            let mut t = problem.timesteps();
+            let mut t = problem.timesteps() - 1;
+            println!("orn number {:?}", t);
             let mut next = route.visits().last().unwrap();
-            let times = route
+            println!("original next {:?}", next);
+            let mut times = route
                 .visits()
                 .iter()
                 .rev()
@@ -106,7 +108,8 @@ impl Sets {
                     next = n;
                     last
                 })
-                .collect();
+                .collect::<Vec<_>>();
+            times.reverse();
             vessel_res.push(times);
         }
         vessel_res
