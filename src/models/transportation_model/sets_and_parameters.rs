@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use itertools::iproduct;
-
 use crate::{problem::Problem, quants::Quantities};
 
 type NodeIndex = usize;
@@ -12,6 +10,7 @@ type CompartmentIndex = usize;
 
 /// sets for the transportation model
 #[derive(Debug)]
+#[allow(non_snake_case)]
 pub struct Sets {
     /// Set of nodes
     pub N: Vec<NodeIndex>,
@@ -26,6 +25,7 @@ pub struct Sets {
 }
 
 /// parameters for the transportation model
+#[allow(non_snake_case)]
 pub struct Parameters {
     /// 1 if node i is a producer, -1 if node i is a consumer
     pub J: Vec<isize>,
@@ -39,8 +39,7 @@ pub struct Parameters {
     pub Q: Vec<Vec<f64>>,
     /// minimum transportation cost from node i to j (C_ij = min(C_ijv, i,j in N, for v in Vessels))
     pub C: Vec<Vec<f64>>,
-    /// unit cost of loading or unloading at node i
-    pub C_port: Vec<f64>,
+
     /// fixed port costs
     pub C_fixed: Vec<f64>,
     /// pertubations of the objective coefficients for cargoes from node i to node j
@@ -49,6 +48,7 @@ pub struct Parameters {
     pub delta: Vec<Vec<f64>>,
 }
 
+#[allow(non_snake_case)]
 impl Sets {
     pub fn new(problem: &Problem) -> Sets {
         let O = problem
@@ -82,13 +82,14 @@ impl Sets {
             let num_trips = (problem.timesteps() as f64 / round_trip_time as f64).floor() as usize;
             res.insert(node.index(), num_trips);
         }
-        let sum = res.iter().map(|(k, v)| v).sum();
+        let sum = res.iter().map(|(_, v)| v).sum();
 
         let H = (0..sum).collect();
         H
     }
 }
 
+#[allow(non_snake_case)]
 impl Parameters {
     pub fn new(problem: &Problem, sets: &Sets) -> Parameters {
         let J = problem
@@ -108,7 +109,7 @@ impl Parameters {
         let lower_Q = sets
             .P
             .iter()
-            .map(|p| {
+            .map(|_| {
                 problem
                     .nodes()
                     .iter()
@@ -171,33 +172,18 @@ impl Parameters {
             res
         };
 
-        let C_port = {
-            let mut res = Vec::new();
-            let cheapest_vessel = problem
-                .vessels()
-                .iter()
-                .min_by(|a, b| a.port_unit_cost().partial_cmp(&b.port_unit_cost()).unwrap())
-                .unwrap();
-            for n in problem.nodes() {
-                let max_rate = n.max_loading_amount();
-                let cost_per_unit = cheapest_vessel.port_unit_cost() / max_rate;
-                res.push(cost_per_unit);
-            }
-            res
-        };
-
         let C_fixed = problem.nodes().iter().map(|n| n.port_fee()).collect();
 
         let pertubation = problem
             .nodes()
             .iter()
-            .map(|i| problem.nodes().iter().map(|j| 1.0).collect())
+            .map(|_| problem.nodes().iter().map(|_| 1.0).collect())
             .collect();
 
         let pertubation2 = problem
             .nodes()
             .iter()
-            .map(|i| problem.nodes().iter().map(|j| 1.0).collect())
+            .map(|_| problem.nodes().iter().map(|_| 1.0).collect())
             .collect();
 
         Parameters {
@@ -206,7 +192,6 @@ impl Parameters {
             upper_Q,
             Q,
             C,
-            C_port,
             C_fixed,
             epsilon: pertubation,
             delta: pertubation2,

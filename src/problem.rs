@@ -83,6 +83,25 @@ impl Problem {
             })
             .collect()
     }
+
+    /// Returns the closes production node for the given node
+    pub fn closest_production_node(&self, node: &Node) -> &Node {
+        let prod_nodes = self.production_nodes();
+        prod_nodes
+            .iter()
+            .min_by(|a, b| {
+                self.distance(a.index(), node.index())
+                    .partial_cmp(&self.distance(b.index(), node.index()))
+                    .unwrap()
+            })
+            .unwrap()
+    }
+
+    pub fn travel_time(&self, from: NodeIndex, to: NodeIndex, vessel: &Vessel) -> usize {
+        let distance = self.distance(from, to);
+        let speed = vessel.speed();
+        (distance / speed).ceil() as usize
+    }
 }
 
 #[derive(Debug)]
@@ -152,8 +171,8 @@ pub struct Vessel {
     empty_travel_unit_cost: Cost,
     /// The cost per time unit
     time_unit_cost: Cost,
-    /// The cost per time step while docked at a port
-    port_unit_cost: Cost,
+    /// The port fee associated with docking at each port
+    port_fee: Vec<Cost>,
     /// The time step from which the vessel becomes available
     available_from: usize,
     /// The initial inventory available for this vessel
@@ -162,6 +181,8 @@ pub struct Vessel {
     origin: usize,
     /// The vessel class this belongs to
     class: String,
+    /// The index of the vessel
+    index: usize,
 }
 
 impl Vessel {
@@ -190,8 +211,8 @@ impl Vessel {
     }
 
     /// The cost per time step while docked at a port
-    pub fn port_unit_cost(&self) -> Cost {
-        self.port_unit_cost
+    pub fn port_fee(&self, node: NodeIndex) -> Cost {
+        self.port_fee[node]
     }
     /// The time step from which the vessel becomes available
     pub fn available_from(&self) -> TimeIndex {
@@ -208,6 +229,11 @@ impl Vessel {
     /// The vessel class this belongs to
     pub fn class(&self) -> &str {
         self.class.as_str()
+    }
+
+    /// The index of the vessel
+    pub fn index(&self) -> usize {
+        self.index
     }
 }
 

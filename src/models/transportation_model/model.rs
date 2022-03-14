@@ -1,12 +1,14 @@
+use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::ProductIndex;
-use log::info;
-
-use super::sets_and_params::{Parameters, Sets};
 use grb::prelude::*;
 use itertools::iproduct;
+use log::info;
+
+use super::sets_and_parameters::{Parameters, Sets};
 
 pub struct TransportationSolver {}
 
+#[allow(non_snake_case)]
 impl TransportationSolver {
     /// builds the transportation model
     pub fn build(
@@ -19,48 +21,17 @@ impl TransportationSolver {
         let mut model = Model::new(&format!("transport_model_{}", product))?;
 
         //*************CREATE VARIABLES*************//
+        let N = sets.N.len();
+        let H = sets.H.len();
 
         // quantity transported from node i to node j with cargo h
-        let x: Vec<Vec<Vec<Var>>> = sets
-            .N
-            .iter()
-            .map(|i| {
-                sets.N
-                    .iter()
-                    .map(|j| {
-                        sets.H
-                            .iter()
-                            .map(|h| {
-                                add_ctsvar!(model, name: &format!("x_{}_{}_{}",i,j,h), bounds:0.0..)
-                                    .unwrap()
-                            })
-                            .collect()
-                    })
-                    .collect()
-            })
-            .collect();
+        let x: Vec<Vec<Vec<Var>>> = (N, N, H).cont(&mut model, &"x")?;
 
         // 1 if the h'th cargo from node i to node j exists, 0 otherwise
-        let y: Vec<Vec<Vec<Var>>> = sets
-            .N
-            .iter()
-            .map(|i| {
-                sets.N
-                    .iter()
-                    .map(|j| {
-                        sets.H
-                            .iter()
-                            .map(|h| {
-                                add_binvar!(model, name: &format!("y_{}_{}_{}", i, j, h)).unwrap()
-                            })
-                            .collect()
-                    })
-                    .collect()
-            })
-            .collect();
+        let y: Vec<Vec<Vec<Var>>> = (N, N, H).binary(&mut model, &"y")?;
 
         // itegrate all the variables into the model
-        model.update().unwrap();
+        model.update()?;
 
         // ******************** ADD CONSTRAINTS ********************
         // ensure that enough is picked up at the production nodes
@@ -117,17 +88,12 @@ impl TransportationSolver {
         let transport_costs = iproduct!(&sets.N, &sets.N, &sets.H)
             .map(|(i, j, h)| parameters.C[*i][*j] * parameters.epsilon[*i][*j] * y[*i][*j][*h])
             .grb_sum();
-        let variable_port_costs = iproduct!(&sets.N, &sets.N, &sets.H)
-            .map(|(i, j, h)| (parameters.C_port[*i] + parameters.C_port[*j]) * x[*i][*j][*h])
-            .grb_sum();
+
         let fixed_port_costs = iproduct!(&sets.N, &sets.N, &sets.H)
             .map(|(i, j, h)| (parameters.C_fixed[*i] + parameters.C_fixed[*j]) * y[*i][*j][*h])
             .grb_sum();
 
-        model.set_objective(
-            transport_costs + variable_port_costs + fixed_port_costs,
-            Minimize,
-        )?;
+        model.set_objective(transport_costs + fixed_port_costs, Minimize)?;
 
         model.update()?;
 
@@ -136,7 +102,6 @@ impl TransportationSolver {
             product
         );
         Ok((model, Variables::new(x, y)))
-        //Ok(model)
     }
 
     pub fn solve(
@@ -162,23 +127,13 @@ pub struct TransportationResult {
     /// nonzero y variables, not necessary fo results but good for testing
     pub y: Vec<Vec<Vec<f64>>>,
 }
+
 impl TransportationResult {
     pub fn new(variables: &Variables, model: &Model) -> Result<TransportationResult, grb::Error> {
-        let x = TransportationResult::convert(&variables.x, model)?;
-        let y = TransportationResult::convert(&variables.y, model)?;
+        let x = variables.x.convert(model)?;
+        let y = variables.y.convert(model)?;
 
         Ok(TransportationResult { x, y })
-    }
-
-    fn convert(vars: &Vec<Vec<Vec<Var>>>, model: &Model) -> Result<Vec<Vec<Vec<f64>>>, grb::Error> {
-        let get_value = |var| model.get_obj_attr(attr::X, var);
-        vars.iter()
-            .map(|i| {
-                i.iter()
-                    .map(|e| e.iter().map(|v| get_value(v)).collect())
-                    .collect()
-            })
-            .collect()
     }
 }
 
