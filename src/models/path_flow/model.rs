@@ -118,6 +118,8 @@ impl PathFlowSolver {
             }
         }
 
+        //model.add_constr(&format!("test"), c!(x[0][0][0][0] == 1))?;
+        //model.add_constr(&format!("test"), c!(x[0][0][0][5] == 1))?;
         // Ensure that the lhs of constraint 1 cannot exceed one.
         for r in from_route..sets.R {
             for (i, v) in iproduct!(0..(sets.I_r[r] - 1), 0..sets.V) {
@@ -284,11 +286,14 @@ impl PathFlowSolver {
 
         // do not load or unload unless actually there
         for r in 0..sets.R {
-            for (i, v, t) in iproduct!((0..sets.I_r[r]), (0..sets.V), (0..sets.T)) {
+            for (i, v, t) in iproduct!((0..sets.I_r[r]), (0..sets.V), (0..sets.T - 1)) {
                 let lhs = (0..sets.P).map(|p| q[r][i][v][t][p]).grb_sum();
                 warn!("tighten this bound");
                 let rhs = 10000 * x[r][i][v][t];
                 model.add_constr(&format!("loading_{r}_{i}_{v}_{t}"), c!(lhs <= rhs))?;
+                let lhs = (0..sets.P).map(|p| q[r][i][v][t][p]).grb_sum();
+                let rhs = 10000 * x[r][i][v][t + 1];
+                model.add_constr(&format!("loading2_{r}_{i}_{v}_{t}"), c!(lhs <= rhs))?;
             }
         }
 
@@ -421,8 +426,8 @@ impl PathFlowResult {
             for (i, i_) in r_.iter().enumerate() {
                 for (v, v_) in i_.iter().enumerate() {
                     for (t, t_) in v_.iter().enumerate() {
-                        if t_ > &0.0 {
-                            res.push(((r, i, v, t), *t_));
+                        if f64::round(*t_) > 0.0 {
+                            res.push(((r, i, v, t), f64::round(*t_)));
                         }
                     }
                 }
