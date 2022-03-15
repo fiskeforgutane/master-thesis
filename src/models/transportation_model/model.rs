@@ -1,5 +1,5 @@
 use crate::models::utils::{AddVars, ConvertVars};
-use crate::problem::ProductIndex;
+use crate::problem::{NodeIndex, ProductIndex};
 use grb::prelude::*;
 use itertools::iproduct;
 use log::info;
@@ -132,8 +132,33 @@ impl TransportationResult {
     pub fn new(variables: &Variables, model: &Model) -> Result<TransportationResult, grb::Error> {
         let x = variables.x.convert(model)?;
         let y = variables.y.convert(model)?;
-
         Ok(TransportationResult { x, y })
+    }
+
+    /// gets the deliveries to the given node index, which should only be a consumption node
+    pub fn delivered(&self, node: NodeIndex) -> Vec<f64> {
+        let mut out = Vec::new();
+        for vec in &self.x {
+            let deliveries = &vec[node];
+            for f in deliveries {
+                if f > &0.0 {
+                    out.push(*f);
+                }
+            }
+        }
+        out
+    }
+    /// gets the pick ups at the given node index, which should only be a production node
+    pub fn picked_up(&self, node: NodeIndex) -> Vec<f64> {
+        let mut out = Vec::new();
+        for e in &self.x[node] {
+            for f in e {
+                if f > &0.0 {
+                    out.push(*f);
+                }
+            }
+        }
+        out
     }
 }
 

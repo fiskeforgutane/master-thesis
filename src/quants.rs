@@ -1,8 +1,41 @@
 use std::collections::HashMap;
 
 use derive_more::Constructor;
+use grb::Result;
 
+use crate::models::transportation_model::model::TransportationSolver;
+use crate::models::transportation_model::sets_and_parameters::{Parameters, Sets};
 use crate::problem::{Node, NodeIndex, NodeType, Problem, ProductIndex, Quantity, TimeIndex};
+
+/// Generates the initial orders for the given problem
+pub fn initial_orders(problem: &Problem) -> Result<Vec<Order>> {
+    let mut out = Vec::new();
+    for p in 0..problem.products() {
+        let sets = Sets::new(problem);
+        let parameters = Parameters::new(problem, &sets);
+        let res = TransportationSolver::solve(&sets, &parameters, p)?;
+        let mut quantities: HashMap<NodeIndex, Vec<f64>> = problem
+            .production_nodes()
+            .iter()
+            .map(|n| (n.index(), res.picked_up(n.index())))
+            .collect();
+        problem.consumption_nodes().iter().for_each(|n| {
+            let k = n.index();
+            let v = res.delivered(k);
+            quantities.insert(k, v);
+        });
+        for node in problem.nodes() {
+            let quants = quantities.get(&node.index()).unwrap();
+            let windows = Quantities::time_windows(node, quants, p);
+            for i in 0..quants.len() {
+                let order = Order::new(node.index(), windows[i].0, windows[i].1, p, quants[i]);
+                out.push(order);
+            }
+        }
+    }
+
+    Ok(out)
+}
 
 pub struct Quantities {
     pub problem: Problem,
@@ -13,15 +46,15 @@ impl Quantities {
         Quantities { problem }
     }
 
-    /// Returns the initial orders only considering the problem
+    /* /// Returns the initial orders only considering the problem
     pub fn initial_orders(&self) -> Vec<Order> {
         return (0..self.problem.products())
             .flat_map(|p| self.initial_orders_per(p))
             .collect();
-    }
+    } */
 
     /// Returns the initial orders for the given product and only considering the problem
-    fn initial_orders_per(&self, product: ProductIndex) -> Vec<Order> {
+    /* fn initial_orders_per(&self, product: ProductIndex) -> Vec<Order> {
         /*
          - Calculate necessary deliveries to each consumption node for the entire planning period
          - Split the total delivery into deliveries with an origin and a destination
@@ -41,7 +74,7 @@ impl Quantities {
             }
         }
         orders
-    }
+    } */
 
     /// Calculates the quantities that are to be either delivered or picked up at the nodes
     pub fn quantities(problem: &Problem, product: ProductIndex) -> HashMap<NodeIndex, Quantity> {
@@ -143,7 +176,7 @@ impl Quantities {
     }
 
     /// Calculate the number of deliveries per node and the quantities
-    fn find_deliveries(
+    /* fn find_deliveries(
         &self,
         quantities: HashMap<NodeIndex, Quantity>,
     ) -> HashMap<NodeIndex, Vec<Quantity>> {
@@ -169,18 +202,17 @@ impl Quantities {
                 )
             })
             .collect()
-    }
+    } */
 
     /// Find appropriate time windoes for each delivery
     fn time_windows(
-        &self,
         node: &Node,
         deliveries: &Vec<Quantity>,
         product: ProductIndex,
     ) -> Vec<(TimeIndex, TimeIndex)> {
         match node.r#type() {
-            NodeType::Consumption => self.consumption_windows(node, deliveries, product),
-            NodeType::Production => self.production_windows(node, deliveries, product),
+            NodeType::Consumption => Self::consumption_windows(node, deliveries, product),
+            NodeType::Production => Self::production_windows(node, deliveries, product),
         }
     }
 
@@ -189,7 +221,6 @@ impl Quantities {
     /// ## Note:
     /// Node should be a consumption node.
     fn consumption_windows(
-        &self,
         node: &Node,
         deliveries: &Vec<Quantity>,
         product: ProductIndex,
@@ -229,7 +260,6 @@ impl Quantities {
     /// ### Note:
     /// Node should be a production node.
     fn production_windows(
-        &self,
         node: &Node,
         pickups: &Vec<Quantity>,
         product: ProductIndex,
@@ -262,10 +292,6 @@ impl Quantities {
             windows.push((open, close));
         }
         windows
-    }
-
-    pub fn orders_pool(&self, out: SisrsOutput) {
-        todo!()
     }
 }
 
