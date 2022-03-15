@@ -466,7 +466,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let tour = &solution[vessel];
         let boat = &solution.problem.vessels()[vessel];
         // The time required to travel between two nodes
-        let travel_time = |vessel: &Vessel, i, j| {
+        /* let travel_time = |vessel: &Vessel, i, j| {
             let speed = vessel.speed();
             let travel = problem.distance(i, j) / speed;
             travel.ceil() as TimeIndex
@@ -475,7 +475,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let unloading_time = |quantity: Quantity, i: usize| {
             let time = quantity / problem.nodes()[i].max_loading_amount();
             time.abs().ceil() as TimeIndex
-        };
+        }; */
 
         // We wish to step through all pair of visits, and check whether we can insert a delivery to `order.node`
         // into that time slot, and then whether or not we can fill up to `target_amount`.
@@ -494,12 +494,12 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             // The earliest time we can arrive at the order node after having completed the visit at `from`
             let from = from.unwrap();
             let earliest = from.time
-                + unloading_time(from.quantity, from.node)
-                + travel_time(boat, from.node, order.node());
+                + problem.min_loading_time(from.node, from.quantity)
+                + problem.travel_time(from.node, order.node(), vessel);
             // The latest time at which we can leave `order.node` and still make it to `to` in time.
             let latest = to.map_or(problem.timesteps(), |to| {
-                to.time - travel_time(boat, order.node(), to.node)
-            }) - unloading_time(amount, order.node());
+                to.time - problem.travel_time(order.node(), to.node, vessel)
+            }) - problem.min_loading_time(order.node(), amount);
 
             let intersection = earliest.max(order.open())..latest.min(order.close());
 
