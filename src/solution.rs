@@ -1,5 +1,6 @@
 use std::{
     cell::Cell,
+    fmt::Debug,
     ops::{Deref, Index, Range, RangeBounds},
     vec::Drain,
 };
@@ -36,6 +37,15 @@ pub struct Solution<'p> {
     routes: Vec<Vec<Visit>>,
     /// A cache of the routes stored sorted by (node, product, time, vessel). This allows us to lookup visits to a (node, product)-pair within a time window in log(n)
     npt_cache: Cell<Vec<(VesselIndex, Visit)>>,
+}
+
+impl<'p> Debug for Solution<'p> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Solution")
+            .field("problem", &self.problem)
+            .field("routes", &self.routes)
+            .finish()
+    }
 }
 
 impl<'p> Index<VesselIndex> for Solution<'p> {
@@ -298,6 +308,7 @@ impl<'cell> Deref for NPTVSlice<'cell> {
     }
 }
 
+#[derive(Debug)]
 pub enum InsertionError {
     /// The vessel index is invalid
     VesselIndexOutOfBounds,

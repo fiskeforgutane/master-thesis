@@ -87,11 +87,5 @@ fn cumulative(x: Vec<f64>, initial: Quantity) -> Vec<f64> {
 }
 
 fn main() {
-    let prob = Problem::new(vessels(), nodes(), 50, 1, distances());
-    //let test = (Inventory::new(&[1.0]).unwrap());
-    println!("{:?}", prob.nodes()[0].inventory_without_deliveries(0));
-    let quants = Quantities::new(prob);
-    let orders = quants.initial_orders();
-    println!("{:?}", orders);
-    println!("Hello, world!");
+    let problem = Problem::new(vessels(), nodes(), 50, 1, distances());
 }

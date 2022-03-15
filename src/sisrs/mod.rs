@@ -5,6 +5,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use log::{debug, trace};
 use rand::{
     self,
     prelude::{Distribution, SliceRandom},
@@ -14,7 +15,7 @@ use rand::{distributions::Uniform, Rng};
 use crate::{
     problem::{
         Compartment, Cost, FixedInventory, Inventory, NodeIndex, Problem, ProductIndex, Quantity,
-        TimeIndex, Vessel, VesselIndex,
+        TimeIndex, VesselIndex,
     },
     quants::Order,
     solution::{Solution, Visit, NPTV},
@@ -120,6 +121,7 @@ pub struct Config {
 }
 
 /// A possible insertion point
+#[derive(Debug)]
 struct Candidate {
     /// The vessel who's route we will insert into
     pub vessel: VesselIndex,
@@ -212,13 +214,15 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let mut uncovered = (0..orders.len()).collect::<HashSet<_>>();
 
         // Decide on an assignment of the visits
-        let _ = Self::assign(
+        let assigned = Self::assign(
             &mut remaining,
             &mut uncovered,
             &allowed_assignments,
             &visits,
             0,
         );
+
+        trace!("Assignment successful = {}", assigned);
 
         uncovered
             .into_iter()
@@ -555,8 +559,16 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                     .unwrap_or(Ordering::Equal)
             });
 
-            if let Some(candidate) = chosen {
-                let _ = solution.insert(
+            let candidate = match chosen {
+                Some(x) => x,
+                None => {
+                    debug!("No candidates for order #{}: {:?}", o, orders[o]);
+                    continue;
+                }
+            };
+
+            solution
+                .insert(
                     candidate.vessel,
                     candidate.idx,
                     Visit {
@@ -565,14 +577,21 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                         time: candidate.time,
                         quantity: candidate.quantity,
                     },
-                );
-            }
+                )
+                .unwrap_or_else(|err| {
+                    debug!(
+                        "Insertion of candidate {:?} failed with {:?}",
+                        candidate, err
+                    )
+                });
         }
     }
 
     fn ruin(&self, solution: &mut Solution) {
         // Select strings for removal, and create a new solution without them
         let strings = SlackInductionByStringRemoval::select_strings(&self.config, solution);
+
+        trace!("Dropping strings {:?}", &strings);
         // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
         // There can not occur any case where one range is "displaced" due to another range being removed from the same Vec.
         for (vessel, range) in strings {
@@ -583,6 +602,8 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     fn recreate(&self, solution: &mut Solution) {
         // Determine the orders that are uncovered, and the amount by which they're uncovered
         let mut uncovered = SlackInductionByStringRemoval::uncovered(solution, self.orders);
+
+        trace!("Uncovered orders: {:?}", uncovered);
 
         // Shuffle the order of the uncovered nodes according
         match self.config.weights.choose() {
@@ -601,16 +622,20 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
     /// Run SISRs starting from the given solution
     pub fn run(&mut self, initial: Solution) {
+        debug!("Starting SISRs from initial solution {:?}", &initial);
         // The best solution so far.
         let mut best = initial.clone();
         // The current solution
         let mut solution = initial;
 
-        for _ in 0..self.config.iterations {
+        for iteration in 0..self.config.iterations {
+            trace!("SISRs iteration {}", iteration);
             let mut new = solution.clone();
             self.ruin(&mut new);
             self.recreate(&mut new);
         }
+
+        debug!("Best solution found by SISRs was {:?}", &best);
     }
 }
 
