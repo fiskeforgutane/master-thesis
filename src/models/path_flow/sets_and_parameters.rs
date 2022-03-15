@@ -21,12 +21,12 @@ impl Route {
 
     pub fn cost(visits: &Vec<NodeIndex>, problem: &Problem, vessel: &Vessel) -> f64 {
         let mut res = 0.0;
-        for n in &visits[0..visits.len() - 1] {
-            let t_time = problem.travel_time(*n, visits[n + 1], vessel);
+        for (i, n) in visits[0..visits.len() - 1].iter().enumerate() {
+            let t_time = problem.travel_time(*n, visits[i + 1], vessel);
             let t_cost = t_time as f64 * vessel.travel_unit_cost();
             // port fee of the next port, the first node is thus not accounted for as this was accounted for in the route bringing the vessel
             // to the origin of the next route
-            let port_fee = vessel.port_fee(visits[n + 1]);
+            let port_fee = vessel.port_fee(visits[i + 1]);
             res += t_cost + port_fee;
         }
         res
@@ -115,9 +115,9 @@ impl Sets {
         vessel_res
     }
 
-    pub fn add_route(&mut self, problem: &Problem, route: Route) {
+    pub fn add_route(&mut self, problem: &Problem, route: &Route) {
         self.R += 1;
-        self.T_r.push(Self::get_T_r(problem, &route));
+        self.T_r.push(Self::get_T_r(problem, route));
         self.I_r.push(route.visits().len());
     }
 }
