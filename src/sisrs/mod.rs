@@ -4,6 +4,7 @@ use std::{
     ops::{Range, RangeInclusive},
 };
 
+use itertools::Itertools;
 use rand::{
     self,
     prelude::{Distribution, SliceRandom},
@@ -479,19 +480,26 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         // We wish to step through all pair of visits, and check whether we can insert a delivery to `order.node`
         // into that time slot, and then whether or not we can fill up to `target_amount`.
         let origin = solution.origin_visit(vessel);
-        let visits = || std::iter::once(&origin).chain(tour);
+        let visits = || {
+            std::iter::once(&origin)
+                .chain(tour)
+                .map(Option::from)
+                .chain(std::iter::once(None))
+        };
 
         let mut candidates = Vec::new();
 
+        // This handles everything except after the last one.
         for (idx, (from, to)) in visits().zip(visits().skip(1)).enumerate() {
             // The earliest time we can arrive at the order node after having completed the visit at `from`
+            let from = from.unwrap();
             let earliest = from.time
                 + unloading_time(from.quantity, from.node)
                 + travel_time(boat, from.node, order.node());
             // The latest time at which we can leave `order.node` and still make it to `to` in time.
-            let latest = to.time
-                - travel_time(boat, order.node(), to.node)
-                - unloading_time(amount, order.node());
+            let latest = to.map_or(problem.timesteps(), |to| {
+                to.time - travel_time(boat, order.node(), to.node)
+            }) - unloading_time(amount, order.node());
 
             let intersection = earliest.max(order.open())..latest.min(order.close());
 
@@ -502,8 +510,9 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let port_cost = boat.port_unit_cost();
             // The additional distance that must be travelled
             let distance = problem.distance(from.node, order.node())
-                + problem.distance(order.node(), to.node)
-                - problem.distance(from.node, to.node);
+                + to.map_or(0.0, |to| {
+                    problem.distance(order.node(), to.node) - problem.distance(from.node, to.node)
+                });
             // The unit cost per distance travelled
             let unit_cost = match inventory.is_empty() {
                 true => boat.empty_travel_unit_cost(),
