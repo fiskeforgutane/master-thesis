@@ -1,5 +1,6 @@
 use grb::{Expr, Model, Result, Var, VarType};
 use std::ops::Range;
+use tuple_list::*;
 
 pub trait AddVars {
     type Out;
@@ -286,21 +287,6 @@ pub trait ConvertVars {
     type Out;
     fn convert(&self, model: &Model) -> grb::Result<Self::Out>;
 }
-
-/* impl<T> ConvertVars<T> for Vec<T>
-where
-    T: ConvertVars<T>,
-{
-    type Out = Vec<<T as ConvertVars<T>>::Out>;
-
-    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
-        let mut out = Vec::with_capacity(self.len());
-        for e in self {
-            out.push(e.convert(model)?);
-        }
-        Ok(out)
-    }
-} */
 
 impl<T: ConvertVars> ConvertVars for Vec<T> {
     type Out = Vec<T::Out>;
