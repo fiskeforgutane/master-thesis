@@ -451,11 +451,11 @@ pub struct Variables {
     pub x: Vec<Vec<Vec<Vec<Var>>>>,
     /// inventory at node n at *the end* time step t of product p
     pub s: Vec<Vec<Vec<Var>>>,
-    /// overflow at node n at time step t of product p
+    /// overflow at node n at the end of time step t of product p
     pub v_plus: Vec<Vec<Vec<Var>>>,
-    /// shortage at node n at time step t of product p
+    /// shortage at node n at the end of time step t of product p
     pub v_minus: Vec<Vec<Vec<Var>>>,
-    /// load of vessel v in time period t of product p
+    /// load of vessel v in at the end of time period t of product p
     pub l: Vec<Vec<Vec<Var>>>,
     /// semicontinuous variable indicated quantity loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,t)
     pub q: Vec<Vec<Vec<Vec<Vec<Var>>>>>,
