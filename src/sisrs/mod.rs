@@ -5,7 +5,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use log::{debug, trace};
+use log::{debug, info, trace, warn};
 use rand::{
     self,
     prelude::{Distribution, SliceRandom},
@@ -469,17 +469,6 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     ) -> Vec<Candidate> {
         let tour = &solution[vessel];
         let boat = &solution.problem.vessels()[vessel];
-        // The time required to travel between two nodes
-        /* let travel_time = |vessel: &Vessel, i, j| {
-            let speed = vessel.speed();
-            let travel = problem.distance(i, j) / speed;
-            travel.ceil() as TimeIndex
-        };
-        // The time needed to load/unload a certain quantity at node `i`
-        let unloading_time = |quantity: Quantity, i: usize| {
-            let time = quantity / problem.nodes()[i].max_loading_amount();
-            time.abs().ceil() as TimeIndex
-        }; */
 
         // We wish to step through all pair of visits, and check whether we can insert a delivery to `order.node`
         // into that time slot, and then whether or not we can fill up to `target_amount`.
@@ -562,7 +551,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let candidate = match chosen {
                 Some(x) => x,
                 None => {
-                    debug!("No candidates for order #{}: {:?}", o, orders[o]);
+                    info!("No candidates for order #{}: {:?}", o, orders[o]);
                     continue;
                 }
             };
@@ -579,7 +568,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                     },
                 )
                 .unwrap_or_else(|err| {
-                    debug!(
+                    warn!(
                         "Insertion of candidate {:?} failed with {:?}",
                         candidate, err
                     )
