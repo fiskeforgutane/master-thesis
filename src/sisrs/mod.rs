@@ -488,10 +488,10 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let from = from.unwrap();
             let earliest = from.time
                 + problem.min_loading_time(from.node, from.quantity)
-                + problem.travel_time(from.node, order.node(), vessel);
+                + problem.travel_time(from.node, order.node(), boat);
             // The latest time at which we can leave `order.node` and still make it to `to` in time.
             let latest = to.map_or(problem.timesteps(), |to| {
-                to.time - problem.travel_time(order.node(), to.node, vessel)
+                to.time - problem.travel_time(order.node(), to.node, boat)
             }) - problem.min_loading_time(order.node(), amount);
 
             let intersection = earliest.max(order.open())..latest.min(order.close());
@@ -500,7 +500,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let inventory = solution.vessel_inventory_at(vessel, intersection.start);
             let max_quantity = inventory.capacity_for(order.product(), boat.compartments());
             let quantity = max_quantity.min(amount);
-            let port_cost = boat.port_unit_cost();
+            let port_cost = boat.port_fee(order.node());
             // The additional distance that must be travelled
             let distance = problem.distance(from.node, order.node())
                 + to.map_or(0.0, |to| {

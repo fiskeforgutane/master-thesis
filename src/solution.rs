@@ -214,14 +214,14 @@ impl<'p> Solution<'p> {
             + self
                 .problem
                 .min_loading_time(previous.node, previous.quantity)
-            + self.problem.travel_time(previous.node, visit.node, vessel);
+            + self.problem.travel_time(previous.node, visit.node, boat);
 
         // The latest time at which we can leave the visit we're attempting to insert while still making it to the next one in time
         // (if there is no next, we still require this visit to be done by the end of the planning period)
         let latest_depart = next.map_or(self.problem.timesteps(), |next| {
             let arrival = next.time;
             let loading_time = self.problem.min_loading_time(next.node, next.quantity);
-            let travel_time = self.problem.travel_time(visit.node, next.node, vessel);
+            let travel_time = self.problem.travel_time(visit.node, next.node, boat);
             arrival - loading_time - travel_time
         });
 
