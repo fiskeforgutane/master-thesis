@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use derive_more::Constructor;
+
 use crate::problem::{Node, NodeIndex, NodeType, Problem, ProductIndex, Quantity, TimeIndex};
 
 pub struct Quantities {
@@ -28,7 +30,7 @@ impl Quantities {
         */
         // {k.key(): sum(k.consumption) for k in problem.nodes()}
 
-        let deliveries = self.find_deliveries(self.quantities(product));
+        let deliveries = self.find_deliveries(Quantities::quantities(&self.problem, product));
 
         let mut orders = Vec::new();
         for node in self.problem.nodes() {
@@ -42,7 +44,7 @@ impl Quantities {
     }
 
     /// Calculates the quantities that are to be either delivered or picked up at the nodes
-    fn quantities(&self, product: ProductIndex) -> HashMap<NodeIndex, Quantity> {
+    pub fn quantities(problem: &Problem, product: ProductIndex) -> HashMap<NodeIndex, Quantity> {
         /*
         1. Assign quantites to production nodes such that all owerflow is handled and to consumption nodes such that all shortage is covered
         2. If the total demanded quanitity is larger than the quanitity pickup up at production nodes, increase the amount picked up at the production nodes
@@ -51,12 +53,11 @@ impl Quantities {
 
         // calculate how much of the given product type that must be (un)loaded at each node
         let consumption = |node: &Node| {
-            node.inventory_change(0, self.problem.timesteps() - 1, product)
+            node.inventory_change(0, problem.timesteps() - 1, product)
                 .abs()
         };
 
-        let total_consumption_demand: Quantity = self
-            .problem
+        let total_consumption_demand: Quantity = problem
             .nodes()
             .iter()
             .map(|n| match n.r#type() {
@@ -65,8 +66,7 @@ impl Quantities {
             })
             .sum();
 
-        let mut quantities: HashMap<NodeIndex, Quantity> = self
-            .problem
+        let mut quantities: HashMap<NodeIndex, Quantity> = problem
             .nodes()
             .iter()
             .map(|node| {
@@ -92,8 +92,7 @@ impl Quantities {
             })
             .collect();
 
-        let picked_up: Quantity = self
-            .problem
+        let picked_up: Quantity = problem
             .nodes()
             .iter()
             .map(|n| match n.r#type() {
@@ -104,10 +103,10 @@ impl Quantities {
 
         if picked_up < total_consumption_demand {
             let mut not_covered = total_consumption_demand - picked_up;
-            let num_prod_nodes = self.problem.production_nodes().len();
+            let num_prod_nodes = problem.production_nodes().len();
 
             // production nodes sorted on the capacity for the given product
-            let mut prod_nodes = self.problem.production_nodes().clone();
+            let mut prod_nodes = problem.production_nodes().clone();
 
             prod_nodes.sort_by(|a, b| {
                 a.capacity()[product]
@@ -310,6 +309,18 @@ impl Order {
     }
     pub fn quantity(&self) -> Quantity {
         self.quantity
+    }
+}
+
+#[derive(Debug, Constructor)]
+pub struct Orders {
+    orders: Vec<Vec<Order>>,
+}
+
+impl Orders {
+    /// Returns the orders of the node associated with the given index
+    pub fn get(&self, node_idx: NodeIndex) -> &Vec<Order> {
+        &self.orders[node_idx]
     }
 }
 
