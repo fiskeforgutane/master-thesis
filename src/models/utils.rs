@@ -1,6 +1,5 @@
 use grb::{Expr, Model, Result, Var, VarType};
 use std::ops::Range;
-use tuple_list::*;
 
 pub trait AddVars {
     type Out;
