@@ -6,6 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use pyo3::{pyclass, pymethods};
 
 use crate::problem::{
     Inventory, NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex,
@@ -14,16 +15,39 @@ use crate::problem::{
 /// A `Visit` is a visit to a `node` at a `time` where unloading/loading of a given `quantity` of `product` is started.
 /// Assumption: quantity is relative to the vessel's inventory. In other words, the quantity is positive if an amount is loaded onto the
 /// vessel and negative is an amount is unloaded.
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Visit {
+    #[pyo3(get, set)]
     /// The node we're visiting.
     pub node: NodeIndex,
+    #[pyo3(get, set)]
     /// The product being delivered.
     pub product: ProductIndex,
+    #[pyo3(get, set)]
     /// The time at which delivery starts.
     pub time: TimeIndex,
+    #[pyo3(get, set)]
     /// The quantity delivered.
     pub quantity: Quantity,
+}
+
+#[pymethods]
+impl Visit {
+    #[new]
+    pub fn new(
+        node: NodeIndex,
+        product: ProductIndex,
+        time: TimeIndex,
+        quantity: Quantity,
+    ) -> Self {
+        Self {
+            node,
+            product,
+            time,
+            quantity,
+        }
+    }
 }
 
 /// A solution to `Problem`, i.e. a specification of the routes taken by each vehicle.

@@ -2,12 +2,22 @@ pub mod problem;
 pub mod quants;
 pub mod sisrs;
 pub mod solution;
+use problem::Problem;
 use pyo3::prelude::*;
+use solution::Visit;
 
-/// Formats the sum of two numbers as string.
-#[pyfunction]
-fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
-    Ok((a + b).to_string())
+#[pyclass]
+pub struct Solution {
+    #[pyo3(get, set)]
+    pub routes: Vec<Vec<Visit>>,
+}
+
+#[pymethods]
+impl Solution {
+    #[new]
+    pub fn new(routes: Vec<Vec<Visit>>) -> Self {
+        Self { routes }
+    }
 }
 
 /// A Python module implemented in Rust. The name of this function must match
@@ -15,7 +25,8 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 /// import the module.
 #[pymodule]
 fn master(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+    m.add_class::<Problem>()?;
+    m.add_class::<Solution>()?;
     Ok(())
 }
 
