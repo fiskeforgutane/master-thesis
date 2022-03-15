@@ -1,6 +1,7 @@
 pub mod problem;
 pub mod quants;
 pub mod sisrs;
+pub mod solution;
 use problem::*;
 use quants::*;
 

@@ -1,28 +1,37 @@
 use std::{
-    collections::{HashMap, HashSet},
+    cmp::Ordering,
+    collections::HashSet,
     ops::{Range, RangeInclusive},
 };
 
-use rand::{self, prelude::Distribution};
+use rand::{
+    self,
+    prelude::{Distribution, SliceRandom},
+};
 use rand::{distributions::Uniform, Rng};
 
 use crate::{
-    problem::{NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex},
+    problem::{
+        Compartment, Cost, FixedInventory, Inventory, NodeIndex, Problem, ProductIndex, Quantity,
+        TimeIndex, Vessel, VesselIndex,
+    },
     quants::Order,
+    solution::{Solution, Visit, NPTV},
 };
-
-/// Routes for each vessel, where each route is
-pub struct Solution(Vec<Vec<(TimeIndex, NodeIndex)>>);
-
-pub struct SlackInductionByStringRemoval<'p, 'o> {
+/// Implements a variant of the SISRs R&R algorithm presented by J. Christiaens and
+/// G. V. Berge adapted for use in a VRP variant with MIRP-style time windows.
+pub struct SlackInductionByStringRemoval<'p, 'o, 'c> {
     /// The problem we're trying to solve
     problem: &'p Problem,
     /// The orders we're trying to satisfy
     orders: &'o [Order],
-    /// The current solution
-    solution: Vec<Vec<Visit>>,
+    /// The configuration of the SISRs algorithm
+    config: &'c Config,
 }
 
+/// When recreating a tour, we will sort the set of un-served orders according to one of several `SortingCritera`. This struct
+/// defines weights used when randomly choosing a sorting method.
+#[derive(Debug, Clone, Copy)]
 pub struct SortingWeights {
     /// Sort randomly
     pub random: f64,
@@ -32,19 +41,56 @@ pub struct SortingWeights {
     pub furthest: f64,
     /// Sort by closest distance from existing tours (within the time window)
     pub closest: f64,
+    /// Sort by demand
+    pub demand: f64,
 }
 
-pub enum GreedyBy {
+impl SortingWeights {
+    /// Get the weights of a given sorting criteria
+    pub fn weight_of(&self, criteria: &SortingCriteria) -> f64 {
+        match criteria {
+            SortingCriteria::Random => self.random,
+            SortingCriteria::Earliest => self.earliest,
+            SortingCriteria::Furthest => self.furthest,
+            SortingCriteria::Closest => self.closest,
+            SortingCriteria::Demand => self.demand,
+        }
+    }
+
+    /// Choose a random sorting criteria
+    pub fn choose(&self) -> SortingCriteria {
+        *[
+            SortingCriteria::Random,
+            SortingCriteria::Earliest,
+            SortingCriteria::Furthest,
+            SortingCriteria::Closest,
+            SortingCriteria::Demand,
+        ]
+        .choose_weighted(&mut rand::thread_rng(), |x| self.weight_of(x))
+        .unwrap()
+    }
+}
+
+/// A sorting criteria used for ordering the set of uncovered orders.
+#[derive(Debug, Clone, Copy)]
+pub enum SortingCriteria {
+    /// Sort by random (i.e. shuffle)
     Random,
+    /// Sort by earliest start of time window
     Earliest,
+    /// Sort such that those furthest from a production facility is routed first
     Furthest,
+    /// Sort such that the orders furthest from a production facility is routed first
     Closest,
+    /// Sort such that the orders with high demand are routed first
+    Demand,
 }
 
 impl Default for SortingWeights {
     fn default() -> Self {
         Self {
             random: 4.0,
+            demand: 4.0,
             earliest: 4.0,
             furthest: 2.0,
             closest: 1.0,
@@ -52,6 +98,7 @@ impl Default for SortingWeights {
     }
 }
 
+/// Configuration determining the behaviour of the SISRs algorithm.
 pub struct Config {
     /// The average number of nodes removed during a string removal
     pub average_removal: usize,
@@ -71,16 +118,18 @@ pub struct Config {
     pub weights: SortingWeights,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Visit {
-    /// The node we're visiting.
-    node: NodeIndex,
-    /// The product being delivered.
-    product: ProductIndex,
-    /// The time at which delivery starts.
-    time: TimeIndex,
-    /// The quantity delivered.
-    quantity: Quantity,
+/// A possible insertion point
+struct Candidate {
+    /// The vessel who's route we will insert into
+    pub vessel: VesselIndex,
+    /// The idx of the insertion into the vessel's route
+    pub idx: usize,
+    /// The quantity delivered
+    pub quantity: Quantity,
+    /// The increase in cost from adding this candidate
+    pub cost: Cost,
+    /// The time at which docking happens (i.e. when loading/unloading starts)
+    pub time: TimeIndex,
 }
 
 impl Default for Config {
@@ -98,32 +147,19 @@ impl Default for Config {
     }
 }
 
-impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
+impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     /// Create a new instance of SISRs for the given problem and set of orders
-    pub fn new(problem: &'p Problem, orders: &'o [Order]) -> Self {
+    pub fn new(problem: &'p Problem, orders: &'o [Order], config: &'c Config) -> Self {
         Self {
             problem,
             orders,
-            solution: vec![Vec::new(); problem.vessels().len()],
-        }
-    }
-
-    /// Warm start a SISRs from a previous solution
-    pub fn warm_start(
-        problem: &'p Problem,
-        orders: &'o [Order],
-        solution: Vec<Vec<Visit>>,
-    ) -> Self {
-        Self {
-            problem,
-            orders,
-            solution,
+            config,
         }
     }
 
     /// Determine the set of orders that are not covered by visits.
     /// Returns the indices of the orders that are not covered by the solution.
-    pub fn uncovered(config: &Config, solution: &[Vec<Visit>], orders: &[Order]) -> Vec<usize> {
+    pub fn uncovered(solution: &Solution, orders: &[Order]) -> Vec<(usize, f64)> {
         // Order = { node, product, quantity, time window }
         // Visit = { node, product, quantity, time }
         // Assumptions:
@@ -137,38 +173,101 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
         // Each visit at a (node, product)-pair can only be assigned to the unique order with (node, product) that
         // has a time-window containint visit.time (if one such order exists).
 
-        // We will flatten and sort the set of visits
-        let mut sorted = solution
-            .iter()
-            .flat_map(|xs| xs)
-            .cloned()
+        // A flattened list of the visits sorted ascending by (node, product, time, vessel)
+        let visits = solution.nptv();
+
+        // The indices of the orders which each visit can possibly be assigned to
+        let mut allowed_assignments = (0..visits.len())
+            .map(|i| (i, Vec::new()))
             .collect::<Vec<_>>();
-        sorted.sort_by_key(|v| (v.node, v.product, v.time));
 
-        // The amount delivered for each order. (Same order)
-        let mut delivered = vec![0.0; orders.len()];
-
-        for (order, d) in orders.iter().zip(&mut delivered) {
+        for (o, order) in orders.iter().enumerate() {
             let open = (order.node(), order.product(), order.open());
             let close = (order.node(), order.product(), order.close());
             // `start` is the first element containing relevant deliveries, while `end` is the (exclusive) end.
             // Note that `start` == `end` iff there are not deliveries that are relevant for the order.
-            let start = sorted.partition_point(|v| (v.node, v.product, v.time) < open);
-            let end = sorted.partition_point(|v| (v.node, v.product, v.time) <= close);
-            // The total amount delivered is simply the sum of deliveries to the relevant (node, product)-pair over the
-            // course of the time window specified by the order.
-            *d = sorted[start..end].iter().map(|v| v.quantity).sum();
+            let start = visits.partition_point(|(_, v)| (v.node, v.product, v.time) < open);
+            let end = visits.partition_point(|(_, v)| (v.node, v.product, v.time) <= close);
+
+            // We then add the visits to the order's (node, product) during the time period as possible assignments
+            for (_, x) in allowed_assignments[start..end].iter_mut() {
+                x.push(o);
+            }
         }
 
-        delivered
-            .iter()
-            .zip(orders)
-            .enumerate()
-            .filter_map(|(i, (&x, order))| match x >= order.quantity() {
-                true => Some(i),
-                false => None,
-            })
-            .collect()
+        // We will sort by ascending number of alternatives, but will but the ones that can't be assigned to the very end.
+        allowed_assignments.sort_by_key(|(_, alternatives)| match alternatives.len() {
+            0 => usize::MAX,
+            n => n,
+        });
+        // We will then filter out those that cannot be assigned, as they're irrelevant
+        let start =
+            allowed_assignments.partition_point(|(_, alternatives)| alternatives.len() != 0);
+        drop(allowed_assignments.drain(start..));
+
+        // The amount remaining for the delivery to be completed
+        let mut remaining = orders.iter().map(|o| o.quantity()).collect::<Vec<_>>();
+        // The indices of the orders that are not yet covered
+        let mut uncovered = (0..orders.len()).collect::<HashSet<_>>();
+
+        // Decide on an assignment of the visits
+        let _ = Self::assign(
+            &mut remaining,
+            &mut uncovered,
+            &allowed_assignments,
+            &visits,
+            0,
+        );
+
+        uncovered
+            .into_iter()
+            .map(|o| (o, remaining[o]))
+            .collect::<Vec<_>>()
+    }
+
+    fn assign(
+        remaining: &mut [f64],
+        uncovered: &mut HashSet<usize>,
+        allowed_assignments: &[(usize, Vec<usize>)],
+        visits: &NPTV<'_>,
+        idx: usize,
+    ) -> bool {
+        // If all are covered, then we're done
+        if uncovered.is_empty() {
+            return true;
+        }
+
+        // If we're at the end, and it is not empty, then it is impossible to assign
+        if idx == allowed_assignments.len() {
+            return false;
+        }
+
+        let (visit, alternatives) = &allowed_assignments[idx];
+
+        for &order in alternatives {
+            let (_, visit) = &visits[*visit];
+            let old = remaining[order];
+            let new = old - visit.quantity;
+            let remove = old >= 1e-5 && new <= 1e-5;
+
+            // Apply the change
+            remaining[order] = new;
+            if remove {
+                uncovered.remove(&order);
+            }
+
+            if Self::assign(remaining, uncovered, allowed_assignments, visits, idx + 1) {
+                return true;
+            }
+
+            // Undo the change
+            remaining[order] = old;
+            if remove {
+                uncovered.insert(order);
+            }
+        }
+
+        return false;
     }
 
     pub fn average_tour_cardinality(solution: &[Vec<Visit>]) -> f64 {
@@ -191,18 +290,47 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
         node: NodeIndex,
         vehicles_used: &HashSet<VesselIndex>,
         time_period: &RangeInclusive<TimeIndex>,
-        solution: &[Vec<Visit>],
+        solution: &Solution,
     ) -> Vec<(VesselIndex, usize)> {
-        Vec::new()
+        let mut candidates = solution
+            .routes()
+            .iter()
+            .enumerate()
+            .filter(|(v, _)| !vehicles_used.contains(&v))
+            .flat_map(|(v, route)| {
+                route.iter().enumerate().filter_map(move |(i, visit)| {
+                    match time_period.contains(&visit.time) {
+                        true => Some((v, i)),
+                        false => None,
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        candidates.sort_unstable_by(|&x, &y| {
+            let key = |(v, i)| {
+                let visit: Visit = solution[v][i];
+                let distance = solution.problem.distance(node, visit.node);
+                let skew_start = visit.time - time_period.start();
+                let skew_end = time_period.end() - visit.time;
+                let time_skew = skew_start.max(skew_end) - skew_start.min(skew_end);
+
+                (distance, time_skew)
+            };
+
+            key(x).partial_cmp(&key(y)).unwrap_or(Ordering::Equal)
+        });
+
+        candidates
     }
 
     /// The method used to select strings for removal
     pub fn select_strings(
         config: &Config,
-        solution: &[Vec<Visit>],
+        solution: &Solution,
     ) -> Vec<(VesselIndex, Range<usize>)> {
         let ls_max = (config.max_cardinality as f64).min(
-            SlackInductionByStringRemoval::average_tour_cardinality(solution),
+            SlackInductionByStringRemoval::average_tour_cardinality(solution.routes()),
         );
         let ks_max = (4.0 * config.average_removal as f64) / (1.0 + ls_max) - 1.0;
         // The number of strings that will be removed.
@@ -210,7 +338,7 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
             Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rand::thread_rng()) as usize;
 
         let (seed_vehicle, seed_index) =
-            SlackInductionByStringRemoval::select_random_visit(solution);
+            SlackInductionByStringRemoval::select_random_visit(solution.routes());
         let seed = solution[seed_vehicle][seed_index];
 
         // The strings we will remove, indexed as (vehicle, index range)
@@ -228,7 +356,7 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
         // However, we need to considers adjacency in both space and time. It makes sense to find a nearby node that is visited in the same
         // time period as the time period of the strings that have been selected for removal so far.
         while strings.len() < k_s {
-            let adjacents = SlackInductionByStringRemoval::adjacent(
+            let adjacents = Self::adjacent(
                 seed.node,
                 &vehicles_used,
                 &time_periods[time_periods.len() - 1],
@@ -282,35 +410,248 @@ impl<'p, 'o> SlackInductionByStringRemoval<'p, 'o> {
         strings
     }
 
-    /// Attempt to repair a solution
-    pub fn repair(config: &Config, solution: &[Vec<Visit>], orders: &[Order]) {}
+    /// Returns the inventory after each visit
+    pub fn inventories(tour: &[Visit], initial: Inventory) -> Vec<FixedInventory> {
+        tour.iter()
+            .scan(initial, |state, visit| {
+                state[visit.product] += visit.quantity;
+                Some(state.clone().fixed())
+            })
+            .collect::<Vec<_>>()
+    }
 
-    /// Run SISRs with the given configuration
-    pub fn run(&mut self, config: &Config) {
-        for _ in 0..config.iterations {
-            // Select strings for removal, and create a new solution without them
-            let strings = SlackInductionByStringRemoval::select_strings(config, &self.solution);
-            let mut solution = self.solution.clone();
-            // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
-            // There can not occur any case where one range is "displaced" due to another range being removed from the same Vec.
-            for (vessel, range) in strings {
-                drop(solution[vessel].drain(range));
+    /// Determine the maximum amount that can be delivered of a given product type between each visit,
+    pub fn max_delivery(inventories: &[FixedInventory], product: ProductIndex) -> Vec<Quantity> {
+        let mut maximums = inventories
+            .iter()
+            .rev()
+            .scan(f64::INFINITY, |state, x| {
+                *state = state.min(x[product]);
+                Some(*state)
+            })
+            .collect::<Vec<_>>();
+
+        maximums.reverse();
+        maximums
+    }
+
+    /// Determine the maximum amount that can be picked up of a given product type between each visit,
+    /// using a vessel with compartments `compartments`
+    pub fn max_pickup(
+        inventories: &[FixedInventory],
+        product: ProductIndex,
+        compartments: &[Compartment],
+    ) -> Vec<Quantity> {
+        let mut maximums = inventories
+            .iter()
+            .rev()
+            .scan(f64::INFINITY, |state, inventory| {
+                *state = state.min(inventory.as_inv().capacity_for(product, compartments));
+                Some(*state)
+            })
+            .collect::<Vec<_>>();
+        maximums.reverse();
+        maximums
+    }
+
+    /// Construct a list of candidates for insertion to serve the given `order` using `vessel`
+    fn candidates(
+        problem: &Problem,
+        order: &Order,
+        vessel: VesselIndex,
+        solution: &Solution,
+        amount: Quantity,
+    ) -> Vec<Candidate> {
+        let tour = &solution[vessel];
+        let boat = &solution.problem.vessels()[vessel];
+        // The time required to travel between two nodes
+        let travel_time = |vessel: &Vessel, i, j| {
+            let speed = vessel.speed();
+            let travel = problem.distance(i, j) / speed;
+            travel.ceil() as TimeIndex
+        };
+        // The time needed to load/unload a certain quantity at node `i`
+        let unloading_time = |quantity: Quantity, i: usize| {
+            let time = quantity / problem.nodes()[i].max_loading_amount();
+            time.abs().ceil() as TimeIndex
+        };
+
+        // We wish to step through all pair of visits, and check whether we can insert a delivery to `order.node`
+        // into that time slot, and then whether or not we can fill up to `target_amount`.
+        let origin = solution.origin_visit(vessel);
+        let visits = || std::iter::once(&origin).chain(tour);
+
+        let mut candidates = Vec::new();
+
+        for (idx, (from, to)) in visits().zip(visits().skip(1)).enumerate() {
+            // The earliest time we can arrive at the order node after having completed the visit at `from`
+            let earliest = from.time
+                + unloading_time(from.quantity, from.node)
+                + travel_time(boat, from.node, order.node());
+            // The latest time at which we can leave `order.node` and still make it to `to` in time.
+            let latest = to.time
+                - travel_time(boat, order.node(), to.node)
+                - unloading_time(amount, order.node());
+
+            let intersection = earliest.max(order.open())..latest.min(order.close());
+
+            // Note: the inventory of the vessel should be constant for the duration between the two visits
+            let inventory = solution.vessel_inventory_at(vessel, intersection.start);
+            let max_quantity = inventory.capacity_for(order.product(), boat.compartments());
+            let quantity = max_quantity.min(amount);
+            let port_cost = boat.port_unit_cost();
+            // The additional distance that must be travelled
+            let distance = problem.distance(from.node, order.node())
+                + problem.distance(order.node(), to.node)
+                - problem.distance(from.node, to.node);
+            // The unit cost per distance travelled
+            let unit_cost = match inventory.is_empty() {
+                true => boat.empty_travel_unit_cost(),
+                false => boat.travel_unit_cost(),
+            };
+            // The additional cost from making this insertion
+            let cost = port_cost + distance * unit_cost;
+
+            for time in intersection {
+                candidates.push(Candidate {
+                    vessel,
+                    idx,
+                    quantity,
+                    cost,
+                    time,
+                });
             }
+        }
 
-            // Determine the orders that are uncovered
-            let uncovered =
-                SlackInductionByStringRemoval::uncovered(config, &solution, self.orders);
+        candidates
+    }
+
+    /// Attempt to repair a solution
+    pub fn repair(&self, solution: &mut Solution, orders: &[Order], uncovered: &[(usize, f64)]) {
+        // For each uncovered order, we want to find where we might insert it into the current solution
+        for &(o, amount) in uncovered.iter() {
+            let order = &orders[o];
+
+            // Construct a set of possible candidates that are valid
+            let candidates = solution
+                .routes()
+                .iter()
+                .enumerate()
+                .flat_map(|(v, _)| Self::candidates(self.problem, order, v, &solution, amount));
+
+            // Choose the candidate that maximizing quantity while minimizing cost
+            let chosen = candidates.max_by(|x, y| {
+                (x.quantity, -x.cost)
+                    .partial_cmp(&(y.quantity, y.cost))
+                    .unwrap_or(Ordering::Equal)
+            });
+
+            if let Some(candidate) = chosen {
+                let _ = solution.insert(
+                    candidate.vessel,
+                    candidate.idx,
+                    Visit {
+                        node: order.node(),
+                        product: order.product(),
+                        time: candidate.time,
+                        quantity: candidate.quantity,
+                    },
+                );
+            }
+        }
+    }
+
+    fn ruin(&self, solution: &mut Solution) {
+        // Select strings for removal, and create a new solution without them
+        let strings = SlackInductionByStringRemoval::select_strings(&self.config, solution);
+        // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
+        // There can not occur any case where one range is "displaced" due to another range being removed from the same Vec.
+        for (vessel, range) in strings {
+            drop(solution.drain(vessel, range));
+        }
+    }
+
+    fn recreate(&self, solution: &mut Solution) {
+        // Determine the orders that are uncovered, and the amount by which they're uncovered
+        let mut uncovered = SlackInductionByStringRemoval::uncovered(solution, self.orders);
+
+        // Shuffle the order of the uncovered nodes according
+        match self.config.weights.choose() {
+            SortingCriteria::Random => uncovered.shuffle(&mut rand::thread_rng()),
+            SortingCriteria::Earliest => uncovered.sort_by_key(|(o, _)| self.orders[*o].open()),
+            SortingCriteria::Furthest => (),
+            SortingCriteria::Closest => (),
+            SortingCriteria::Demand => uncovered.sort_by(|(_, a), (_, b)| {
+                b.partial_cmp(a).expect("should be non-nan by construction")
+            }),
+        }
+
+        // Repair the new solution
+        self.repair(solution, self.orders, &uncovered);
+    }
+
+    /// Run SISRs starting from the given solution
+    pub fn run(&mut self, initial: Solution) {
+        // The best solution so far.
+        let mut best = initial.clone();
+        // The current solution
+        let mut solution = initial;
+
+        for _ in 0..self.config.iterations {
+            let mut new = solution.clone();
+            self.ruin(&mut new);
+            self.recreate(&mut new);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::problem::{Problem, Vessel};
+    use crate::problem::{Compartment, FixedInventory, Inventory, Node, Problem, Vessel};
 
     use super::Config;
 
-    pub fn test_instance() {}
+    static TIMESTEPS: usize = 360;
+    static PRODUCTS: usize = 2;
+    static N_VESSELS: usize = 2;
+    static N_FARMS: usize = 3;
+    static N_FACTORIES: usize = 2;
+
+    pub fn test_instance() -> Problem {
+        let vessel = Vessel::new(
+            vec![Compartment(100.0), Compartment(100.0), Compartment(100.0)],
+            1.0,
+            1.0,
+            0.7,
+            0.5,
+            0.3,
+            0,
+            Inventory::new(&vec![0.0; PRODUCTS]).unwrap().into(),
+            0,
+            "Class 1".to_owned(),
+        );
+        todo!()
+    }
+
+    #[test]
+    fn uncovered_is_empty_with_nosplit_delivery() {
+        // TODO
+    }
+
+    #[test]
+    fn uncovered_is_empty_with_split_delivery() {
+        // TODO
+    }
+
+    #[test]
+    fn uncovered_identifies_unfulfilled_delivery() {
+        // TODO
+    }
+
+    #[test]
+    fn uncovered_works_with_delivery_not_belonging_to_any_order() {
+        // TODO
+    }
 
     #[test]
     fn it_works() {
@@ -318,3 +659,79 @@ mod tests {
         assert_eq!(result, 4);
     }
 }
+
+/*     /// Determine the set of orders that are not covered by visits.
+/// Returns the indices of the orders that are not covered by the solution.
+pub fn uncovered(config: &Config, solution: &[Vec<Visit>], orders: &[Order]) -> Vec<usize> {
+    // Order = { node, product, quantity, time window }
+    // Visit = { node, product, quantity, time }
+    // Assumptions:
+    //   - Each (node, product)-pair of has a disjoint set of time windows in the set of orders.
+    //     In other words: we do not have multiple orders with overlapping time windows that relate
+    //     to the same (node, product)-pair
+    //   - Each vessel solution is sorted in ascending order by (node, product, time, quantity).
+    //     This allows us to find all deliveries to each order by a binary search on (node, product, time window low, MAX_NEG), (node, product, time window high, MAX_POS)
+    //
+    // The above assumption(s) significantly reduce the complexity of assigning visits to orders.
+    // Each visit at a (node, product)-pair can only be assigned to the unique order with (node, product) that
+    // has a time-window containint visit.time (if one such order exists).
+
+    // We will flatten and sort the set of visits
+    let mut visits = solution
+        .iter()
+        .flat_map(|xs| xs)
+        .cloned()
+        .collect::<Vec<_>>();
+    // Allow us to lookup the set of visits to (node, product) within a time window in log(total number of node visits))
+    visits.sort_by_key(|v| (v.node, v.product, v.time));
+
+    // The amount delivered for each order. (Same order)
+    let mut delivered = vec![0.0; orders.len()];
+    // The number of times each visit is counted to an order
+    let mut counts = vec![0; visits.len()];
+
+    for (order, d) in orders.iter().zip(&mut delivered) {
+        let open = (order.node(), order.product(), order.open());
+        let close = (order.node(), order.product(), order.close());
+        // `start` is the first element containing relevant deliveries, while `end` is the (exclusive) end.
+        // Note that `start` == `end` iff there are not deliveries that are relevant for the order.
+        let start = visits.partition_point(|v| (v.node, v.product, v.time) < open);
+        let end = visits.partition_point(|v| (v.node, v.product, v.time) <= close);
+        // The total amount delivered is simply the sum of deliveries to the relevant (node, product)-pair over the
+        // course of the time window specified by the order.
+        *d = visits[start..end].iter().map(|v| v.quantity).sum();
+        // Increase the count of
+    }
+
+    delivered
+        .iter()
+        .zip(orders)
+        .enumerate()
+        .filter_map(|(i, (&x, order))| match x >= order.quantity() {
+            true => Some(i),
+            false => None,
+        })
+        .collect()
+} */
+
+/*
+for (i, k) in supertour[..].iter().zip(&supertour[1..]) {
+    // If the node visit to `i` is after the order window
+    let earliest_comp_time = i.time
+        + travel_time(vessel, i.node, order.node())
+        + unloading_time(order.quantity(), order.node());
+    // The latest completion time that is allowed if we want to be able to serve `k`
+    let latest_comp_time = k.time - travel_time(vessel, order.node(), k.node);
+
+    // If the earliest completion time is after the end of the time window,
+    // then we cannot use this insertion point. Same goes if the visit to `k`
+    // must occur before the start of the order's time window
+    if earliest_comp_time > order.close() || latest_comp_time < order.open() {
+        continue;
+    }
+
+    // The amount of inventory at the vessel when it leaves `i`.
+    let product = i.product;
+    let quantity = i.quantity;
+    inventory[product] += quantity;
+}*/
