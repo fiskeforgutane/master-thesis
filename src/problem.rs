@@ -60,6 +60,18 @@ impl Problem {
         self.distances[from][to]
     }
 
+    /*
+    /// The time required for `vessel` to travel from `from` to `to`.
+    pub fn travel_time(&self, from: NodeIndex, to: NodeIndex, vessel: VesselIndex) -> TimeIndex {
+        let speed = self.vessels[vessel].speed();
+        (self.distance(from, to) / speed).ceil() as TimeIndex
+    }*/
+
+    /// The minimum amount of time we need to spend at `node` in order to load/unload `quantity`.
+    pub fn min_loading_time(&self, node: NodeIndex, quantity: Quantity) -> TimeIndex {
+        let rate = self.nodes[node].max_loading_amount();
+        (rate / quantity).ceil() as TimeIndex
+    }
     /// Returns the consumption nodes of the problem
     /// **VERY BAD** should be done once in the constructor
     pub fn consumption_nodes(&self) -> Vec<&Node> {
@@ -373,6 +385,38 @@ impl Inventory {
             _ => Some(Inventory(RawInventory::Multiple(value.to_vec()))),
         }
     }
+
+    pub fn single(value: Quantity) -> Self {
+        Inventory(RawInventory::Single(value))
+    }
+
+    pub fn num_products(&self) -> usize {
+        match &self.0 {
+            RawInventory::Single(_) => 1,
+            RawInventory::Multiple(xs) => xs.len(),
+        }
+    }
+
+    pub fn capacity_for(&self, product: ProductIndex, compartments: &[Compartment]) -> Quantity {
+        if self.num_products() == 1 {
+            let capacity = compartments.iter().map(|c| c.0).sum::<f64>();
+            return capacity - self[0];
+        }
+
+        todo!("capacity not implemented for multiple product types yet.");
+    }
+
+    pub fn fixed(self) -> FixedInventory {
+        FixedInventory::from(self)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        let epsilon = 1.0e-6;
+        match &self.0 {
+            RawInventory::Single(x) => x.abs() <= epsilon,
+            RawInventory::Multiple(xs) => xs.iter().sum::<f64>().abs() <= epsilon,
+        }
+    }
 }
 impl From<FixedInventory> for Inventory {
     fn from(inventory: FixedInventory) -> Self {
@@ -407,6 +451,10 @@ pub struct FixedInventory(Inventory);
 impl FixedInventory {
     pub fn as_inv(&self) -> &Inventory {
         &self.0
+    }
+
+    pub fn unfixed(self) -> Inventory {
+        self.0
     }
 }
 

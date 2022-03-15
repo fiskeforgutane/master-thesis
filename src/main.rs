@@ -1,6 +1,8 @@
 pub mod models;
 pub mod problem;
 pub mod quants;
+pub mod sisrs;
+pub mod solution;
 use grb::prelude::*;
 
 use itertools::iproduct;
@@ -95,9 +97,8 @@ fn cumulative(x: Vec<f64>, initial: Quantity) -> Vec<f64> {
     y
 }
 
-/* fn main() -> grb::Result<()> {
-    let prob = Problem::new(vessels(), nodes(), 50, 1, distances());
-    let sets = Sets::new(&prob);
+/* fn main() {
+    let problem = Problem::new(vessels(), nodes(), 50, 1, distances());
     let params = Parameters::new(&prob, &sets);
     let mut res = TransportationSolver::build(&sets, &params, 0)?;
     let mut model = res.0;
@@ -112,7 +113,7 @@ fn cumulative(x: Vec<f64>, initial: Quantity) -> Vec<f64> {
     println!("{:?}", sets);
     println!("Hello, world!");
     Ok(())
-} */
+}  */
 
 /* use crate::models::utils::NObjectives;
 

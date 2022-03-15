@@ -1,8 +1,8 @@
-mod operators;
-
 pub mod models;
 pub mod problem;
 pub mod quants;
+pub mod sisrs;
+pub mod solution;
 
 #[cfg(test)]
 mod tests {
