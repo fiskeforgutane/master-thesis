@@ -610,21 +610,43 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     }
 
     /// Run SISRs starting from the given solution
-    pub fn run(&mut self, initial: Solution) {
-        debug!("Starting SISRs from initial solution {:?}", &initial);
+    pub fn run(&mut self, initial: Solution) -> Solution {
+        info!("Starting SISRs from initial solution {:?}", &initial);
         // The best solution so far.
         let mut best = initial.clone();
         // The current solution
         let mut solution = initial;
 
+        let uniform = Uniform::<f64>::new(0.0, 1.0);
+        let c = (self.config.tk / self.config.t0).powf(1.0 / self.config.iterations as f64);
+        let mut t = self.config.t0;
         for iteration in 0..self.config.iterations {
             trace!("SISRs iteration {}", iteration);
+
+            // Create a new solution by R&R-ing the current one
             let mut new = solution.clone();
             self.ruin(&mut new);
             self.recreate(&mut new);
+
+            // We'll compare on shortage first, and then on cost
+            let eval_new = new.evaluation();
+            let eval_old = solution.evaluation();
+            let noise = t * uniform.sample(&mut rand::thread_rng()).ln();
+
+            if eval_new < best.evaluation() {
+                info!("Found new best solution with {:?}", eval_new);
+                best = new.clone();
+            }
+
+            if eval_new.shortage < eval_old.shortage + noise {
+                solution = new;
+            }
+
+            t *= c;
         }
 
-        debug!("Best solution found by SISRs was {:?}", &best);
+        info!("Best solution found by SISRs was {:?}", &best);
+        Solution
     }
 }
 

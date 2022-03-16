@@ -66,7 +66,7 @@ pub struct Solution<'p> {
 }
 
 /// Evaluation of a solution's quality
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Evaluation {
     /// The total cost of the solution
     pub cost: f64,
@@ -76,6 +76,24 @@ pub struct Evaluation {
     /// The total amount of excess over the planning period. In other words,
     /// the sum of the amounts exceeding nodes' capacity over the planning period
     pub excess: Quantity,
+}
+
+impl Eq for Evaluation {}
+
+impl PartialOrd for Evaluation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        // We will weigh violations equally.
+        let v1 = self.shortage + self.excess;
+        let v2 = other.shortage + other.excess;
+
+        self.cost.partial_cmp(&other.cost).and(v1.partial_cmp(&v2))
+    }
+}
+
+impl Ord for Evaluation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).expect("non-nan")
+    }
 }
 
 impl<'p> Debug for Solution<'p> {
