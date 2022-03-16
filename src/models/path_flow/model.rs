@@ -150,9 +150,9 @@ impl PathFlowSolver {
                     let t_time = parameters.travel[r][i][v];
                     let lhs = x[r][i][v][t];
                     let rhs = if t < sets.T_r[r][v][i] {
-                        x[r][i + 1][v][t + t_time] + x[r][i][v][t + 1] // if it is possible to stay
+                        x[r][i + 1][v][t + t_time + 1] + x[r][i][v][t + 1] // if it is possible to stay
                     } else {
-                        x[r][i + 1][v][t + t_time] + 0 // must move on to finish in time
+                        x[r][i + 1][v][t + t_time + 1] + 0 // must move on to finish in time
                     };
 
                     model.add_constr(&format!("1_{}_{}_{}_{}", r, i, v, t), c!(lhs <= rhs))?;
@@ -160,15 +160,13 @@ impl PathFlowSolver {
             }
         }
 
-        //model.add_constr(&format!("test"), c!(x[0][0][0][0] == 1))?;
-        //model.add_constr(&format!("test"), c!(x[0][0][0][5] == 1))?;
         // Ensure that the lhs of constraint 1 cannot exceed one.
         for r in from_route..sets.R {
             for (i, v) in iproduct!(0..(sets.I_r[r] - 1), 0..sets.V) {
                 for t in 0..(sets.T_r[r][v][i] + 1) {
                     // travel time between the i'th and (i+1)'th visit of route r for vessel v
                     let t_time = parameters.travel[r][i][v];
-                    let lhs = x[r][i + 1][v][t + t_time] + x[r][i][v][t + 1];
+                    let lhs = x[r][i + 1][v][t + t_time + 1] + x[r][i][v][t + 1];
 
                     model.add_constr(
                         &format!("bound_1_lhs_{}_{}_{}_{}", r, i, v, t),
@@ -241,13 +239,14 @@ impl PathFlowSolver {
             model.add_constr(&format!("end_criterion_{}", v), c!(lhs == rhs))?;
         }
 
+        // this might be redundant
         // a vessel can not be at a visit in a route at a time where it cannot reach the end of the route
         for r in from_route..sets.R {
             for i in 0..sets.I_r[r] {
                 for v in 0..sets.V {
                     for t in (sets.T_r[r][v][i] + 1)..sets.T {
                         model.add_constr(
-                            &format!("force_zero_{}_{}_{}_{}", r, i, v, t),
+                            &format!("force_zero1_{}_{}_{}_{}", r, i, v, t),
                             c!(x[r][i][v][t] == 0),
                         )?;
                     }
@@ -263,10 +262,36 @@ impl PathFlowSolver {
             if t < t_time {
                 let i = sets.I_r[r] - 1;
                 model.add_constr(
-                    &format!("force_zero_{}_{}_{}_{}", r, i, v, t),
+                    &format!("force_zero2_{}_{}_{}_{}", r, i, v, t),
                     c!(x[r][i][v][t] == 0),
                 )?;
             }
+        }
+
+        // ************* NODE INVENTORY ************
+
+        // remove constraints if already present
+        Self::remove_constrs(
+            iproduct!((0..sets.N), (0..sets.P))
+                .map(|(n, p)| format!("initial_inv_{}_{}", n, p))
+                .collect(),
+            model,
+        )?;
+
+        // inventory in first time step at node n
+        for (n, p) in iproduct!(0..sets.N, 0..sets.P) {
+            let delivered = (0..sets.R)
+                .map(|r| {
+                    let visits = (0..sets.I_r[r]).filter(|i| parameters.node(r, *i).unwrap() == n);
+                    let subsum = visits.map(|i| (0..sets.V).map(|v| q[r][i][v][0][p]).grb_sum());
+                    subsum.grb_sum()
+                })
+                .grb_sum();
+            let lhs = s[n][0][p];
+            let rhs = parameters.S_0[n][p] as isize
+                + (parameters.kind(n) * parameters.D[n][p][0] as isize)
+                - parameters.kind(n) * delivered;
+            model.add_constr(&format!("initial_inv_{}_{}", n, p), c!(lhs == rhs))?;
         }
 
         // remove constraints if already present
@@ -293,6 +318,29 @@ impl PathFlowSolver {
             model.add_constr(&format!("node_inv_{}_{}_{}", n, p, t), c!(lhs == rhs))?;
         }
 
+        // ************* VESSEL LOAD ************
+
+        // remove constraints if already present
+        Self::remove_constrs(
+            iproduct!(0..sets.V, 0..sets.P)
+                .map(|(v, p)| format!("initial_load_{}_{}", v, p))
+                .collect(),
+            model,
+        )?;
+        // initial load
+        for (v, p) in iproduct!(0..sets.V, 0..sets.P) {
+            let change = (0..sets.R)
+                .map(|r| {
+                    (0..sets.I_r[r])
+                        .map(|i| parameters.visit_kind(r, i).unwrap() * q[r][i][v][0][p])
+                        .grb_sum()
+                })
+                .grb_sum();
+            let lhs = l[v][parameters.T_0[v]][p];
+            let rhs = parameters.L_0[v][p] + change;
+            model.add_constr(&format!("initial_load_{}_{}", v, p), c!(lhs == rhs))?;
+        }
+
         // remove constraints if already present
         Self::remove_constrs(
             iproduct!(0..sets.V, 1..sets.T, 0..sets.P)
@@ -304,7 +352,7 @@ impl PathFlowSolver {
         // load logging
         for (v, t, p) in iproduct!(0..sets.V, 1..sets.T, 0..sets.P) {
             // loaded or unloaded in the time period
-            let change = (from_route..sets.R)
+            let change = (0..sets.R)
                 .map(|r| {
                     (0..sets.I_r[r])
                         .map(|i| parameters.visit_kind(r, i).unwrap() * q[r][i][v][t][p])
@@ -322,12 +370,12 @@ impl PathFlowSolver {
         for r in from_route..sets.R {
             for (i, v, t) in iproduct!((0..sets.I_r[r]), (0..sets.V), (0..sets.T - 1)) {
                 let lhs = (0..sets.P).map(|p| q[r][i][v][t][p]).grb_sum();
-                warn!("tighten this bound");
-                let rhs = 10000 * x[r][i][v][t];
+                let node_idx = parameters.N_r[r][i];
+                let big_m = (0..sets.P)
+                    .map(|p| parameters.F_max[node_idx][p])
+                    .sum::<f64>();
+                let rhs = big_m * x[r][i][v][t];
                 model.add_constr(&format!("loading_{r}_{i}_{v}_{t}"), c!(lhs <= rhs))?;
-                let lhs = (0..sets.P).map(|p| q[r][i][v][t][p]).grb_sum();
-                let rhs = 10000 * x[r][i][v][t + 1];
-                model.add_constr(&format!("loading2_{r}_{i}_{v}_{t}"), c!(lhs <= rhs))?;
             }
         }
 
@@ -348,16 +396,6 @@ impl PathFlowSolver {
         let v_plus = variables.v_plus();
         let l = variables.l();
 
-        // ************* NODE INVENTORY ************
-
-        // inventory in first time step at node n
-        for (n, p) in iproduct!(0..sets.N, 0..sets.P) {
-            model.add_constr(
-                &format!("initial_inv_{}_{}", n, p),
-                c!(s[n][0][p] == parameters.S_0[n][p]),
-            )?;
-        }
-
         // shortage logging
         for (n, t, p) in iproduct!(&sets.N_C, 0..sets.T, 0..sets.P) {
             let lhs = parameters.S_min[*n][p][t];
@@ -372,13 +410,11 @@ impl PathFlowSolver {
             model.add_constr(&format!("shortage_{}_{}_{}", n, t, p), c!(lhs >= rhs))?;
         }
 
-        // ************* VESSEL LOAD ************
-
-        // initial load
-        for (v, p) in iproduct!(0..sets.V, 0..sets.P) {
-            let lhs = l[v][parameters.T_0[v]][p];
-            let rhs = parameters.L_0[v][p];
-            model.add_constr(&format!("initial_load_{}_{}", v, p), c!(lhs == rhs))?;
+        // bound on vessel load
+        for (v, t) in iproduct!(0..sets.V, 0..sets.T) {
+            let lhs = (0..sets.P).map(|p| l[v][t][p]).grb_sum();
+            let rhs = parameters.Q[v];
+            model.add_constr(&format!("load_bound_{}_{}", v, t), c!(lhs <= rhs))?;
         }
 
         Ok(())
@@ -447,7 +483,7 @@ impl PathFlowSolver {
 }
 
 pub struct Variables {
-    /// 1 if vessel v follows route r and is at the route's i'th stop at the beginning of time step t, indexed (r,i,v,t)
+    /// 1 if vessel v follows route r and is at the route's i'th stop at the end of time step t, indexed (r,i,v,t)
     pub x: Vec<Vec<Vec<Vec<Var>>>>,
     /// inventory at node n at *the end* time step t of product p
     pub s: Vec<Vec<Vec<Var>>>,
