@@ -341,22 +341,30 @@ pub struct Vessel {
     #[pyo3(get)]
     /// The compartments available on the vessel.
     compartments: Vec<Compartment>,
+    #[pyo3(get)]
     /// The cruising speed of this vessel, in distance units per time step
     speed: f64,
+    #[pyo3(get)]
     /// The cost per time step of travel
     travel_unit_cost: Cost,
+    #[pyo3(get)]
     /// The cost when travelling without a load
     empty_travel_unit_cost: Cost,
+    #[pyo3(get)]
     /// The cost per time unit
     time_unit_cost: Cost,
+    #[pyo3(get)]
     /// The time step from which the vessel becomes available
     available_from: usize,
     /// The initial inventory available for this vessel
     initial_inventory: FixedInventory,
+    #[pyo3(get)]
     /// The origin node of the vessel
     origin: usize,
+    #[pyo3(get)]
     /// The vessel class this belongs to
     class: String,
+    #[pyo3(get)]
     /// The index of the vessel
     index: usize,
 }
