@@ -24,14 +24,19 @@ pub type ProductIndex = usize;
 #[pyclass]
 #[derive(Debug, Clone, Constructor)]
 pub struct Problem {
+    #[pyo3(get)]
     /// The vessels available for use in the problem. Assumed to be ordered by index
     vessels: Vec<Vessel>,
+    #[pyo3(get)]
     /// The nodes of this problem. This contains both consumption and production nodes.
     nodes: Vec<Node>,
+    #[pyo3(get)]
     /// The number of time steps in the problem
     timesteps: usize,
+    #[pyo3(get)]
     /// The number of different products
     products: usize,
+    #[pyo3(get)]
     /// A distance matrix between the different nodes.
     distances: Vec<Vec<Distance>>,
 }
@@ -190,6 +195,7 @@ impl Problem {
 #[derive(Debug, Clone, Copy)]
 pub struct Compartment(pub Quantity);
 
+#[pyclass]
 #[derive(Debug, Clone, Constructor)]
 pub struct Vessel {
     /// The compartments available on the vessel.
@@ -274,6 +280,7 @@ pub enum NodeType {
     Production,
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Constructor)]
 pub struct Node {
     /// The name of the node
