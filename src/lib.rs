@@ -18,6 +18,7 @@ use pyo3::prelude::*;
 use solution::{Evaluation, Visit};
 
 #[pyclass]
+#[derive(Debug)]
 pub struct Solution {
     #[pyo3(get, set)]
     pub routes: Vec<Vec<Visit>>,
@@ -36,6 +37,14 @@ impl Solution {
 
         Ok(solution.evaluation())
     }
+
+    pub fn __str__(&self) -> String {
+        format!("{:?}", self.routes)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
 }
 
 #[pymethods]
@@ -50,6 +59,14 @@ impl Problem {
     ) -> PyResult<Problem> {
         Problem::new(vessels, nodes, timesteps, products, distances)
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
+    }
+
+    pub fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
     }
 }
 
@@ -83,6 +100,14 @@ impl Vessel {
             class,
             index,
         ))
+    }
+
+    pub fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
     }
 }
 
@@ -127,6 +152,36 @@ impl Node {
             revenue,
             initial_inventory.fixed(),
         ))
+    }
+
+    pub fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
+#[pymethods]
+impl Compartment {
+    pub fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
+#[pymethods]
+impl Evaluation {
+    pub fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
     }
 }
 
