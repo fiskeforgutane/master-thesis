@@ -197,7 +197,7 @@ fn main() -> grb::Result<()> {
  */
 
 fn main() {
-    let prob = Problem::new(vessels(), nodes(), 10, 1, distances());
+    let prob = Problem::new(vessels(), nodes(), 10, 1, distances()).unwrap();
 
     let r = Route::new(vec![0, 1, 3], &prob);
     let r2 = Route::new(vec![3, 2, 3], &prob);
