@@ -1,6 +1,6 @@
 use std::{
     iter::Sum,
-    ops::{AddAssign, Index, IndexMut},
+    ops::{AddAssign, Deref, Index, IndexMut},
 };
 
 use derive_more::Constructor;
@@ -22,7 +22,7 @@ pub type TimeIndex = usize;
 pub type ProductIndex = usize;
 
 #[pyclass]
-#[derive(Debug, Clone, Constructor)]
+#[derive(Debug, Clone)]
 pub struct Problem {
     #[pyo3(get)]
     /// The vessels available for use in the problem. Assumed to be ordered by index
@@ -142,37 +142,42 @@ impl Problem {
 
 #[derive(Debug)]
 pub enum ProblemConstructionError {
-    /// The size of the distance matrix is not as expected,
-    DistanceSizeMismatch {
-        expected: (usize, usize),
-        actual: (usize, usize),
+    /// The number of rows is not as expected
+    DistanceWrongRowCount { expected: usize, actual: usize },
+    /// One of the rows has an incorrect length
+    DistanceWrongRowLength {
+        row: usize,
+        expected: usize,
+        actual: usize,
     },
     /// The number of time steps must be strictly positive
     NoTimeSteps,
     /// There must be at least one product
     NoProducts,
-    /// This node has zero compartments (must be at least one).
-    NoCompartments(Node),
+    /// This vessel has zero compartments (must be at least one).
+    NoCompartments { vessel: usize },
     /// Incorrect number of inventory changes. Should match timesteps (-1 ?)
     InventoryChangeSizeMismatch {
-        node: Node,
+        node: usize,
         expected: usize,
         actual: usize,
     },
     /// Node `node` has negative inventory capacity for feed type `feed_type`
-    NegativeInventoryCapacity { node: Node, feed_type: usize },
+    NegativeInventoryCapacity { node: usize, feed_type: usize },
     /// Node `node` has wrong dimension for the inventory
     NodeInventorySizeMismatch {
-        node: Node,
+        node: usize,
         expected: usize,
         actual: usize,
     },
     /// Vessel `vessel` has the wrong dimension for the inventory
     VesselInventorySizeMismatch {
-        node: Node,
+        vessel: usize,
         expected: usize,
         actual: usize,
     },
+    /// A vessel has a negative capacity for a compartment
+    VesseNegativeCompartmentCapacity { vessel: usize, compartment: usize },
     /// Speed of vessel is zero.
     SpeedIsZero { vessel: Vessel },
     /// Origin is not a valid node index
@@ -180,15 +185,121 @@ pub enum ProblemConstructionError {
 }
 
 impl Problem {
-    /* pub fn new(
-        _vessels: Vec<Vessel>,
-        _nodes: Vec<Node>,
-        _timesteps: usize,
-        _products: usize,
-        _distances: Vec<Vec<Distance>>,
+    pub fn general_checks(
+        nodes: &[Node],
+        distances: &[Vec<Distance>],
+        products: usize,
+        timesteps: usize,
+    ) -> Result<(), ProblemConstructionError> {
+        use ProblemConstructionError::*;
+        let n = nodes.len();
+
+        if distances.len() != n {
+            return Err(DistanceWrongRowCount {
+                expected: n,
+                actual: distances.len(),
+            });
+        }
+
+        for (i, row) in distances.iter().enumerate() {
+            return Err(DistanceWrongRowLength {
+                row: i,
+                expected: n,
+                actual: distances.len(),
+            });
+        }
+
+        if timesteps == 0 {
+            return Err(NoTimeSteps);
+        }
+
+        if products == 0 {
+            return Err(NoProducts);
+        }
+
+        Ok(())
+    }
+
+    pub fn check_node(
+        i: usize,
+        node: &Node,
+        n: usize,
+        t: usize,
+        p: usize,
+    ) -> Result<(), ProblemConstructionError> {
+        use ProblemConstructionError::*;
+
+        if node.initial_inventory().num_products() != p {
+            return Err(NodeInventorySizeMismatch {
+                node: i,
+                expected: p,
+                actual: node.initial_inventory().num_products(),
+            });
+        }
+
+        if node.inventory_changes.len() != t {
+            return Err(InventoryChangeSizeMismatch {
+                node: i,
+                expected: t,
+                actual: node.inventory_changes.len(),
+            });
+        };
+
+        for product in 0..p {
+            if node.capacity[product] < 0.0 {
+                return Err(ProblemConstructionError::NegativeInventoryCapacity {
+                    node: i,
+                    feed_type: product,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn check_vessel(
+        v: usize,
+        vessel: &Vessel,
+        n: usize,
+        t: usize,
+        p: usize,
+    ) -> Result<(), ProblemConstructionError> {
+        if vessel.compartments.len() == 0 {
+            return Err(ProblemConstructionError::NoCompartments { vessel: v });
+        }
+
+        for (c, compartment) in vessel.compartments.iter().enumerate() {
+            if compartment.into() < 1e-5 {
+                return Err(ProblemConstructionError::VesseNegativeCompartmentCapacity {
+                    vessel: v,
+                    compartment: c,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn new(
+        vessels: Vec<Vessel>,
+        nodes: Vec<Node>,
+        timesteps: usize,
+        products: usize,
+        distances: Vec<Vec<Distance>>,
     ) -> Result<Problem, ProblemConstructionError> {
+        let v = vessels.len();
+        let t = timesteps;
+        let p = products;
+
+        // Perform general checks
+        Self::general_checks(&nodes, &distances, timesteps, products)?;
+        // Check each node
+        for (i, node) in nodes.iter().enumerate() {
+            Self::check_node(i, node, nodes.len(), t, p)?;
+        }
+
         todo!()
-    } */
+    }
 }
 
 // A compartment is used to hold fed during transport
@@ -490,11 +601,12 @@ impl From<Inventory> for FixedInventory {
     }
 }
 
-impl Index<usize> for FixedInventory {
-    type Output = <Inventory as Index<usize>>::Output;
+/// Implementing Deref gives us all of the stuff from `inventory` "for free"
+impl Deref for FixedInventory {
+    type Target = Inventory;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

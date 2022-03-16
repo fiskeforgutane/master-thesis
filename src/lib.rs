@@ -3,7 +3,13 @@ pub mod problem;
 pub mod quants;
 pub mod sisrs;
 pub mod solution;
+
+use problem::Distance;
+use problem::Node;
 use problem::Problem;
+use problem::Vessel;
+use pyo3::exceptions;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use solution::Visit;
 
@@ -18,6 +24,20 @@ impl Solution {
     #[new]
     pub fn new(routes: Vec<Vec<Visit>>) -> Self {
         Self { routes }
+    }
+}
+
+#[pymethods]
+impl Problem {
+    #[new]
+    pub fn new_py(
+        vessels: Vec<Vessel>,
+        nodes: Vec<Node>,
+        timesteps: usize,
+        products: usize,
+        distances: Vec<Vec<Distance>>,
+    ) -> PyResult<Problem> {
+        Err(PyErr::new::<exceptions::PyValueError, _>("todo"))
     }
 }
 
