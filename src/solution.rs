@@ -61,6 +61,39 @@ pub struct Solution<'p> {
     routes: Vec<Vec<Visit>>,
     /// A cache of the routes stored sorted by (node, product, time, vessel). This allows us to lookup visits to a (node, product)-pair within a time window in log(n)
     npt_cache: Cell<Vec<(VesselIndex, Visit)>>,
+    /// A cache of the evaluation of this solution
+    evaluation: Cell<Option<Evaluation>>,
+}
+
+/// Evaluation of a solution's quality
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Evaluation {
+    /// The total cost of the solution
+    pub cost: f64,
+    /// The total amount of shortage over the planning period.
+    /// I.e. shortage = sum(-min(0, inventory) for all inventories at farms)
+    pub shortage: Quantity,
+    /// The total amount of excess over the planning period. In other words,
+    /// the sum of the amounts exceeding nodes' capacity over the planning period
+    pub excess: Quantity,
+}
+
+impl Eq for Evaluation {}
+
+impl PartialOrd for Evaluation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        // We will weigh violations equally.
+        let v1 = self.shortage + self.excess;
+        let v2 = other.shortage + other.excess;
+
+        self.cost.partial_cmp(&other.cost).and(v1.partial_cmp(&v2))
+    }
+}
+
+impl Ord for Evaluation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).expect("non-nan")
+    }
 }
 
 impl<'p> Debug for Solution<'p> {
@@ -91,6 +124,7 @@ impl<'p> Clone for Solution<'p> {
                 self.npt_cache.set(inner);
                 new
             },
+            evaluation: self.evaluation.clone(),
         }
     }
 }
@@ -106,6 +140,7 @@ impl<'p> Solution<'p> {
             problem,
             routes: routes.iter().map(|r| Vec::with_capacity(r.len())).collect(),
             npt_cache: Cell::default(),
+            evaluation: Cell::default(),
         };
 
         for (v, route) in routes.iter().enumerate() {
@@ -119,6 +154,9 @@ impl<'p> Solution<'p> {
 
     /// Invalidate caches.
     fn invalidate_caches(&self) {
+        self.evaluation.set(None);
+        // Note: if we wish to avoid unnecessary allocations, we can instead
+        // take the npt_cache, clear the vector, and then set it back.
         self.npt_cache.set(Vec::new());
     }
 
@@ -163,6 +201,79 @@ impl<'p> Solution<'p> {
             time: vessel.available_from(),
             quantity: 0.0,
         }
+    }
+
+    /// Calculates the cost of this solution.
+    fn cost(&self) -> f64 {
+        let mut cost = 0.0;
+        for (vessel, route) in self.routes.iter().enumerate() {
+            let boat = &self.problem.vessels()[vessel];
+            let mut inventory = boat.initial_inventory().as_inv().clone();
+            let origin = self.origin_visit(vessel);
+            let tour = std::iter::once(&origin).chain(route);
+            for (from, to) in tour.zip(route) {
+                // We should keep track of a vessel's inventory
+                inventory[from.product] += from.quantity;
+                // The travel cost is dependent on the quantity being carried.
+                cost += self
+                    .problem
+                    .travel_cost(from.node, to.node, vessel, &inventory);
+                // Note: we have already paid the port fee for `from`
+                cost += boat.port_fee(to.node);
+            }
+        }
+
+        cost
+    }
+
+    /// Calculates the accumulated shortage and excess of this solution
+    fn inventory_violations(&self) -> (f64, f64) {
+        let mut shortage = 0.0;
+        let mut excess = 0.0;
+
+        // It should be possible to do this
+        for (n, node) in self.problem.nodes().iter().enumerate() {
+            for p in 0..self.problem.products() {
+                let accumulative = node.inventory_without_deliveries(p);
+                let mut delta = 0.0;
+                for t in 0..self.problem.timesteps() {
+                    // This should be either one or zero deliveries. `visit.node == n` and `visit.product == p` by construction.
+                    for (_, visit) in self.deliveries(n, p, t..t + 1).iter() {
+                        delta += visit.quantity;
+                    }
+
+                    // The quantity at the farm/factory
+                    let inv = accumulative[t] + delta;
+                    let capacity = node.capacity()[p];
+
+                    // Calculate shortage and excess at the current time.
+                    shortage += f64::min(inv, 0.0).abs();
+                    excess += f64::max(0.0, inv - capacity);
+                }
+            }
+        }
+
+        (shortage, excess)
+    }
+
+    /// The evaluation of this solution
+    pub fn evaluation(&self) -> Evaluation {
+        if let Some(evaluation) = self.evaluation.get() {
+            return evaluation;
+        }
+
+        let cost = self.cost();
+        let (shortage, excess) = self.inventory_violations();
+
+        let eval = Evaluation {
+            cost,
+            shortage,
+            excess,
+        };
+
+        self.evaluation.set(Some(eval));
+
+        eval
     }
 
     /// Determine the all visits to a (node, product)-pair within a time window. Includes visits by all vehicles.
