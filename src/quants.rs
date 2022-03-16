@@ -1,6 +1,41 @@
 use std::collections::HashMap;
 
+use derive_more::Constructor;
+use grb::Result;
+
+use crate::models::transportation_model::model::TransportationSolver;
+use crate::models::transportation_model::sets_and_parameters::{Parameters, Sets};
 use crate::problem::{Node, NodeIndex, NodeType, Problem, ProductIndex, Quantity, TimeIndex};
+
+/// Generates the initial orders for the given problem
+pub fn initial_orders(problem: &Problem) -> Result<Vec<Order>> {
+    let mut out = Vec::new();
+    for p in 0..problem.products() {
+        let sets = Sets::new(problem);
+        let parameters = Parameters::new(problem, &sets);
+        let res = TransportationSolver::solve(&sets, &parameters, p)?;
+        let mut quantities: HashMap<NodeIndex, Vec<f64>> = problem
+            .production_nodes()
+            .iter()
+            .map(|n| (n.index(), res.picked_up(n.index())))
+            .collect();
+        problem.consumption_nodes().iter().for_each(|n| {
+            let k = n.index();
+            let v = res.delivered(k);
+            quantities.insert(k, v);
+        });
+        for node in problem.nodes() {
+            let quants = quantities.get(&node.index()).unwrap();
+            let windows = Quantities::time_windows(node, quants, p);
+            for i in 0..quants.len() {
+                let order = Order::new(node.index(), windows[i].0, windows[i].1, p, quants[i]);
+                out.push(order);
+            }
+        }
+    }
+
+    Ok(out)
+}
 
 pub struct Quantities {
     pub problem: Problem,
@@ -11,15 +46,15 @@ impl Quantities {
         Quantities { problem }
     }
 
-    /// Returns the initial orders only considering the problem
+    /* /// Returns the initial orders only considering the problem
     pub fn initial_orders(&self) -> Vec<Order> {
         return (0..self.problem.products())
             .flat_map(|p| self.initial_orders_per(p))
             .collect();
-    }
+    } */
 
     /// Returns the initial orders for the given product and only considering the problem
-    fn initial_orders_per(&self, product: ProductIndex) -> Vec<Order> {
+    /* fn initial_orders_per(&self, product: ProductIndex) -> Vec<Order> {
         /*
          - Calculate necessary deliveries to each consumption node for the entire planning period
          - Split the total delivery into deliveries with an origin and a destination
@@ -28,27 +63,7 @@ impl Quantities {
         */
         // {k.key(): sum(k.consumption) for k in problem.nodes()}
 
-        // calculate how much of the given product type that must be (un)loaded at each node
-        let t = self.problem.timesteps();
-        let consumption = |node: &Node| {
-            (0..t)
-                .map(|time| node.inventory_changes()[time][product])
-                .sum::<f64>()
-        };
-
-        let quantities: HashMap<NodeIndex, Quantity> = self
-            .problem
-            .nodes()
-            .iter()
-            .map(|node| {
-                (
-                    node.index(),
-                    consumption(node) - node.initial_inventory()[product],
-                )
-            })
-            .collect();
-
-        let deliveries = self.find_deliveries(quantities);
+        let deliveries = self.find_deliveries(Quantities::quantities(&self.problem, product));
 
         let mut orders = Vec::new();
         for node in self.problem.nodes() {
@@ -59,10 +74,109 @@ impl Quantities {
             }
         }
         orders
+    } */
+
+    /// Calculates the quantities that are to be either delivered or picked up at the nodes
+    pub fn quantities(problem: &Problem, product: ProductIndex) -> HashMap<NodeIndex, Quantity> {
+        /*
+        1. Assign quantites to production nodes such that all owerflow is handled and to consumption nodes such that all shortage is covered
+        2. If the total demanded quanitity is larger than the quanitity pickup up at production nodes, increase the amount picked up at the production nodes
+            by the quantity they have available but that is not already picked up.
+        */
+
+        // calculate how much of the given product type that must be (un)loaded at each node
+        let consumption = |node: &Node| {
+            node.inventory_change(0, problem.timesteps() - 1, product)
+                .abs()
+        };
+
+        let total_consumption_demand: Quantity = problem
+            .nodes()
+            .iter()
+            .map(|n| match n.r#type() {
+                NodeType::Consumption => consumption(n),
+                NodeType::Production => 0.0,
+            })
+            .sum();
+
+        let mut quantities: HashMap<NodeIndex, Quantity> = problem
+            .nodes()
+            .iter()
+            .map(|node| {
+                (
+                    node.index(),
+                    match node.r#type() {
+                        // consumption not covered by initial inventory
+                        NodeType::Consumption => {
+                            f64::max(consumption(node) - node.initial_inventory()[product], 0.0)
+                        }
+                        // production that there isn't room for
+                        NodeType::Production => {
+                            let production = consumption(node);
+                            f64::max(
+                                production
+                                    - (node.capacity()[product]
+                                        - node.initial_inventory()[product]),
+                                0.0,
+                            )
+                        }
+                    },
+                )
+            })
+            .collect();
+
+        let picked_up: Quantity = problem
+            .nodes()
+            .iter()
+            .map(|n| match n.r#type() {
+                NodeType::Consumption => 0.0,
+                NodeType::Production => quantities[&n.index()],
+            })
+            .sum();
+
+        if picked_up < total_consumption_demand {
+            let mut not_covered = total_consumption_demand - picked_up;
+            let num_prod_nodes = problem.production_nodes().len();
+
+            // production nodes sorted on the capacity for the given product
+            let mut prod_nodes = problem.production_nodes().clone();
+
+            prod_nodes.sort_by(|a, b| {
+                a.capacity()[product]
+                    .partial_cmp(&b.capacity()[product])
+                    .unwrap()
+            });
+            let mut count = 0;
+            for prod_node in prod_nodes {
+                // the remaining demand not covered equally distributed over the remaining production nodes
+                let eq_share = not_covered / ((num_prod_nodes - count) as f64);
+                count += 1;
+
+                // current quantity being picked up at the production node
+                let curr = quantities[&prod_node.index()];
+
+                // excess product that hasn't been picked up
+                let excess = if curr > 0.0 {
+                    prod_node.capacity()[product]
+                } else {
+                    prod_node.initial_inventory()[product] + consumption(prod_node)
+                };
+
+                // extra product to be picked up at the production node to help satisfy the total consumption demand
+                let added_pickup = f64::min(excess, eq_share);
+
+                // update the demand not covered
+                not_covered -= added_pickup;
+
+                // update the demand picked up at the production node
+                *quantities.get_mut(&prod_node.index()).unwrap() += added_pickup;
+            }
+        }
+        quantities
     }
 
     /// Calculate the number of deliveries per node and the quantities
-    fn find_deliveries(
+    /* fn find_deliveries(
         &self,
         quantities: HashMap<NodeIndex, Quantity>,
     ) -> HashMap<NodeIndex, Vec<Quantity>> {
@@ -88,18 +202,17 @@ impl Quantities {
                 )
             })
             .collect()
-    }
+    } */
 
     /// Find appropriate time windoes for each delivery
     fn time_windows(
-        &self,
         node: &Node,
         deliveries: &Vec<Quantity>,
         product: ProductIndex,
     ) -> Vec<(TimeIndex, TimeIndex)> {
         match node.r#type() {
-            NodeType::Consumption => self.consumption_windows(node, deliveries, product),
-            NodeType::Production => self.production_windows(node, deliveries, product),
+            NodeType::Consumption => Self::consumption_windows(node, deliveries, product),
+            NodeType::Production => Self::production_windows(node, deliveries, product),
         }
     }
 
@@ -108,7 +221,6 @@ impl Quantities {
     /// ## Note:
     /// Node should be a consumption node.
     fn consumption_windows(
-        &self,
         node: &Node,
         deliveries: &Vec<Quantity>,
         product: ProductIndex,
@@ -148,7 +260,6 @@ impl Quantities {
     /// ### Note:
     /// Node should be a production node.
     fn production_windows(
-        &self,
         node: &Node,
         pickups: &Vec<Quantity>,
         product: ProductIndex,
@@ -181,10 +292,6 @@ impl Quantities {
             windows.push((open, close));
         }
         windows
-    }
-
-    pub fn orders(&self, sisrs_out: SisrsOutput) {
-        todo!()
     }
 }
 
@@ -231,6 +338,29 @@ impl Order {
     }
 }
 
+#[derive(Debug, Constructor)]
+pub struct Orders {
+    orders: Vec<Vec<Order>>,
+}
+
+impl Orders {
+    /// Returns the orders of the node associated with the given index
+    pub fn get(&self, node_idx: NodeIndex) -> &Vec<Order> {
+        &self.orders[node_idx]
+    }
+}
+
 pub struct SisrsOutput {
-    pub routes: Vec<Vec<(Node, TimeIndex)>>,
+    routes: Vec<Vec<(Node, TimeIndex)>>,
+    loads: Vec<Vec<Vec<Quantity>>>,
+}
+
+impl SisrsOutput {
+    pub fn routes(&self) -> &Vec<Vec<(Node, TimeIndex)>> {
+        &self.routes
+    }
+
+    pub fn loads(&self) -> &Vec<Vec<Vec<Quantity>>> {
+        &self.loads
+    }
 }
