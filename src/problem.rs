@@ -116,6 +116,23 @@ impl Problem {
         let speed = vessel.speed();
         (distance / speed).ceil() as usize
     }
+
+    /// The cost for a vessel to move from `from` to `to`
+    pub fn travel_cost(
+        &self,
+        from: NodeIndex,
+        to: NodeIndex,
+        vessel: VesselIndex,
+        inventory: &Inventory,
+    ) -> f64 {
+        let vessel = &self.vessels[vessel];
+        let unit_cost = match inventory.is_empty() {
+            true => vessel.empty_travel_unit_cost(),
+            false => vessel.travel_unit_cost(),
+        };
+
+        self.travel_time(from, to, vessel) as f64 * unit_cost
+    }
 }
 
 #[derive(Debug)]
