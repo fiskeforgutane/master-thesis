@@ -102,7 +102,6 @@ impl Node {
         capacity: Vec<f64>,
         inventory_changes: Vec<Vec<f64>>,
         revenue: Cost,
-        cumulative_inventory: Vec<Vec<Quantity>>,
         initial_inventory: Vec<f64>,
     ) -> PyResult<Node> {
         let err = || PyErr::new::<PyValueError, _>("invalid inventory");
@@ -128,7 +127,6 @@ impl Node {
             capacity.fixed(),
             changes,
             revenue,
-            cumulative_inventory,
             initial_inventory.fixed(),
         ))
     }

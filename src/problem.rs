@@ -423,7 +423,7 @@ pub enum NodeType {
 }
 
 #[pyclass]
-#[derive(Debug, Clone, Constructor)]
+#[derive(Debug, Clone)]
 pub struct Node {
     #[pyo3(get)]
     /// The name of the node
@@ -464,6 +464,45 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn new(
+        name: String,
+        kind: NodeType,
+        index: usize,
+        port_capacity: Vec<usize>,
+        min_unloading_amount: Quantity,
+        max_loading_amount: Quantity,
+        port_fee: Cost,
+        capacity: FixedInventory,
+        inventory_changes: Vec<InventoryChange>,
+        revenue: Cost,
+        initial_inventory: FixedInventory,
+    ) -> Self {
+        let mut cumulative_inventory = vec![Vec::new(); capacity.num_products()];
+
+        for product in 0..capacity.num_products() {
+            let mut inventory = initial_inventory[product];
+            for delta in &inventory_changes {
+                inventory += delta[product];
+                cumulative_inventory[product].push(inventory);
+            }
+        }
+
+        Self {
+            name,
+            kind,
+            index,
+            port_capacity,
+            min_unloading_amount,
+            max_loading_amount,
+            port_fee,
+            capacity,
+            inventory_changes,
+            revenue,
+            cumulative_inventory,
+            initial_inventory,
+        }
+    }
+
     /// The name of the node
     pub fn name(&self) -> &str {
         self.name.as_str()
