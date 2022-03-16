@@ -610,7 +610,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     }
 
     /// Run SISRs starting from the given solution
-    pub fn run(&mut self, initial: Solution) -> Solution {
+    pub fn run(&mut self, initial: Solution<'p>) -> Solution<'p> {
         info!("Starting SISRs from initial solution {:?}", &initial);
         // The best solution so far.
         let mut best = initial.clone();
