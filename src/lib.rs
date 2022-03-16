@@ -4,14 +4,18 @@ pub mod quants;
 pub mod sisrs;
 pub mod solution;
 
+use problem::Compartment;
+use problem::Cost;
 use problem::Distance;
+use problem::Inventory;
 use problem::Node;
+use problem::NodeType;
 use problem::Problem;
+use problem::Quantity;
 use problem::Vessel;
-use pyo3::exceptions;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use solution::Visit;
+use solution::{Evaluation, Visit};
 
 #[pyclass]
 pub struct Solution {
@@ -25,6 +29,13 @@ impl Solution {
     pub fn new(routes: Vec<Vec<Visit>>) -> Self {
         Self { routes }
     }
+
+    pub fn evaluate(&self, problem: &Problem) -> PyResult<solution::Evaluation> {
+        let solution = solution::Solution::new(problem, self.routes.clone())
+            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
+
+        Ok(solution.evaluation())
+    }
 }
 
 #[pymethods]
@@ -37,7 +48,89 @@ impl Problem {
         products: usize,
         distances: Vec<Vec<Distance>>,
     ) -> PyResult<Problem> {
-        Err(PyErr::new::<exceptions::PyValueError, _>("todo"))
+        Problem::new(vessels, nodes, timesteps, products, distances)
+            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
+    }
+}
+
+#[pymethods]
+impl Vessel {
+    #[new]
+    pub fn new_py(
+        compartments: Vec<Quantity>,
+        speed: f64,
+        travel_unit_cost: Cost,
+        empty_travel_unit_cost: Cost,
+        time_unit_cost: Cost,
+        port_fee: Vec<Cost>,
+        available_from: usize,
+        initial_inventory: Vec<f64>,
+        origin: usize,
+        class: String,
+        index: usize,
+    ) -> PyResult<Vessel> {
+        let inventory = Inventory::new(&initial_inventory)
+            .ok_or(PyErr::new::<PyValueError, _>("invalid inventory"))?;
+
+        Ok(Vessel::new(
+            compartments.iter().map(|&x| Compartment(x)).collect(),
+            speed,
+            travel_unit_cost,
+            empty_travel_unit_cost,
+            time_unit_cost,
+            port_fee,
+            available_from,
+            inventory.fixed(),
+            origin,
+            class,
+            index,
+        ))
+    }
+}
+
+#[pymethods]
+impl Node {
+    #[new]
+    pub fn new_py(
+        name: String,
+        kind: NodeType,
+        index: usize,
+        port_capacity: Vec<usize>,
+        min_unloading_amount: Quantity,
+        max_loading_amount: Quantity,
+        port_fee: Cost,
+        capacity: Vec<f64>,
+        inventory_changes: Vec<Vec<f64>>,
+        revenue: Cost,
+        cumulative_inventory: Vec<Vec<Quantity>>,
+        initial_inventory: Vec<f64>,
+    ) -> PyResult<Node> {
+        let err = || PyErr::new::<PyValueError, _>("invalid inventory");
+
+        let capacity = Inventory::new(&capacity).ok_or(err())?;
+        let initial_inventory = Inventory::new(&initial_inventory).ok_or(err())?;
+
+        let mut changes = Vec::new();
+
+        for x in &inventory_changes {
+            let inventory = Inventory::new(x).ok_or(err())?;
+            changes.push(inventory.fixed());
+        }
+
+        Ok(Node::new(
+            name,
+            kind,
+            index,
+            port_capacity,
+            min_unloading_amount,
+            max_loading_amount,
+            port_fee,
+            capacity.fixed(),
+            changes,
+            revenue,
+            cumulative_inventory,
+            initial_inventory.fixed(),
+        ))
     }
 }
 
@@ -48,6 +141,12 @@ impl Problem {
 fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
+    m.add_class::<Vessel>()?;
+    m.add_class::<Node>()?;
+    m.add_class::<NodeType>()?;
+    m.add_class::<Compartment>()?;
+    m.add_class::<Visit>()?;
+    m.add_class::<Evaluation>()?;
     Ok(())
 }
 

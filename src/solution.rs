@@ -66,6 +66,7 @@ pub struct Solution<'p> {
 }
 
 /// Evaluation of a solution's quality
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Evaluation {
     /// The total cost of the solution

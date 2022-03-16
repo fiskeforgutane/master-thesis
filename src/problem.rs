@@ -4,7 +4,7 @@ use std::{
 };
 
 use derive_more::Constructor;
-use pyo3::pyclass;
+use pyo3::{pyclass, FromPyObject};
 
 /// A point in Euclidean 2d-space.
 pub struct Point(f64, f64);
@@ -150,6 +150,12 @@ pub enum ProblemConstructionError {
         expected: usize,
         actual: usize,
     },
+    /// A set of distances are non-negative
+    NegativeDistance {
+        from: usize,
+        to: usize,
+        distance: Distance,
+    },
     /// The number of time steps must be strictly positive
     NoTimeSteps,
     /// There must be at least one product
@@ -202,11 +208,23 @@ impl Problem {
         }
 
         for (i, row) in distances.iter().enumerate() {
-            return Err(DistanceWrongRowLength {
-                row: i,
-                expected: n,
-                actual: distances.len(),
-            });
+            if row.len() != n {
+                return Err(DistanceWrongRowLength {
+                    row: i,
+                    expected: n,
+                    actual: row.len(),
+                });
+            }
+
+            for (j, &x) in row.iter().enumerate() {
+                if x < 0.0 {
+                    return Err(NegativeDistance {
+                        from: i,
+                        to: j,
+                        distance: x,
+                    });
+                }
+            }
         }
 
         if timesteps == 0 {
@@ -223,7 +241,6 @@ impl Problem {
     pub fn check_node(
         i: usize,
         node: &Node,
-        n: usize,
         t: usize,
         p: usize,
     ) -> Result<(), ProblemConstructionError> {
@@ -269,7 +286,7 @@ impl Problem {
         }
 
         for (c, compartment) in vessel.compartments.iter().enumerate() {
-            if compartment.into() < 1e-5 {
+            if compartment.0 < 1e-5 {
                 return Err(ProblemConstructionError::VesseNegativeCompartmentCapacity {
                     vessel: v,
                     compartment: c,
@@ -287,6 +304,7 @@ impl Problem {
         products: usize,
         distances: Vec<Vec<Distance>>,
     ) -> Result<Problem, ProblemConstructionError> {
+        let n = nodes.len();
         let v = vessels.len();
         let t = timesteps;
         let p = products;
@@ -295,20 +313,32 @@ impl Problem {
         Self::general_checks(&nodes, &distances, timesteps, products)?;
         // Check each node
         for (i, node) in nodes.iter().enumerate() {
-            Self::check_node(i, node, nodes.len(), t, p)?;
+            Self::check_node(i, node, t, p)?;
         }
 
-        todo!()
+        for (v, vessel) in vessels.iter().enumerate() {
+            Self::check_vessel(v, vessel, n, t, p)?;
+        }
+
+        Ok(Self {
+            vessels,
+            nodes,
+            timesteps,
+            products,
+            distances,
+        })
     }
 }
 
 // A compartment is used to hold fed during transport
+#[pyclass]
 #[derive(Debug, Clone, Copy)]
 pub struct Compartment(pub Quantity);
 
 #[pyclass]
 #[derive(Debug, Clone, Constructor)]
 pub struct Vessel {
+    #[pyo3(get)]
     /// The compartments available on the vessel.
     compartments: Vec<Compartment>,
     /// The cruising speed of this vessel, in distance units per time step
@@ -385,6 +415,7 @@ impl Vessel {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Copy)]
 pub enum NodeType {
     Consumption,
@@ -394,28 +425,37 @@ pub enum NodeType {
 #[pyclass]
 #[derive(Debug, Clone, Constructor)]
 pub struct Node {
+    #[pyo3(get)]
     /// The name of the node
     name: String,
+    #[pyo3(get)]
     /// The type of node
     kind: NodeType,
+    #[pyo3(get)]
     /// The index of the node
     index: usize,
+    #[pyo3(get)]
     /// The maximum number of vehicles that can be present at the node at any time step
     port_capacity: Vec<usize>,
+    #[pyo3(get)]
     /// The minimum amount that can be unloaded in a single time step
     min_unloading_amount: Quantity,
+    #[pyo3(get)]
     /// The maximum amount that can be loaded in a single time step
     max_loading_amount: Quantity,
+    #[pyo3(get)]
     /// The fixed fee associated with visiting the port
     port_fee: Cost,
     /// The maximum inventory capacity of the farm
     capacity: FixedInventory,
     /// The change in inventory during each time step.
     inventory_changes: Vec<InventoryChange>,
+    #[pyo3(get)]
     /// The revenue associated with a unit sale at a farm
     /// Note: the MIRPLIB instances can "in theory" support varying revenue per time step. However, in practice,
     /// all instances uses a constant value across the entire planning period.
     revenue: Cost,
+    #[pyo3(get)]
     /// The cumulative inventory at the node at the **END** of all timesteps if no loading/unloading is done. Used to allow efficient lookup
     /// of cumulative consumption between two time periods etc.
     cumulative_inventory: Vec<Vec<Quantity>>,
