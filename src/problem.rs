@@ -4,6 +4,7 @@ use std::{
 };
 
 use derive_more::Constructor;
+use pyo3::pyclass;
 
 /// A point in Euclidean 2d-space.
 pub struct Point(f64, f64);
@@ -20,6 +21,7 @@ pub type VesselIndex = usize;
 pub type TimeIndex = usize;
 pub type ProductIndex = usize;
 
+#[pyclass]
 #[derive(Debug, Clone, Constructor)]
 pub struct Problem {
     /// The vessels available for use in the problem. Assumed to be ordered by index
