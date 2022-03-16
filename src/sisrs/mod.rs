@@ -646,7 +646,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         }
 
         info!("Best solution found by SISRs was {:?}", &best);
-        Solution
+        solution
     }
 }
 
