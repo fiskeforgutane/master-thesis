@@ -22,7 +22,6 @@ fn vessels() -> Vec<Vessel> {
         1.0,
         1.0,
         1.0,
-        vec![1.0; 4],
         0,
         FixedInventory::from(Inventory::new(&[0.0]).unwrap()),
         0,

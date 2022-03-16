@@ -220,7 +220,7 @@ impl<'p> Solution<'p> {
                     .problem
                     .travel_cost(from.node, to.node, vessel, &inventory);
                 // Note: we have already paid the port fee for `from`
-                cost += boat.port_fee(to.node);
+                cost += self.problem.nodes()[to.node].port_fee();
             }
         }
 

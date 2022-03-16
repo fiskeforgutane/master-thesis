@@ -349,8 +349,6 @@ pub struct Vessel {
     empty_travel_unit_cost: Cost,
     /// The cost per time unit
     time_unit_cost: Cost,
-    /// The port fee associated with docking at each port
-    port_fee: Vec<Cost>,
     /// The time step from which the vessel becomes available
     available_from: usize,
     /// The initial inventory available for this vessel
@@ -388,10 +386,6 @@ impl Vessel {
         self.time_unit_cost
     }
 
-    /// The cost per time step while docked at a port
-    pub fn port_fee(&self, node: NodeIndex) -> Cost {
-        self.port_fee[node]
-    }
     /// The time step from which the vessel becomes available
     pub fn available_from(&self) -> TimeIndex {
         self.available_from
