@@ -22,7 +22,7 @@ fn vessels() -> Vec<Vessel> {
         1.0,
         1.0,
         1.0,
-        vec![1.0; 3],
+        vec![1.0; 4],
         0,
         FixedInventory::from(Inventory::new(&[0.0]).unwrap()),
         0,
@@ -77,14 +77,30 @@ fn nodes() -> Vec<Node> {
         vec![cumulative(vec![3.0; 50], 10.0)],
         FixedInventory::from(Inventory::new(&[10.0]).unwrap()),
     );
-    return vec![node_0, node_1, node_2];
+
+    let node_3 = Node::new(
+        "node 3".to_string(),
+        NodeType::Production,
+        3,
+        vec![1],
+        5.0,
+        50.0,
+        10.0,
+        FixedInventory::from(Inventory::new(&[50.0]).unwrap()),
+        vec![FixedInventory::from(Inventory::new(&[3.0]).unwrap()); 50],
+        5.0,
+        vec![cumulative(vec![3.0; 50], 10.0)],
+        FixedInventory::from(Inventory::new(&[10.0]).unwrap()),
+    );
+    return vec![node_0, node_1, node_2, node_3];
 }
 
 fn distances() -> Vec<Vec<Distance>> {
     vec![
-        vec![0.0, 5.0, 8.0],
-        vec![5.0, 0.0, 4.0],
-        vec![6.0, 4.0, 0.0],
+        vec![0.0, 5.0, 6.0, 10.0],
+        vec![5.0, 0.0, 4.0, 6.0],
+        vec![6.0, 4.0, 0.0, 4.0],
+        vec![10.0, 6.0, 4.0, 0.0],
     ]
 }
 
@@ -182,8 +198,10 @@ fn main() -> grb::Result<()> {
 
 fn main() {
     let prob = Problem::new(vessels(), nodes(), 10, 1, distances());
-    let r = Route::new(vec![0, 1, 0], &prob);
-    let routes = vec![r];
+
+    let r = Route::new(vec![0, 1, 3], &prob);
+    let r2 = Route::new(vec![3, 2, 3], &prob);
+    let routes = vec![r, r2];
     let mut sets = Sets::new(&prob, &routes);
     println!("{:?}", sets.T_r[0][0]);
     let mut params = Parameters::new(&prob, &sets, &routes);
@@ -218,7 +236,7 @@ fn main() {
     println!("x_non_zero: {:?}", PathFlowResult::non_zero_4_d(result.x));
     println!("q 50 {:?}", result.q[0][0][0][1][0]);
 
-    let r1 = Route::new(vec![0, 2, 0], &prob);
+    /* let r1 = Route::new(vec![0, 2, 0], &prob);
     sets.add_route(&prob, &r1);
     println!("r: {:?}\n T_r:{:?}\nI_r: {:?}", sets.R, sets.T_r, sets.I_r);
 
@@ -233,5 +251,5 @@ fn main() {
 
     //println!("hei");
     m.write("model2.lp");
-    let res2 = PathFlowSolver::solve(&variables, &mut m).unwrap();
+    let res2 = PathFlowSolver::solve(&variables, &mut m).unwrap(); */
 }

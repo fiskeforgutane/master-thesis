@@ -93,7 +93,7 @@ impl Sets {
         // we assume that all production nodes always are feasible destination nodes, i.e. the end of the route is always good
         let mut vessel_res = Vec::new();
         for v in problem.vessels() {
-            let mut t = problem.timesteps() - 1;
+            let mut t = problem.timesteps();
             println!("orn number {:?}", t);
             let mut next = route.visits().last().unwrap();
             println!("original next {:?}", next);
@@ -103,7 +103,7 @@ impl Sets {
                 .rev()
                 .map(|n| {
                     let t_time = problem.travel_time(*n, *next, v);
-                    let last = t - t_time;
+                    let last = t - t_time - 1;
                     t = last;
                     next = n;
                     last
