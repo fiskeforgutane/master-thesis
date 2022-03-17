@@ -16,6 +16,7 @@ use problem::Vessel;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3_log;
+use pyo3_log::Logger;
 use solution::{Evaluation, Visit};
 
 #[pyfunction]
@@ -201,7 +202,10 @@ impl Evaluation {
 /// import the module.
 #[pymodule]
 fn master(_py: Python, m: &PyModule) -> PyResult<()> {
-    pyo3_log::init();
+    let handle = Logger::new(_py, pyo3_log::Caching::LoggersAndLevels)?
+        .filter(log::LevelFilter::Trace)
+        .install()
+        .expect("A logger has already been installed:(");
 
     m.add_function(wrap_pyfunction!(test_logging, m)?)?;
     m.add_class::<Problem>()?;
