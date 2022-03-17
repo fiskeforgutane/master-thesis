@@ -500,7 +500,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let inventory = solution.vessel_inventory_at(vessel, intersection.start);
             let max_quantity = inventory.capacity_for(order.product(), boat.compartments());
             let quantity = max_quantity.min(amount);
-            let port_cost = boat.port_fee(order.node());
+            let port_cost = problem.nodes()[order.node()].port_fee();
             // The additional distance that must be travelled
             let distance = problem.distance(from.node, order.node())
                 + to.map_or(0.0, |to| {

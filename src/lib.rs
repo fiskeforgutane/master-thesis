@@ -18,6 +18,7 @@ use pyo3::prelude::*;
 use solution::{Evaluation, Visit};
 
 #[pyclass]
+#[derive(Debug)]
 pub struct Solution {
     #[pyo3(get, set)]
     pub routes: Vec<Vec<Visit>>,
@@ -36,6 +37,14 @@ impl Solution {
 
         Ok(solution.evaluation())
     }
+
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self.routes)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
 }
 
 #[pymethods]
@@ -51,6 +60,14 @@ impl Problem {
         Problem::new(vessels, nodes, timesteps, products, distances)
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
     }
+
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
 }
 
 #[pymethods]
@@ -62,7 +79,6 @@ impl Vessel {
         travel_unit_cost: Cost,
         empty_travel_unit_cost: Cost,
         time_unit_cost: Cost,
-        port_fee: Vec<Cost>,
         available_from: usize,
         initial_inventory: Vec<f64>,
         origin: usize,
@@ -78,13 +94,20 @@ impl Vessel {
             travel_unit_cost,
             empty_travel_unit_cost,
             time_unit_cost,
-            port_fee,
             available_from,
             inventory.fixed(),
             origin,
             class,
             index,
         ))
+    }
+
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
     }
 }
 
@@ -102,7 +125,6 @@ impl Node {
         capacity: Vec<f64>,
         inventory_changes: Vec<Vec<f64>>,
         revenue: Cost,
-        cumulative_inventory: Vec<Vec<Quantity>>,
         initial_inventory: Vec<f64>,
     ) -> PyResult<Node> {
         let err = || PyErr::new::<PyValueError, _>("invalid inventory");
@@ -128,9 +150,38 @@ impl Node {
             capacity.fixed(),
             changes,
             revenue,
-            cumulative_inventory,
             initial_inventory.fixed(),
         ))
+    }
+
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
+#[pymethods]
+impl Compartment {
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
+#[pymethods]
+impl Evaluation {
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
     }
 }
 

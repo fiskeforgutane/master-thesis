@@ -22,7 +22,6 @@ fn vessels() -> Vec<Vessel> {
         1.0,
         1.0,
         1.0,
-        vec![1.0; 4],
         0,
         FixedInventory::from(Inventory::new(&[0.0]).unwrap()),
         0,
@@ -44,7 +43,7 @@ fn nodes() -> Vec<Node> {
         FixedInventory::from(Inventory::new(&[50.0]).unwrap()),
         vec![FixedInventory::from(Inventory::new(&[3.0]).unwrap()); 50],
         5.0,
-        vec![cumulative(vec![3.0; 50], 10.0)],
+        //vec![cumulative(vec![3.0; 50], 10.0)],
         FixedInventory::from(Inventory::new(&[10.0]).unwrap()),
     );
 
@@ -59,7 +58,7 @@ fn nodes() -> Vec<Node> {
         FixedInventory::from(Inventory::new(&[50.0]).unwrap()),
         vec![FixedInventory::from(Inventory::new(&[3.0]).unwrap()); 50],
         5.0,
-        vec![cumulative(vec![3.0; 50], 10.0)],
+        //vec![cumulative(vec![3.0; 50], 10.0)],
         FixedInventory::from(Inventory::new(&[10.0]).unwrap()),
     );
 
@@ -74,7 +73,7 @@ fn nodes() -> Vec<Node> {
         FixedInventory::from(Inventory::new(&[50.0]).unwrap()),
         vec![FixedInventory::from(Inventory::new(&[3.0]).unwrap()); 50],
         5.0,
-        vec![cumulative(vec![3.0; 50], 10.0)],
+        //vec![cumulative(vec![3.0; 50], 10.0)],
         FixedInventory::from(Inventory::new(&[10.0]).unwrap()),
     );
 
@@ -89,7 +88,7 @@ fn nodes() -> Vec<Node> {
         FixedInventory::from(Inventory::new(&[50.0]).unwrap()),
         vec![FixedInventory::from(Inventory::new(&[3.0]).unwrap()); 50],
         5.0,
-        vec![cumulative(vec![3.0; 50], 10.0)],
+        //vec![cumulative(vec![3.0; 50], 10.0)],
         FixedInventory::from(Inventory::new(&[10.0]).unwrap()),
     );
     return vec![node_0, node_1, node_2, node_3];

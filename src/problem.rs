@@ -341,24 +341,30 @@ pub struct Vessel {
     #[pyo3(get)]
     /// The compartments available on the vessel.
     compartments: Vec<Compartment>,
+    #[pyo3(get)]
     /// The cruising speed of this vessel, in distance units per time step
     speed: f64,
+    #[pyo3(get)]
     /// The cost per time step of travel
     travel_unit_cost: Cost,
+    #[pyo3(get)]
     /// The cost when travelling without a load
     empty_travel_unit_cost: Cost,
+    #[pyo3(get)]
     /// The cost per time unit
     time_unit_cost: Cost,
-    /// The port fee associated with docking at each port
-    port_fee: Vec<Cost>,
+    #[pyo3(get)]
     /// The time step from which the vessel becomes available
     available_from: usize,
     /// The initial inventory available for this vessel
     initial_inventory: FixedInventory,
+    #[pyo3(get)]
     /// The origin node of the vessel
     origin: usize,
+    #[pyo3(get)]
     /// The vessel class this belongs to
     class: String,
+    #[pyo3(get)]
     /// The index of the vessel
     index: usize,
 }
@@ -388,10 +394,6 @@ impl Vessel {
         self.time_unit_cost
     }
 
-    /// The cost per time step while docked at a port
-    pub fn port_fee(&self, node: NodeIndex) -> Cost {
-        self.port_fee[node]
-    }
     /// The time step from which the vessel becomes available
     pub fn available_from(&self) -> TimeIndex {
         self.available_from
@@ -423,7 +425,7 @@ pub enum NodeType {
 }
 
 #[pyclass]
-#[derive(Debug, Clone, Constructor)]
+#[derive(Debug, Clone)]
 pub struct Node {
     #[pyo3(get)]
     /// The name of the node
@@ -464,6 +466,45 @@ pub struct Node {
 }
 
 impl Node {
+    pub fn new(
+        name: String,
+        kind: NodeType,
+        index: usize,
+        port_capacity: Vec<usize>,
+        min_unloading_amount: Quantity,
+        max_loading_amount: Quantity,
+        port_fee: Cost,
+        capacity: FixedInventory,
+        inventory_changes: Vec<InventoryChange>,
+        revenue: Cost,
+        initial_inventory: FixedInventory,
+    ) -> Self {
+        let mut cumulative_inventory = vec![Vec::new(); capacity.num_products()];
+
+        for product in 0..capacity.num_products() {
+            let mut inventory = initial_inventory[product];
+            for delta in &inventory_changes {
+                inventory += delta[product];
+                cumulative_inventory[product].push(inventory);
+            }
+        }
+
+        Self {
+            name,
+            kind,
+            index,
+            port_capacity,
+            min_unloading_amount,
+            max_loading_amount,
+            port_fee,
+            capacity,
+            inventory_changes,
+            revenue,
+            cumulative_inventory,
+            initial_inventory,
+        }
+    }
+
     /// The name of the node
     pub fn name(&self) -> &str {
         self.name.as_str()

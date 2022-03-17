@@ -26,7 +26,7 @@ impl Route {
             let t_cost = t_time as f64 * vessel.travel_unit_cost();
             // port fee of the next port, the first node is thus not accounted for as this was accounted for in the route bringing the vessel
             // to the origin of the next route
-            let port_fee = vessel.port_fee(visits[i + 1]);
+            let port_fee = problem.nodes()[visits[i + 1]].port_fee();
             res += t_cost + port_fee;
         }
         res
