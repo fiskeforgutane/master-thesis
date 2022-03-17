@@ -15,8 +15,10 @@ use problem::Quantity;
 use problem::Vessel;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::wrap_pymodule;
 use pyo3_log;
 use pyo3_log::Logger;
+use quants::Order;
 use solution::{Evaluation, Visit};
 
 #[pyfunction]
@@ -30,7 +32,7 @@ pub fn test_logging() {
 }
 
 #[pyclass]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Solution {
     #[pyo3(get, set)]
     pub routes: Vec<Vec<Visit>>,
@@ -197,6 +199,30 @@ impl Evaluation {
     }
 }
 
+#[pyfunction]
+fn optimize(
+    problem: Problem,
+    orders: Vec<Order>,
+    initial: Solution,
+    config: sisrs::Config,
+) -> PyResult<Solution> {
+    let err = |err| PyErr::new::<PyValueError, _>(format!("{:?}", err));
+    let initial = solution::Solution::new(&problem, initial.routes).map_err(err)?;
+
+    let mut sisr = sisrs::SlackInductionByStringRemoval::new(&problem, &orders, &config);
+    let result = sisr.run(initial);
+    Ok(Solution::new(result.routes().to_vec()))
+}
+
+#[pymodule]
+fn sisr(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(optimize, m)?)?;
+    m.add_class::<sisrs::SortingWeights>()?;
+    m.add_class::<sisrs::Config>()?;
+
+    Ok(())
+}
+
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
@@ -216,6 +242,11 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Compartment>()?;
     m.add_class::<Visit>()?;
     m.add_class::<Evaluation>()?;
+    m.add_class::<Order>()?;
+
+    // Submodule for SISR
+    m.add_wrapped(wrap_pymodule!(sisr))?;
+
     Ok(())
 }
 
