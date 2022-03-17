@@ -15,6 +15,7 @@ use problem::Quantity;
 use problem::Vessel;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3_log;
 use solution::{Evaluation, Visit};
 
 #[pyfunction]
@@ -199,6 +200,8 @@ impl Evaluation {
 /// import the module.
 #[pymodule]
 fn master(_py: Python, m: &PyModule) -> PyResult<()> {
+    pyo3_log::init();
+
     m.add_function(wrap_pyfunction!(test_logging, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
