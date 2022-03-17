@@ -368,12 +368,14 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let it = time_periods.iter().chain(std::iter::once(&all));
             for period in it {
                 adjacents = Self::adjacent(seed.node, &vehicles_used, &period, solution);
+                trace!("Period {:?} has adjacents {:?}", period, &adjacents);
                 if !adjacents.is_empty() {
                     break;
                 }
             }
 
             if adjacents.is_empty() {
+                warn!("No more adjacents found")
                 break;
             }
 
@@ -395,6 +397,8 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 let lb = (idx + l - t).max(0);
                 // The range of allowed offsets that also gives a slice of size `l`
                 let range = lb..ub;
+
+                trace!("Cardinality = {}, idx = {}, allowed offsets = {:?}", l, idx, range);
 
                 let chosen = match range.is_empty() {
                     true => 0..t,
