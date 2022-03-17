@@ -15,7 +15,19 @@ use problem::Quantity;
 use problem::Vessel;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3_log;
+use pyo3_log::Logger;
 use solution::{Evaluation, Visit};
+
+#[pyfunction]
+pub fn test_logging() {
+    log::error!("This is an error");
+    log::warn!("This is a warning");
+    log::info!("This is some info");
+    log::debug!("This is a debug message");
+    log::trace!("This is a trace message");
+    log::info!("Is trace enabled: {}", log::log_enabled!(log::Level::Trace));
+}
 
 #[pyclass]
 #[derive(Debug)]
@@ -190,6 +202,12 @@ impl Evaluation {
 /// import the module.
 #[pymodule]
 fn master(_py: Python, m: &PyModule) -> PyResult<()> {
+    let _handle = Logger::new(_py, pyo3_log::Caching::LoggersAndLevels)?
+        .filter(log::LevelFilter::Trace)
+        .install()
+        .expect("A logger has already been installed:(");
+
+    m.add_function(wrap_pyfunction!(test_logging, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;

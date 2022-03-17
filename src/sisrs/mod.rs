@@ -333,6 +333,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     pub fn select_strings(
         config: &Config,
         solution: &Solution,
+        problem: &Problem,
     ) -> Vec<(VesselIndex, Range<usize>)> {
         let ls_max = (config.max_cardinality as f64).min(
             SlackInductionByStringRemoval::average_tour_cardinality(solution.routes()),
@@ -361,14 +362,20 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         // However, we need to considers adjacency in both space and time. It makes sense to find a nearby node that is visited in the same
         // time period as the time period of the strings that have been selected for removal so far.
         while strings.len() < k_s {
-            let adjacents = Self::adjacent(
-                seed.node,
-                &vehicles_used,
-                &time_periods[time_periods.len() - 1],
-                solution,
-            );
+            let mut adjacents = Vec::new();
+
+            let all = 0..=problem.timesteps() - 1;
+            let it = time_periods.iter().chain(std::iter::once(&all));
+            for period in it {
+                adjacents = Self::adjacent(seed.node, &vehicles_used, &period, solution);
+                trace!("Period {:?} has adjacents {:?}", period, &adjacents);
+                if !adjacents.is_empty() {
+                    break;
+                }
+            }
 
             if adjacents.is_empty() {
+                warn!("No more adjacents found");
                 break;
             }
 
@@ -390,6 +397,13 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 let lb = (idx + l - t).max(0);
                 // The range of allowed offsets that also gives a slice of size `l`
                 let range = lb..ub;
+
+                trace!(
+                    "Cardinality = {}, idx = {}, allowed offsets = {:?}",
+                    l,
+                    idx,
+                    range
+                );
 
                 let chosen = match range.is_empty() {
                     true => 0..t,
@@ -525,6 +539,8 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             }
         }
 
+        trace!("Found {} candidates", candidates.len());
+
         candidates
     }
 
@@ -533,6 +549,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         // For each uncovered order, we want to find where we might insert it into the current solution
         for &(o, amount) in uncovered.iter() {
             let order = &orders[o];
+            trace!("Trying to cover order {:?} (remaining = {}", order, amount);
 
             // Construct a set of possible candidates that are valid
             let candidates = solution
@@ -549,7 +566,10 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             });
 
             let candidate = match chosen {
-                Some(x) => x,
+                Some(x) => {
+                    trace!("Covering {:?} with {:?}", order, &x);
+                    x
+                }
                 None => {
                     info!("No candidates for order #{}: {:?}", o, orders[o]);
                     continue;
@@ -578,7 +598,9 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
     fn ruin(&self, solution: &mut Solution) {
         // Select strings for removal, and create a new solution without them
-        let strings = SlackInductionByStringRemoval::select_strings(&self.config, solution);
+        trace!("Ruining solution.");
+        let strings =
+            SlackInductionByStringRemoval::select_strings(&self.config, solution, self.problem);
 
         trace!("Dropping strings {:?}", &strings);
         // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
@@ -589,6 +611,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     }
 
     fn recreate(&self, solution: &mut Solution) {
+        trace!("Recreating solution.");
         // Determine the orders that are uncovered, and the amount by which they're uncovered
         let mut uncovered = SlackInductionByStringRemoval::uncovered(solution, self.orders);
 
@@ -704,79 +727,3 @@ mod tests {
         assert_eq!(result, 4);
     }
 }
-
-/*     /// Determine the set of orders that are not covered by visits.
-/// Returns the indices of the orders that are not covered by the solution.
-pub fn uncovered(config: &Config, solution: &[Vec<Visit>], orders: &[Order]) -> Vec<usize> {
-    // Order = { node, product, quantity, time window }
-    // Visit = { node, product, quantity, time }
-    // Assumptions:
-    //   - Each (node, product)-pair of has a disjoint set of time windows in the set of orders.
-    //     In other words: we do not have multiple orders with overlapping time windows that relate
-    //     to the same (node, product)-pair
-    //   - Each vessel solution is sorted in ascending order by (node, product, time, quantity).
-    //     This allows us to find all deliveries to each order by a binary search on (node, product, time window low, MAX_NEG), (node, product, time window high, MAX_POS)
-    //
-    // The above assumption(s) significantly reduce the complexity of assigning visits to orders.
-    // Each visit at a (node, product)-pair can only be assigned to the unique order with (node, product) that
-    // has a time-window containint visit.time (if one such order exists).
-
-    // We will flatten and sort the set of visits
-    let mut visits = solution
-        .iter()
-        .flat_map(|xs| xs)
-        .cloned()
-        .collect::<Vec<_>>();
-    // Allow us to lookup the set of visits to (node, product) within a time window in log(total number of node visits))
-    visits.sort_by_key(|v| (v.node, v.product, v.time));
-
-    // The amount delivered for each order. (Same order)
-    let mut delivered = vec![0.0; orders.len()];
-    // The number of times each visit is counted to an order
-    let mut counts = vec![0; visits.len()];
-
-    for (order, d) in orders.iter().zip(&mut delivered) {
-        let open = (order.node(), order.product(), order.open());
-        let close = (order.node(), order.product(), order.close());
-        // `start` is the first element containing relevant deliveries, while `end` is the (exclusive) end.
-        // Note that `start` == `end` iff there are not deliveries that are relevant for the order.
-        let start = visits.partition_point(|v| (v.node, v.product, v.time) < open);
-        let end = visits.partition_point(|v| (v.node, v.product, v.time) <= close);
-        // The total amount delivered is simply the sum of deliveries to the relevant (node, product)-pair over the
-        // course of the time window specified by the order.
-        *d = visits[start..end].iter().map(|v| v.quantity).sum();
-        // Increase the count of
-    }
-
-    delivered
-        .iter()
-        .zip(orders)
-        .enumerate()
-        .filter_map(|(i, (&x, order))| match x >= order.quantity() {
-            true => Some(i),
-            false => None,
-        })
-        .collect()
-} */
-
-/*
-for (i, k) in supertour[..].iter().zip(&supertour[1..]) {
-    // If the node visit to `i` is after the order window
-    let earliest_comp_time = i.time
-        + travel_time(vessel, i.node, order.node())
-        + unloading_time(order.quantity(), order.node());
-    // The latest completion time that is allowed if we want to be able to serve `k`
-    let latest_comp_time = k.time - travel_time(vessel, order.node(), k.node);
-
-    // If the earliest completion time is after the end of the time window,
-    // then we cannot use this insertion point. Same goes if the visit to `k`
-    // must occur before the start of the order's time window
-    if earliest_comp_time > order.close() || latest_comp_time < order.open() {
-        continue;
-    }
-
-    // The amount of inventory at the vessel when it leaves `i`.
-    let product = i.product;
-    let quantity = i.quantity;
-    inventory[product] += quantity;
-}*/
