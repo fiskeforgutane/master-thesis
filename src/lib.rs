@@ -199,6 +199,32 @@ impl Evaluation {
     }
 }
 
+#[pymethods]
+impl sisrs::Config {
+    #[new]
+    pub fn new_py(
+        average_removal: usize,
+        max_cardinality: usize,
+        alpha: f64,
+        blink_rate: f64,
+        t0: f64,
+        tk: f64,
+        iterations: usize,
+        weights: sisrs::SortingWeights,
+    ) -> Self {
+        Self {
+            average_removal,
+            max_cardinality,
+            alpha,
+            blink_rate,
+            t0,
+            tk,
+            iterations,
+            weights,
+        }
+    }
+}
+
 #[pyfunction]
 fn optimize(
     problem: Problem,
