@@ -39,7 +39,7 @@ impl Solution {
     }
 
     pub fn __str__(&self) -> String {
-        format!("{:?}", self.routes)
+        format!("{:#?}", self.routes)
     }
 
     pub fn __repr__(&self) -> String {
@@ -62,7 +62,7 @@ impl Problem {
     }
 
     pub fn __str__(&self) -> String {
-        format!("{:?}", self)
+        format!("{:#?}", self)
     }
 
     pub fn __repr__(&self) -> String {
@@ -103,7 +103,7 @@ impl Vessel {
     }
 
     pub fn __str__(&self) -> String {
-        format!("{:?}", self)
+        format!("{:#?}", self)
     }
 
     pub fn __repr__(&self) -> String {
@@ -155,7 +155,7 @@ impl Node {
     }
 
     pub fn __str__(&self) -> String {
-        format!("{:?}", self)
+        format!("{:#?}", self)
     }
 
     pub fn __repr__(&self) -> String {
@@ -166,7 +166,7 @@ impl Node {
 #[pymethods]
 impl Compartment {
     pub fn __str__(&self) -> String {
-        format!("{:?}", self)
+        format!("{:#?}", self)
     }
 
     pub fn __repr__(&self) -> String {
@@ -177,7 +177,7 @@ impl Compartment {
 #[pymethods]
 impl Evaluation {
     pub fn __str__(&self) -> String {
-        format!("{:?}", self)
+        format!("{:#?}", self)
     }
 
     pub fn __repr__(&self) -> String {
