@@ -333,6 +333,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     pub fn select_strings(
         config: &Config,
         solution: &Solution,
+        problem: &Problem,
     ) -> Vec<(VesselIndex, Range<usize>)> {
         let ls_max = (config.max_cardinality as f64).min(
             SlackInductionByStringRemoval::average_tour_cardinality(solution.routes()),
@@ -361,12 +362,16 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         // However, we need to considers adjacency in both space and time. It makes sense to find a nearby node that is visited in the same
         // time period as the time period of the strings that have been selected for removal so far.
         while strings.len() < k_s {
-            let adjacents = Self::adjacent(
-                seed.node,
-                &vehicles_used,
-                &time_periods[time_periods.len() - 1],
-                solution,
-            );
+            let mut adjacents = Vec::new();
+
+            let all = 0..=problem.timesteps() - 1;
+            let it = time_periods.iter().chain(std::iter::once(&all));
+            for period in it {
+                adjacents = Self::adjacent(seed.node, &vehicles_used, &period, solution);
+                if !adjacents.is_empty() {
+                    break;
+                }
+            }
 
             if adjacents.is_empty() {
                 break;
@@ -525,6 +530,8 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             }
         }
 
+        trace!("Found {} candidates", candidates.len());
+
         candidates
     }
 
@@ -533,6 +540,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         // For each uncovered order, we want to find where we might insert it into the current solution
         for &(o, amount) in uncovered.iter() {
             let order = &orders[o];
+            trace!("Trying to cover order {:?} (remaining = {}", order, amount);
 
             // Construct a set of possible candidates that are valid
             let candidates = solution
@@ -549,7 +557,10 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             });
 
             let candidate = match chosen {
-                Some(x) => x,
+                Some(x) => {
+                    trace!("Covering {:?} with {:?}", order, &x);
+                    x
+                }
                 None => {
                     info!("No candidates for order #{}: {:?}", o, orders[o]);
                     continue;
@@ -578,7 +589,9 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
     fn ruin(&self, solution: &mut Solution) {
         // Select strings for removal, and create a new solution without them
-        let strings = SlackInductionByStringRemoval::select_strings(&self.config, solution);
+        trace!("Ruining solution.");
+        let strings =
+            SlackInductionByStringRemoval::select_strings(&self.config, solution, self.problem);
 
         trace!("Dropping strings {:?}", &strings);
         // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
@@ -589,6 +602,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     }
 
     fn recreate(&self, solution: &mut Solution) {
+        trace!("Recreating solution.");
         // Determine the orders that are uncovered, and the amount by which they're uncovered
         let mut uncovered = SlackInductionByStringRemoval::uncovered(solution, self.orders);
 
