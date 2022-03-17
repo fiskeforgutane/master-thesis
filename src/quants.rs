@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use derive_more::Constructor;
 use grb::Result;
+use pyo3::pyclass;
 
 use crate::models::transportation_model::model::TransportationSolver;
 use crate::models::transportation_model::sets_and_parameters::{Parameters, Sets};
@@ -295,7 +296,8 @@ impl Quantities {
     }
 }
 
-#[derive(Debug)]
+#[pyclass]
+#[derive(Debug, Clone, Copy)]
 pub struct Order {
     node: NodeIndex,
     open: TimeIndex,

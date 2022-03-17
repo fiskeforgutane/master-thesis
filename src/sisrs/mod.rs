@@ -6,6 +6,7 @@ use std::{
 
 use itertools::Itertools;
 use log::{debug, info, trace, warn};
+use pyo3::pyclass;
 use rand::{
     self,
     prelude::{Distribution, SliceRandom},
@@ -33,6 +34,7 @@ pub struct SlackInductionByStringRemoval<'p, 'o, 'c> {
 
 /// When recreating a tour, we will sort the set of un-served orders according to one of several `SortingCritera`. This struct
 /// defines weights used when randomly choosing a sorting method.
+#[pyclass]
 #[derive(Debug, Clone, Copy)]
 pub struct SortingWeights {
     /// Sort randomly
@@ -100,6 +102,8 @@ impl Default for SortingWeights {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Clone)]
 /// Configuration determining the behaviour of the SISRs algorithm.
 pub struct Config {
     /// The average number of nodes removed during a string removal
