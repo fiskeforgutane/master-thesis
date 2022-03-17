@@ -17,6 +17,15 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use solution::{Evaluation, Visit};
 
+#[pyfunction]
+pub fn test_logging() {
+    log::error!("This is an error");
+    log::warn!("This is a warning");
+    log::info!("This is some info");
+    log::debug!("This is a debug message");
+    log::trace!("This is a trace message");
+}
+
 #[pyclass]
 #[derive(Debug)]
 pub struct Solution {
@@ -190,6 +199,7 @@ impl Evaluation {
 /// import the module.
 #[pymodule]
 fn master(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(test_logging, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;

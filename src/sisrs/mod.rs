@@ -375,7 +375,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             }
 
             if adjacents.is_empty() {
-                warn!("No more adjacents found")
+                warn!("No more adjacents found");
                 break;
             }
 
@@ -398,7 +398,12 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 // The range of allowed offsets that also gives a slice of size `l`
                 let range = lb..ub;
 
-                trace!("Cardinality = {}, idx = {}, allowed offsets = {:?}", l, idx, range);
+                trace!(
+                    "Cardinality = {}, idx = {}, allowed offsets = {:?}",
+                    l,
+                    idx,
+                    range
+                );
 
                 let chosen = match range.is_empty() {
                     true => 0..t,
