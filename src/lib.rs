@@ -25,6 +25,7 @@ pub fn test_logging() {
     log::info!("This is some info");
     log::debug!("This is a debug message");
     log::trace!("This is a trace message");
+    log::info!("Is trace enabled: {}", log::log_enabled!(log::Level::Trace));
 }
 
 #[pyclass]
