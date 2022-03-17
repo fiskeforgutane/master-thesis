@@ -202,7 +202,7 @@ impl Evaluation {
 /// import the module.
 #[pymodule]
 fn master(_py: Python, m: &PyModule) -> PyResult<()> {
-    let handle = Logger::new(_py, pyo3_log::Caching::LoggersAndLevels)?
+    let _handle = Logger::new(_py, pyo3_log::Caching::LoggersAndLevels)?
         .filter(log::LevelFilter::Trace)
         .install()
         .expect("A logger has already been installed:(");
