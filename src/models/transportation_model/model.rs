@@ -39,7 +39,9 @@ impl TransportationSolver {
             if parameters.J[*i] < 0 {
                 continue;
             }
-            let lhs = iproduct!(&sets.N, &sets.H)
+            // other nodes not being i
+            let other_nodes = sets.N.iter().filter(|j| *j != i);
+            let lhs = iproduct!(other_nodes, &sets.H)
                 .map(|(j, h)| &x[*i][*j][*h])
                 .grb_sum();
             model.add_constr(&format!("1_{i}"), c!(lhs >= parameters.Q[product][*i]))?;
@@ -50,7 +52,9 @@ impl TransportationSolver {
             if parameters.J[*j] > 0 {
                 continue;
             }
-            let lhs = iproduct!(&sets.N, &sets.H)
+            // other nodes not being j
+            let other_nodes = sets.N.iter().filter(|i| *i != j);
+            let lhs = iproduct!(other_nodes, &sets.H)
                 .map(|(i, h)| &x[*i][*j][*h])
                 .grb_sum();
             model.add_constr(&format!("2_{j}"), c!(lhs >= parameters.Q[product][*j]))?;
@@ -138,6 +142,10 @@ impl TransportationResult {
     /// gets the deliveries to the given node index, which should only be a consumption node
     pub fn delivered(&self, node: NodeIndex) -> Vec<f64> {
         let mut out = Vec::new();
+        // check if anything is picked up and delivered to the same node
+        if &self.x[node][node].iter().sum::<f64>() > &0.0 {
+            panic!("picks up and deliveres at the same node");
+        }
         for vec in &self.x {
             let deliveries = &vec[node];
             for f in deliveries {
@@ -151,6 +159,10 @@ impl TransportationResult {
     /// gets the pick ups at the given node index, which should only be a production node
     pub fn picked_up(&self, node: NodeIndex) -> Vec<f64> {
         let mut out = Vec::new();
+        // check if anything is picked up and delivered to the same node
+        if &self.x[node][node].iter().sum::<f64>() > &0.0 {
+            panic!("picks up and deliveres at the same node");
+        }
         for e in &self.x[node] {
             for f in e {
                 if f > &0.0 {
