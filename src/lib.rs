@@ -4,6 +4,8 @@ pub mod quants;
 pub mod sisrs;
 pub mod solution;
 
+use std::fmt::Debug;
+
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -188,6 +190,10 @@ impl Compartment {
     }
 }
 
+fn pyerr<D: Debug>(err: D) -> PyErr {
+    PyErr::new::<PyValueError, _>(format!("{:?}", err))
+}
+
 #[pymethods]
 impl Evaluation {
     pub fn __str__(&self) -> String {
@@ -246,12 +252,15 @@ fn optimize(
     initial: Solution,
     config: sisrs::Config,
 ) -> PyResult<Solution> {
-    let err = |err| PyErr::new::<PyValueError, _>(format!("{:?}", err));
-    let initial = solution::Solution::new(&problem, initial.routes).map_err(err)?;
-
+    let initial = solution::Solution::new(&problem, initial.routes).map_err(pyerr)?;
     let mut sisr = sisrs::SlackInductionByStringRemoval::new(&problem, &orders, &config);
     let result = sisr.run(initial);
     Ok(Solution::new(result.routes().to_vec()))
+}
+
+#[pyfunction]
+fn initial_orders(problem: &Problem) -> PyResult<Vec<Order>> {
+    quants::initial_orders(&problem).map_err(pyerr)
 }
 
 #[pymodule]
