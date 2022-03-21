@@ -283,6 +283,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
         .expect("A logger has already been installed:(");
 
     m.add_function(wrap_pyfunction!(test_logging, m)?)?;
+    m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
