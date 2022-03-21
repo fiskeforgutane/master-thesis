@@ -1,4 +1,8 @@
-use crate::models::utils::{AddVars, ConvertVars, NObjectives};
+use crate::{
+    models::utils::{AddVars, ConvertVars, NObjectives},
+    problem::{Problem, ProductIndex},
+    quants::{Order, Quantities},
+};
 use grb::{prelude::*, Result};
 use itertools::iproduct;
 use log::{debug, info, warn};
@@ -554,7 +558,7 @@ pub struct PathFlowResult {
     pub v_minus: Vec<Vec<Vec<f64>>>,
     /// load of vessel v in time period t of product p
     pub l: Vec<Vec<Vec<f64>>>,
-    /// semicontinuous variable indicated quantity loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,t)
+    /// semicontinuous variable indicated quantity loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,p,t)
     pub q: Vec<Vec<Vec<Vec<Vec<f64>>>>>,
 }
 
@@ -590,4 +594,49 @@ impl PathFlowResult {
 
         res
     }
+}
+
+/// Returns the nonzero deliveries/pickups at the given node index of the given product
+pub fn quantities(
+    path_res: &PathFlowResult,
+    parameters: &Parameters,
+    node_idx: usize,
+    product: ProductIndex,
+) -> Vec<f64> {
+    let mut quants = Vec::new();
+    for (r, route) in path_res.q.iter().enumerate() {
+        for (i, visit) in route.iter().enumerate() {
+            if parameters.node(r, i).unwrap() != node_idx {
+                continue;
+            }
+            for v in visit {
+                v[product]
+                    .iter()
+                    .enumerate()
+                    .filter(|(t, q)| f64::round(**q) > 0.0)
+                    .for_each(|(t, q)| quants.push((t, q)));
+            }
+        }
+    }
+    quants.sort_by(|a, b| a.0.cmp(&b.0));
+    quants.into_iter().map(|(t, q)| *q).collect()
+}
+
+pub fn to_orders(
+    path_res: PathFlowResult,
+    problem: &Problem,
+    parameters: &Parameters,
+) -> Result<Vec<Order>> {
+    let mut out = Vec::new();
+    for n in problem.nodes() {
+        for p in 0..problem.products() {
+            let quants = quantities(&path_res, parameters, n.index(), p);
+            let windows = Quantities::time_windows(n, &quants, p);
+            for i in 0..quants.len() {
+                let order = Order::new(n.index(), windows[i].0, windows[i].1, p, quants[i]);
+                out.push(order);
+            }
+        }
+    }
+    Ok(out)
 }

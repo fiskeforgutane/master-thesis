@@ -206,7 +206,7 @@ impl Quantities {
     } */
 
     /// Find appropriate time windoes for each delivery
-    fn time_windows(
+    pub fn time_windows(
         node: &Node,
         deliveries: &Vec<Quantity>,
         product: ProductIndex,
