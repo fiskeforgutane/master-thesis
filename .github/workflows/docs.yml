@@ -25,10 +25,8 @@ jobs:
       run: wget -c https://packages.gurobi.com/9.5/gurobi9.5.1_linux64.tar.gz -O - | tar -xz -C ~/
     - name: List directories
       run: ls
-    - name: List gurobi dir
-      run: ls gurobi951/
-    - name: List gurobi subdir
-      run: ls gurobi951/linux64
+    - name: List home
+      run: ls ~/
     - name: Echo GUROBI_HOME
       run: echo $GUROBI_HOME
     - name: ls GUROBI_HOME
