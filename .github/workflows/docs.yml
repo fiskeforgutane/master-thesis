@@ -30,7 +30,7 @@ jobs:
     - name: Echo GUROBI_HOME
       run: echo $GUROBI_HOME
     - name: ls GUROBI_HOME
-      run: ls $GUROBI_HUME
+      run: ls $GUROBI_HOME
     - name: Install master project using pip and maturin
       run: pip install .
     - name: Install pdocs
