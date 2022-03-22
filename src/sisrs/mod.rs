@@ -513,11 +513,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
         let mut candidates = Vec::new();
 
-        trace!(
-            "Considering order with period {}..{}",
-            order.open(),
-            order.close()
-        );
+        trace!("Finding candidates for {:?}", order);
         // This handles everything except after the last one.
         for (idx, (from, to)) in visits().zip(visits().skip(1)).enumerate() {
             trace!("Evaluating insertion between {:?} and {:?}", from, to);
@@ -544,6 +540,15 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let inventory = solution.vessel_inventory_at(vessel, intersection.start);
             let max_quantity = inventory.capacity_for(order.product(), boat.compartments());
             let quantity = max_quantity.min(amount);
+
+            trace!(
+                "Inventory: {:?}, Capacity for product {}: {}, Order remaining {}",
+                inventory,
+                order.product(),
+                max_quantity,
+                amount
+            );
+
             let port_cost = problem.nodes()[order.node()].port_fee();
             // The additional distance that must be travelled
             let distance = problem.distance(from.node, order.node())
@@ -579,7 +584,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         // For each uncovered order, we want to find where we might insert it into the current solution
         for &(o, amount) in uncovered.iter() {
             let order = &orders[o];
-            trace!("Trying to cover order {:?} (remaining = {}", order, amount);
+            trace!("Trying to cover order {:?} (remaining = {})", order, amount);
 
             // Construct a set of possible candidates that are valid
             let candidates = solution
