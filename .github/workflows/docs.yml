@@ -40,6 +40,6 @@ jobs:
     - name: Install master project using pip and maturin
       run: echo "GUROBI_HOME is $GUROBI_HOME [end]" && pip install .
     - name: Install pdocs
-      run: pip install pdocs
+      run: pip install pdocs && pip install pygments
     - name: Use pdocs to generate docs
       run: pdocs as_html master -o docs
