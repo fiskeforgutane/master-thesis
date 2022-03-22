@@ -31,6 +31,8 @@ jobs:
       run: cp $GUROBI_HOME/lib/libgurobi91.so libgurobi91.so
     - name: cp $GUROBI_HOME/lib/libgurobi.so.9.1.2
       run: cp $GUROBI_HOME/lib/libgurobi.so.9.1.2 libgurobi.so.9.1.2
+    - name: Symlink libgurobi.so to /usr/lib
+      run: sudo ln -s $GUROBI_HOME/lib/libgurobi.so.9.1.2 /usr/lib/libgurobi91.so
     - name: sudo ldconfig
       run: sudo ldconfig
     - name: Test Gurobi CLI
