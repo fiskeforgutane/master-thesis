@@ -523,12 +523,12 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 + problem.min_loading_time(from.node, from.quantity)
                 + problem.travel_time(from.node, order.node(), boat);
             // The latest time at which we can leave `order.node` and still make it to `to` in time.
-            let latest = to.map_or(problem.timesteps(), |to| {
+            let latest = (to.map_or(problem.timesteps(), |to| {
                 to.time - problem.travel_time(order.node(), to.node, boat)
-            }) - problem.min_loading_time(order.node(), amount);
+            }) - problem.min_loading_time(order.node(), amount)) as isize;
 
-            let intersection =
-                earliest.max(order.open()).max(boat.available_from())..latest.min(order.close());
+            let intersection = earliest.max(order.open()).max(boat.available_from())
+                ..latest.min(order.close() as isize) as usize;
 
             trace!(
                 "Insertion-times: {:?}, Order window: {:?}, Available: {:?}, Intersection: {:?}",
