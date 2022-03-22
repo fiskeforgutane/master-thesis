@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  GUROBI_HOME: ./gurobi951/linux64/
+  GUROBI_HOME: ~/gurobi951/linux64/
 
 jobs:
   build:
@@ -22,7 +22,7 @@ jobs:
         python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
         architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
     - name: Download Gurobi
-      run: wget -c https://packages.gurobi.com/9.5/gurobi9.5.1_linux64.tar.gz -O - | tar -xz -C .
+      run: wget -c https://packages.gurobi.com/9.5/gurobi9.5.1_linux64.tar.gz -O - | tar -xz -C ~/
     - name: List directories
       run: ls
     - name: List gurobi dir
