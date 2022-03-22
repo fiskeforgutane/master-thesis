@@ -299,10 +299,15 @@ impl Quantities {
 #[pyclass]
 #[derive(Debug, Clone, Copy)]
 pub struct Order {
+    #[pyo3(get)]
     node: NodeIndex,
+    #[pyo3(get)]
     open: TimeIndex,
+    #[pyo3(get)]
     close: TimeIndex,
+    #[pyo3(get)]
     product: ProductIndex,
+    #[pyo3(get)]
     quantity: Quantity,
 }
 
