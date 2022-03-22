@@ -679,7 +679,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let c = (self.config.tk / self.config.t0).powf(1.0 / self.config.iterations as f64);
         let mut t = self.config.t0;
         for iteration in 0..self.config.iterations {
-            trace!("SISRs iteration {}", iteration);
+            debug!("SISRs iteration {}", iteration);
 
             // Create a new solution by R&R-ing the current one
             let mut new = solution.clone();
