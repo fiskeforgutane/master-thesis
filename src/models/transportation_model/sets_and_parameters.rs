@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
 use crate::{problem::Problem, quants::Quantities};
+use log::{debug, info, trace, warn};
+use std::collections::HashMap;
 
 type NodeIndex = usize;
 type VesselIndex = usize;
@@ -68,22 +68,31 @@ impl Sets {
     }
 
     fn get_h(problem: &Problem) -> Vec<usize> {
+        trace!("\n--------------Getting H-------------");
         let mut res: HashMap<NodeIndex, usize> = HashMap::new();
         let slowest_vessel = problem
             .vessels()
             .iter()
             .min_by(|a, b| a.speed().partial_cmp(&b.speed()).unwrap())
             .unwrap();
+
+        trace!("Speed of slowest vessel: {:?}", slowest_vessel.speed());
         for node in problem.consumption_nodes() {
+            trace!("\nnode: {:?}", node.index());
             let closest_prod = problem.closest_production_node(node);
+            trace!("closest prod: {:?}", closest_prod.index());
             // time to load - sail - unload - sail back to depot
             let round_trip_time =
                 2 + 2 * problem.travel_time(closest_prod.index(), node.index(), slowest_vessel);
+            trace!("rtt: {:?}", round_trip_time);
+            trace!("num timesteps {:?}", problem.timesteps());
             let num_trips = (problem.timesteps() as f64 / round_trip_time as f64).floor() as usize;
+            trace!("num_trips: {:?}", num_trips);
             res.insert(node.index(), num_trips);
         }
+        trace!("res: {:?}", res);
         let sum = res.iter().map(|(_, v)| v).sum();
-
+        trace!("sum: {:?}", sum);
         let H = (0..sum).collect();
         H
     }
