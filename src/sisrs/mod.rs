@@ -582,11 +582,12 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
             // Choose the candidate that maximizing quantity while minimizing cost,
             // using blinks with probability alpha.
-            let chosen =
-                candidates.max_by_key(|candidate| match rand::random() < self.config.alpha {
+            let chosen = candidates.max_by_key(|candidate| {
+                match rand::random::<f64>() < self.config.alpha {
                     true => (FloatOrd(f64::NEG_INFINITY), FloatOrd(f64::NEG_INFINITY)),
                     false => (FloatOrd(candidate.quantity), FloatOrd(-candidate.cost)),
-                });
+                }
+            });
 
             let candidate = match chosen {
                 Some(x) => {
