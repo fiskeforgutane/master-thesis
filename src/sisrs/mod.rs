@@ -513,8 +513,14 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
         let mut candidates = Vec::new();
 
+        trace!(
+            "Considering order with period {}..{}",
+            order.open(),
+            order.close()
+        );
         // This handles everything except after the last one.
         for (idx, (from, to)) in visits().zip(visits().skip(1)).enumerate() {
+            trace!("Evaluating insertion between {:?} and {:?}", from, to);
             // The earliest time we can arrive at the order node after having completed the visit at `from`
             let from = from.unwrap();
             let earliest = from.time
@@ -526,6 +532,13 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             }) - problem.min_loading_time(order.node(), amount);
 
             let intersection = earliest.max(order.open())..latest.min(order.close());
+
+            trace!(
+                "Insertion-times: {:?}, Order window: {:?}, Intersection: {:?}",
+                earliest..latest,
+                order.open()..order.close(),
+                intersection
+            );
 
             // Note: the inventory of the vessel should be constant for the duration between the two visits
             let inventory = solution.vessel_inventory_at(vessel, intersection.start);
