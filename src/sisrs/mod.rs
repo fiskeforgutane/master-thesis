@@ -613,7 +613,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                     x
                 }
                 None => {
-                    info!("No candidates for order #{}: {:?}", o, orders[o]);
+                    debug!("No candidates for order #{}: {:?}", o, orders[o]);
                     continue;
                 }
             };
@@ -698,10 +698,10 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             debug!("New solution: {:?}", eval_new);
 
             if eval_new.shortage + eval_new.excess < eval_best.shortage + eval_best.excess + noise {
-                if eval_new.cost < eval_best.cost + noise {
-                    info!("Found new best solution with {:?}", eval_new);
-                    best = new.clone();
-                }
+                //if eval_new.cost < eval_best.cost + noise {
+                info!("Found new best solution with {:?}", eval_new);
+                best = new.clone();
+                //}
             }
 
             if eval_new.shortage < eval_old.shortage + noise {
