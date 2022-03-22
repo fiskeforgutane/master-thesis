@@ -633,11 +633,11 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
     fn ruin(&self, solution: &mut Solution) {
         // Select strings for removal, and create a new solution without them
-        trace!("Ruining solution.");
+        debug!("Ruining solution.");
         let strings =
             SlackInductionByStringRemoval::select_strings(&self.config, solution, self.problem);
 
-        trace!("Dropping strings {:?}", &strings);
+        debug!("Dropping strings {:?}", &strings);
         // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
         // There can not occur any case where one range is "displaced" due to another range being removed from the same Vec.
         for (vessel, range) in strings {
@@ -646,7 +646,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     }
 
     fn recreate(&self, solution: &mut Solution) {
-        trace!("Recreating solution.");
+        debug!("Recreating solution.");
         // Determine the orders that are uncovered, and the amount by which they're uncovered
         let mut uncovered = SlackInductionByStringRemoval::uncovered(solution, self.orders);
 
