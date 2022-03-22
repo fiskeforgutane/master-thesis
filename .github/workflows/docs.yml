@@ -16,12 +16,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: actions/setup-python@v3
+      with:
+        python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
     - name: Download Gurobi
       run: wget -c https://packages.gurobi.com/9.5/gurobi9.5.1_linux64.tar.gz -O - | tar -xz
     - name: Set GUROBI_HOME
       run: export set GUROBI_HOME=gurobi951/linux64
-    - name: Setup Python virtualenv
-      run: virtualenv venv && source venv/bin/activate
     - name: Install master project using pip and maturin
       run: pip install .
     - name: Install pdocs
