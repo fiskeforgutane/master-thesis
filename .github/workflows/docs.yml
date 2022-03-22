@@ -8,12 +8,12 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  GUROBI_HOME: ~/gurobi951/linux64/
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
+    env:
+      GUROBI_HOME: ~/gurobi951/linux64/
 
     steps:
     - uses: actions/checkout@v2
