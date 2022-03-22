@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      GUROBI_HOME: ./gurobi951/linux64/
+      GUROBI_HOME: ${GITHUB_WORKSPACE}/gurobi951/linux64/
 
     steps:
     - uses: actions/checkout@v2
