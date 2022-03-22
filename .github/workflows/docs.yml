@@ -27,6 +27,8 @@ jobs:
       run: echo "LD_LIBRARY_PATH=\"$GUROBI_HOME/lib:${LD_LIBRARY_PATH}\"" >> $GITHUB_ENV
     - name: Echo $GUROBI_HOME/lib
       run: ls $GUROBI_HOME/lib
+    - name: cp $GUROBI_HOME/lib/gurobi91.so
+      run: cp $GUROBI_HOME/lib/gurobi91.so gurobi91.so
     - name: Test Gurobi CLI
       run: $GUROBI_HOME/bin/gurobi_cl --version
     - name: Install master project using pip and maturin
