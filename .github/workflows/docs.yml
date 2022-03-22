@@ -29,6 +29,8 @@ jobs:
       run: ls $GUROBI_HOME/lib
     - name: cp $GUROBI_HOME/lib/libgurobi91.so
       run: cp $GUROBI_HOME/lib/libgurobi91.so libgurobi91.so
+    - name: cp $GUROBI_HOME/lib/libgurobi.so.9.5.1
+      run: cp $GUROBI_HOME/lib/libgurobi.so.9.5.1 libgurobi.so.9.5.1
     - name: Test Gurobi CLI
       run: $GUROBI_HOME/bin/gurobi_cl --version
     - name: Install master project using pip and maturin
