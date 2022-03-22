@@ -19,12 +19,12 @@ jobs:
       with:
         python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
         architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+    - name: Set GUROBI_HOME
+      run: echo "GUROBI_HOME=${GITHUB_WORKSPACE}/gurobi951/linux64/" >> $GITHUB_ENV
     - name: Download Gurobi
-      run: wget -c https://packages.gurobi.com/9.5/gurobi9.5.1_linux64.tar.gz -O - | tar -xz -C ./
+      run: wget -c https://packages.gurobi.com/9.5/gurobi9.5.1_linux64.tar.gz -O - | tar -xz -C $GITHUB_WORKSPACE
     - name: Install master project using pip and maturin
       run: echo "GUROBI_HOME is $GUROBI_HOME [end]" && pip install .
-      env:
-        GUROBI_HOME: ${GITHUB_WORKSPACE}/gurobi951/linux64
     - name: Install pdocs
       run: pip install pydocs
     - name: Use pdocs to generate docs
