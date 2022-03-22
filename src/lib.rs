@@ -6,8 +6,6 @@ pub mod route_pool;
 pub mod sisrs;
 pub mod solution;
 
-use std::fmt::Debug;
-
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -23,7 +21,10 @@ use pyo3::wrap_pymodule;
 use pyo3_log;
 use pyo3_log::Logger;
 use quants::Order;
+use quants::Quantities;
 use solution::{Evaluation, Visit};
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 #[pyfunction]
 pub fn test_logging() {
@@ -269,6 +270,11 @@ fn optimize(
     let mut sisr = sisrs::SlackInductionByStringRemoval::new(&problem, &orders, &config);
     let result = sisr.run(initial);
     Ok(Solution::new(result.routes().to_vec()))
+}
+
+#[pyfunction]
+fn initial_quantities(problem: &Problem, product: usize) -> HashMap<usize, f64> {
+    Quantities::quantities(problem, product)
 }
 
 #[pyfunction]
