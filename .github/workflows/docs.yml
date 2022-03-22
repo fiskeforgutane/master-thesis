@@ -29,6 +29,8 @@ jobs:
       run: ls ~/
     - name: Echo GUROBI_HOME
       run: echo $GUROBI_HOME
+    - name: ls ~/gurobi951
+      run: ls ~/gurobi951
     - name: ls GUROBI_HOME
       run: ls $GUROBI_HOME
     - name: Install master project using pip and maturin
