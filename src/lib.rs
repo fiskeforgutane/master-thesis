@@ -3,6 +3,8 @@ pub mod problem;
 pub mod quants;
 pub mod sisrs;
 pub mod solution;
+pub mod destroy_and_repair;
+pub mod route_pool;
 
 use std::fmt::Debug;
 
