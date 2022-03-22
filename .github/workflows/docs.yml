@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  GUROBI_HOME: gurobi951/linux64
+  GUROBI_HOME: ./gurobi951/linux64/
 
 jobs:
   build:
@@ -27,6 +27,12 @@ jobs:
       run: ls
     - name: List gurobi dir
       run: ls gurobi951/
+    - name: List gurobi subdir
+      run: ls gurobi951/linux64
+    - name: Echo GUROBI_HOME
+      run: echo $GUROBI_HOME
+    - name: ls GUROBI_HOME
+      run: ls $GUROBI_HUME
     - name: Install master project using pip and maturin
       run: pip install .
     - name: Install pdocs
