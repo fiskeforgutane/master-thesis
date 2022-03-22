@@ -118,12 +118,6 @@ impl Problem {
     }
 
     pub fn travel_time(&self, from: NodeIndex, to: NodeIndex, vessel: &Vessel) -> usize {
-        trace!(
-            "Distance from {:?} to {:?} is {:?}",
-            from,
-            to,
-            self.distance(from, to)
-        );
         let distance = self.distance(from, to);
         let speed = vessel.speed();
         (distance / speed).ceil() as usize

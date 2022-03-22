@@ -1,10 +1,10 @@
+pub mod destroy_and_repair;
 pub mod models;
 pub mod problem;
 pub mod quants;
+pub mod route_pool;
 pub mod sisrs;
 pub mod solution;
-pub mod destroy_and_repair;
-pub mod route_pool;
 
 use std::fmt::Debug;
 
@@ -120,6 +120,17 @@ impl Vessel {
         ))
     }
 
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
+#[pymethods]
+impl Order {
     pub fn __str__(&self) -> String {
         format!("{:#?}", self)
     }
