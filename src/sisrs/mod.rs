@@ -420,12 +420,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 // The range of allowed offsets that also gives a slice of size `l`
                 let range = lb..ub;
 
-                trace!(
-                    "Cardinality = {}, idx = {}, allowed offsets = {:?}",
-                    l,
-                    idx,
-                    range
-                );
+                trace!("L = {}, idx = {}, allowed offsets = {:?}", l, idx, range);
 
                 let chosen = match range.is_empty() {
                     true => 0..t,
