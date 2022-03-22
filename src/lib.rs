@@ -273,6 +273,11 @@ fn optimize(
 }
 
 #[pyfunction]
+fn test() -> String {
+    "hei".to_string()
+}
+
+#[pyfunction]
 fn initial_quantities(problem: &Problem, product: usize) -> HashMap<usize, f64> {
     Quantities::quantities(problem, product)
 }
