@@ -4,6 +4,7 @@ use std::{
     ops::{Range, RangeInclusive},
 };
 
+use float_ord::FloatOrd;
 use itertools::Itertools;
 use log::{debug, info, trace, warn};
 use pyo3::pyclass;
@@ -363,7 +364,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 Some(x) => x,
                 None => return Vec::new(),
             };
-            
+
         let seed = solution[seed_vehicle][seed_index];
 
         trace!("Seed: visit {} of vehicle {}", seed_index, seed_vehicle);
@@ -579,12 +580,13 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 .enumerate()
                 .flat_map(|(v, _)| Self::candidates(self.problem, order, v, &solution, amount));
 
-            // Choose the candidate that maximizing quantity while minimizing cost
-            let chosen = candidates.max_by(|x, y| {
-                (x.quantity, -x.cost)
-                    .partial_cmp(&(y.quantity, y.cost))
-                    .unwrap_or(Ordering::Equal)
-            });
+            // Choose the candidate that maximizing quantity while minimizing cost,
+            // using blinks with probability alpha.
+            let chosen =
+                candidates.max_by_key(|candidate| match rand::random() < self.config.alpha {
+                    true => (FloatOrd(f64::NEG_INFINITY), FloatOrd(f64::NEG_INFINITY)),
+                    false => (FloatOrd(candidate.quantity), FloatOrd(-candidate.cost)),
+                });
 
             let candidate = match chosen {
                 Some(x) => {
@@ -608,12 +610,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                         quantity: candidate.quantity,
                     },
                 )
-                .unwrap_or_else(|err| {
-                    warn!(
-                        "Insertion of candidate {:?} failed with {:?}",
-                        candidate, err
-                    )
-                });
+                .unwrap_or_else(|err| warn!("Insertion of {:?} failed with {:?}", candidate, err));
         }
     }
 
