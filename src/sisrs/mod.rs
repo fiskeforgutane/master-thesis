@@ -416,7 +416,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 // and let min_offset be the smallest offset such that idx + l - offset <= t
                 // i.e. offset >= idx + l - t and offset >= 0
                 let ub = (l + 1).min(idx);
-                let lb = (idx + l - t).max(0);
+                let lb = ((idx + l - t) as isize).max(0) as usize;
                 // The range of allowed offsets that also gives a slice of size `l`
                 let range = lb..ub;
 
