@@ -273,11 +273,6 @@ fn optimize(
 }
 
 #[pyfunction]
-fn test() -> String {
-    "hei".to_string()
-}
-
-#[pyfunction]
 fn initial_quantities(problem: &Problem, product: usize) -> HashMap<usize, f64> {
     Quantities::quantities(problem, product)
 }
@@ -308,6 +303,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(test_logging, m)?)?;
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
+    m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
