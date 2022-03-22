@@ -540,7 +540,8 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
             // Note: the inventory of the vessel should be constant for the duration between the two visits
             let inventory = solution.vessel_inventory_at(vessel, intersection.start);
-            let max_quantity = inventory.capacity_for(order.product(), boat.compartments());
+            // Note: this is really short-sighted, since it might cause an invalid inventory at a later time.
+            let max_quantity = inventory[order.product()];
             let quantity = max_quantity.min(amount);
 
             trace!(
