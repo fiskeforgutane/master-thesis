@@ -532,7 +532,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
             trace!(
                 "Insertion-times: {:?}, Order window: {:?}, Available: {:?}, Intersection: {:?}",
-                earliest..latest,
+                (earliest as isize)..latest,
                 order.open()..order.close(),
                 boat.available_from()..,
                 intersection
