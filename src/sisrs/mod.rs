@@ -286,12 +286,21 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         (total_length as f64) / (tour_count as f64)
     }
 
-    pub fn select_random_visit(solution: &[Vec<Visit>]) -> (VesselIndex, usize) {
+    pub fn select_random_visit(solution: &[Vec<Visit>]) -> Option<(VesselIndex, usize)> {
         // Choose a vessel whose solution we will draw from, and then an index from that vessel's solution
+        if solution.len() == 0 {
+            return None;
+        }
+
         let v = Uniform::new(0, solution.len()).sample(&mut rand::thread_rng());
+
+        if solution[v].len() == 0 {
+            return None;
+        }
+
         let i = Uniform::new(0, solution[v].len()).sample(&mut rand::thread_rng());
 
-        (v, i)
+        Some((v, i))
     }
 
     /// Returns the node that is closest to `node` that is visited by an uncovered vehicle during `time_period`
@@ -347,9 +356,17 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let k_s =
             Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rand::thread_rng()) as usize;
 
+        trace!("ls_max = {}, ks_max = {}, k_s = {}", ls_max, ks_max, k_s);
+
         let (seed_vehicle, seed_index) =
-            SlackInductionByStringRemoval::select_random_visit(solution.routes());
+            match SlackInductionByStringRemoval::select_random_visit(solution.routes()) {
+                Some(x) => x,
+                None => return Vec::new(),
+            };
+            
         let seed = solution[seed_vehicle][seed_index];
+
+        trace!("Seed: visit {} of vehicle {}", seed_index, seed_vehicle);
 
         // The strings we will remove, indexed as (vehicle, index range)
         let mut strings = Vec::with_capacity(k_s);
