@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use derive_more::Constructor;
 use grb::Result;
 use pyo3::pyclass;
 
@@ -38,45 +37,9 @@ pub fn initial_orders(problem: &Problem) -> Result<Vec<Order>> {
     Ok(out)
 }
 
-pub struct Quantities {
-    pub problem: Problem,
-}
+pub struct Quantities {}
 
 impl Quantities {
-    pub fn new(problem: Problem) -> Quantities {
-        Quantities { problem }
-    }
-
-    /* /// Returns the initial orders only considering the problem
-    pub fn initial_orders(&self) -> Vec<Order> {
-        return (0..self.problem.products())
-            .flat_map(|p| self.initial_orders_per(p))
-            .collect();
-    } */
-
-    /// Returns the initial orders for the given product and only considering the problem
-    /* fn initial_orders_per(&self, product: ProductIndex) -> Vec<Order> {
-        /*
-         - Calculate necessary deliveries to each consumption node for the entire planning period
-         - Split the total delivery into deliveries with an origin and a destination
-         - Assign a time window for the delivery, ensuring that no capacity breach occurs
-         - return orders
-        */
-        // {k.key(): sum(k.consumption) for k in problem.nodes()}
-
-        let deliveries = self.find_deliveries(Quantities::quantities(&self.problem, product));
-
-        let mut orders = Vec::new();
-        for node in self.problem.nodes() {
-            let windows = self.time_windows(node, &deliveries[&node.index()], product);
-
-            for ((open, close), quantity) in windows.iter().zip(&deliveries[&node.index()]) {
-                orders.push(Order::new(node.index(), *open, *close, product, *quantity));
-            }
-        }
-        orders
-    } */
-
     /// Calculates the quantities that are to be either delivered or picked up at the nodes
     pub fn quantities(problem: &Problem, product: ProductIndex) -> HashMap<NodeIndex, Quantity> {
         /*
@@ -175,35 +138,6 @@ impl Quantities {
         }
         quantities
     }
-
-    /// Calculate the number of deliveries per node and the quantities
-    /* fn find_deliveries(
-        &self,
-        quantities: HashMap<NodeIndex, Quantity>,
-    ) -> HashMap<NodeIndex, Vec<Quantity>> {
-        /*
-        Find the vessel with the lowest capacity -> given that this vessel were to deliver full loads to the nodes,
-        how many visits are needed for the nodes not to breach?
-        */
-        let min_capacity = self
-            .problem
-            .vessels()
-            .iter()
-            .map(|v| v.compartments().iter().map(|c| c.0).sum())
-            .reduce(f64::min)
-            .unwrap();
-
-        self.problem
-            .nodes()
-            .iter()
-            .map(|node| {
-                (
-                    node.index(),
-                    vec![min_capacity; (quantities[&node.index()] / min_capacity).ceil() as usize],
-                )
-            })
-            .collect()
-    } */
 
     /// Find appropriate time windoes for each delivery
     pub fn time_windows(
@@ -337,18 +271,6 @@ impl Order {
     }
     pub fn quantity(&self) -> Quantity {
         self.quantity
-    }
-}
-
-#[derive(Debug, Constructor)]
-pub struct Orders {
-    orders: Vec<Vec<Order>>,
-}
-
-impl Orders {
-    /// Returns the orders of the node associated with the given index
-    pub fn get(&self, node_idx: NodeIndex) -> &Vec<Order> {
-        &self.orders[node_idx]
     }
 }
 

@@ -5,7 +5,7 @@ use crate::{
 };
 use grb::{prelude::*, Result};
 use itertools::iproduct;
-use log::{debug, info, warn};
+use log::{debug, info};
 
 use super::sets_and_parameters::{Parameters, Sets};
 
@@ -548,6 +548,10 @@ struct RouteVars {
 }
 
 pub struct PathFlowResult {
+    /// The shortage objective
+    pub shortage: f64,
+    /// The cost objective
+    pub cost: f64,
     /// 1 if vessel v follows route r and is at the route's i'th stop at the beginning of time step t, indexed (r,i,v,t)
     pub x: Vec<Vec<Vec<Vec<f64>>>>,
     /// inventory at node n at *the end* time step t of product p
@@ -563,8 +567,18 @@ pub struct PathFlowResult {
 }
 
 impl PathFlowResult {
-    pub fn new(variables: &Variables, model: &Model) -> Result<PathFlowResult> {
+    pub fn new(variables: &Variables, model: &mut Model) -> Result<PathFlowResult> {
+        // get shortage objective
+        model.set_param(param::ObjNumber, 0)?;
+        let shortage = model.get_attr(attr::ObjVal)?;
+
+        // get cost objective
+        model.set_param(param::ObjNumber, 1)?;
+        let cost = model.get_attr(attr::ObjVal)?;
+
         Ok(PathFlowResult {
+            shortage,
+            cost,
             x: variables.x.convert(model)?,
             s: variables.s.convert(model)?,
             v_plus: variables.v_plus.convert(model)?,
@@ -588,15 +602,12 @@ impl PathFlowResult {
             }
         }
         res.sort_by(|a, b| a.0 .3.cmp(&b.0 .3));
-        //res.sort_by(|a, b| a.0 .2.cmp(&b.0 .2));
-        //res.sort_by(|a, b| a.0 .1.cmp(&b.0 .1));
-        //res.sort_by(|a, b| a.0 .0.cmp(&b.0 .0));
 
         res
     }
 }
 
-/// Returns the nonzero deliveries/pickups at the given node index of the given product
+/// Returns the nonzero deliveries/pickups at the given node index of the given product, sorted on time step
 pub fn quantities(
     path_res: &PathFlowResult,
     parameters: &Parameters,
@@ -613,15 +624,16 @@ pub fn quantities(
                 v[product]
                     .iter()
                     .enumerate()
-                    .filter(|(t, q)| f64::round(**q) > 0.0)
+                    .filter(|(_, q)| f64::round(**q) > 0.0)
                     .for_each(|(t, q)| quants.push((t, q)));
             }
         }
     }
     quants.sort_by(|a, b| a.0.cmp(&b.0));
-    quants.into_iter().map(|(t, q)| *q).collect()
+    quants.into_iter().map(|(_, q)| *q).collect()
 }
 
+/// Converts the given path flow result into a set of orders per node
 pub fn to_orders(
     path_res: PathFlowResult,
     problem: &Problem,
