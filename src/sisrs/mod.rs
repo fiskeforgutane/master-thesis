@@ -347,9 +347,13 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let k_s =
             Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rand::thread_rng()) as usize;
 
+        trace!("ls_max = {}, ks_max {}, k_s = {}", ls_max, ks_max, k_s);
+
         let (seed_vehicle, seed_index) =
             SlackInductionByStringRemoval::select_random_visit(solution.routes());
         let seed = solution[seed_vehicle][seed_index];
+
+        trace!("Seed: visit {} of vehicle {}", seed_index, seed_vehicle);
 
         // The strings we will remove, indexed as (vehicle, index range)
         let mut strings = Vec::with_capacity(k_s);
