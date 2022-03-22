@@ -1,0 +1,45 @@
+name: Generate Python libary documentation
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v3
+      with:
+        python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+    - name: Download Gurobi
+      run: wget -c https://packages.gurobi.com/9.1/gurobi9.1.2_linux64.tar.gz -O - | tar -xz -C $GITHUB_WORKSPACE
+    - name: Set GUROBI_HOME
+      run: echo "GUROBI_HOME=${GITHUB_WORKSPACE}/gurobi912/linux64" >> $GITHUB_ENV
+    - name: Update LD_LIBRARY_PATH (needed to make the Gurobi CLI work)
+      run: echo "LD_LIBRARY_PATH=\"$GUROBI_HOME/lib:${LD_LIBRARY_PATH}\"" >> $GITHUB_ENV
+    - name: Echo $GUROBI_HOME/lib
+      run: ls $GUROBI_HOME/lib
+    - name: cp $GUROBI_HOME/lib/libgurobi91.so
+      run: cp $GUROBI_HOME/lib/libgurobi91.so libgurobi91.so
+    - name: cp $GUROBI_HOME/lib/libgurobi.so.9.1.2
+      run: cp $GUROBI_HOME/lib/libgurobi.so.9.1.2 libgurobi.so.9.1.2
+    - name: Symlink libgurobi.so to /usr/lib
+      run: sudo ln -s $GUROBI_HOME/lib/libgurobi.so.9.1.2 /usr/lib/libgurobi91.so
+    - name: sudo ldconfig
+      run: sudo ldconfig
+    - name: Test Gurobi CLI
+      run: $GUROBI_HOME/bin/gurobi_cl --version
+    - name: Install master project using pip and maturin
+      run: echo "GUROBI_HOME is $GUROBI_HOME [end]" && pip install .
+    - name: Install pdocs
+      run: pip install pdocs && pip install pygments
+    - name: Use pdocs to generate docs
+      run: pdocs as_html master -o docs
