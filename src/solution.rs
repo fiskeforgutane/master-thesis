@@ -13,8 +13,8 @@ use crate::problem::{
 };
 
 /// A `Visit` is a visit to a `node` at a `time` where unloading/loading of a given `quantity` of `product` is started.
-/// Assumption: quantity is relative to the vessel's inventory. In other words, the quantity is positive if an amount is loaded onto the
-/// vessel and negative is an amount is unloaded.
+/// Assumption: `quantity` is relative to the node getting services. That is, a positive `quantity` means a delivery to a location,
+/// while a negative quantity means a pick-up from a farm. Thus, `node.inventory[product] += quantity` while `vessel.inventory[product] -= quantity`
 #[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Visit {
@@ -151,6 +151,15 @@ impl<'p> Solution<'p> {
         }
 
         Ok(solution)
+    }
+
+    pub fn new_unchecked(problem: &'p Problem, routes: Vec<Vec<Visit>>) -> Self {
+        Self {
+            problem,
+            routes,
+            npt_cache: Cell::default(),
+            evaluation: Cell::default(),
+        }
     }
 
     /// Invalidate caches.
