@@ -1,7 +1,11 @@
-use crate::models::utils::{AddVars, ConvertVars, NObjectives};
+use crate::{
+    models::utils::{AddVars, ConvertVars, NObjectives},
+    problem::{Problem, ProductIndex},
+    quants::{Order, Quantities},
+};
 use grb::{prelude::*, Result};
 use itertools::iproduct;
-use log::{debug, info, warn};
+use log::{debug, info};
 
 use super::sets_and_parameters::{Parameters, Sets};
 
@@ -544,6 +548,10 @@ struct RouteVars {
 }
 
 pub struct PathFlowResult {
+    /// The shortage objective
+    pub shortage: f64,
+    /// The cost objective
+    pub cost: f64,
     /// 1 if vessel v follows route r and is at the route's i'th stop at the beginning of time step t, indexed (r,i,v,t)
     pub x: Vec<Vec<Vec<Vec<f64>>>>,
     /// inventory at node n at *the end* time step t of product p
@@ -554,13 +562,23 @@ pub struct PathFlowResult {
     pub v_minus: Vec<Vec<Vec<f64>>>,
     /// load of vessel v in time period t of product p
     pub l: Vec<Vec<Vec<f64>>>,
-    /// semicontinuous variable indicated quantity loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,t)
+    /// semicontinuous variable indicated quantity loaded or unloaded at the i'th visit of route r by vessel v at time step t, indexed (r,i,v,p,t)
     pub q: Vec<Vec<Vec<Vec<Vec<f64>>>>>,
 }
 
 impl PathFlowResult {
-    pub fn new(variables: &Variables, model: &Model) -> Result<PathFlowResult> {
+    pub fn new(variables: &Variables, model: &mut Model) -> Result<PathFlowResult> {
+        // get shortage objective
+        model.set_param(param::ObjNumber, 0)?;
+        let shortage = model.get_attr(attr::ObjVal)?;
+
+        // get cost objective
+        model.set_param(param::ObjNumber, 1)?;
+        let cost = model.get_attr(attr::ObjVal)?;
+
         Ok(PathFlowResult {
+            shortage,
+            cost,
             x: variables.x.convert(model)?,
             s: variables.s.convert(model)?,
             v_plus: variables.v_plus.convert(model)?,
@@ -584,10 +602,53 @@ impl PathFlowResult {
             }
         }
         res.sort_by(|a, b| a.0 .3.cmp(&b.0 .3));
-        //res.sort_by(|a, b| a.0 .2.cmp(&b.0 .2));
-        //res.sort_by(|a, b| a.0 .1.cmp(&b.0 .1));
-        //res.sort_by(|a, b| a.0 .0.cmp(&b.0 .0));
 
         res
     }
+}
+
+/// Returns the nonzero deliveries/pickups at the given node index of the given product, sorted on time step
+pub fn quantities(
+    path_res: &PathFlowResult,
+    parameters: &Parameters,
+    node_idx: usize,
+    product: ProductIndex,
+) -> Vec<f64> {
+    let mut quants = Vec::new();
+    for (r, route) in path_res.q.iter().enumerate() {
+        for (i, visit) in route.iter().enumerate() {
+            if parameters.node(r, i).unwrap() != node_idx {
+                continue;
+            }
+            for v in visit {
+                v[product]
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, q)| f64::round(**q) > 0.0)
+                    .for_each(|(t, q)| quants.push((t, q)));
+            }
+        }
+    }
+    quants.sort_by(|a, b| a.0.cmp(&b.0));
+    quants.into_iter().map(|(_, q)| *q).collect()
+}
+
+/// Converts the given path flow result into a set of orders per node
+pub fn to_orders(
+    path_res: PathFlowResult,
+    problem: &Problem,
+    parameters: &Parameters,
+) -> Result<Vec<Order>> {
+    let mut out = Vec::new();
+    for n in problem.nodes() {
+        for p in 0..problem.products() {
+            let quants = quantities(&path_res, parameters, n.index(), p);
+            let windows = Quantities::time_windows(n, &quants, p);
+            for i in 0..quants.len() {
+                let order = Order::new(n.index(), windows[i].0, windows[i].1, p, quants[i]);
+                out.push(order);
+            }
+        }
+    }
+    Ok(out)
 }

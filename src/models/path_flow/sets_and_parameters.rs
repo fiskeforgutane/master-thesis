@@ -94,9 +94,7 @@ impl Sets {
         let mut vessel_res = Vec::new();
         for v in problem.vessels() {
             let mut t = problem.timesteps();
-            println!("orn number {:?}", t);
             let mut next = route.visits().last().unwrap();
-            println!("original next {:?}", next);
             let mut times = route
                 .visits()
                 .iter()
@@ -178,7 +176,7 @@ impl Parameters {
                 (0..problem.timesteps())
                     .map(|t| {
                         (0..problem.products())
-                            .map(|p| n.inventory_changes()[t][p])
+                            .map(|p| f64::abs(n.inventory_changes()[t][p]))
                             .collect()
                     })
                     .collect()

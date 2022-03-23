@@ -485,7 +485,7 @@ impl Node {
         for product in 0..capacity.num_products() {
             let mut inventory = initial_inventory[product];
             for delta in &inventory_changes {
-                inventory += delta[product];
+                inventory += f64::abs(delta[product]);
                 cumulative_inventory[product].push(inventory);
             }
         }
@@ -581,6 +581,10 @@ impl Node {
             Ok(x) => x,
             Err(x) => x,
         }
+    }
+
+    pub fn cumulative_inventory(&self) -> &Vec<Vec<Quantity>> {
+        &self.cumulative_inventory
     }
 }
 
