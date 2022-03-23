@@ -546,16 +546,26 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
             // Note: the inventory of the vessel should be constant for the duration between the two visits
             let inventory = solution.vessel_inventory_at(vessel, intersection.start);
-            // Note: this is really short-sighted, since it might cause an invalid inventory at a later time.
-            let max_quantity = inventory[order.product()];
-            let quantity = max_quantity.min(amount);
+
+            // If `amount` is negative, this is a pickup-order, and a delivery-node if `amount` is positive
+            let quantity = match amount.signum() as i64 {
+                1 => {
+                    // Note: this is really short-sighted, since it might cause an invalid inventory at a later time.
+                    let max_quantity = inventory[order.product()];
+                    max_quantity.min(amount)
+                }
+                -1 => {
+                    let pickup = -inventory.capacity_for(order.product(), boat.compartments());
+                    pickup.max(amount)
+                }
+                _ => unreachable!(),
+            };
 
             trace!(
-                "Inventory: {:?}, Capacity for product {}: {}, Order remaining {}",
+                "Inventory: {:?}, Order remaining {}, quantity {}",
                 inventory,
-                order.product(),
-                max_quantity,
-                amount
+                amount,
+                quantity
             );
 
             let port_cost = problem.nodes()[order.node()].port_fee();
