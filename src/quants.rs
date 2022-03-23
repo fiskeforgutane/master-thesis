@@ -243,7 +243,7 @@ impl Quantities {
                 // the quantity that must have been consumed before there is room for the new delivery
                 let excess = accumulated_deliveries + node.initial_inventory()[product]
                     - node.capacity()[product];
-                node.inventory_change_at_least(product, -excess)
+                node.inventory_change_at_least(product, excess)
             };
 
             // the window must close before the node breaches the lower limit (0)
@@ -251,7 +251,7 @@ impl Quantities {
                 // The initial inventory plus the deliveries made so far
                 let excess = node.initial_inventory()[product] + accumulated_deliveries - delivery;
                 trace!("excess: {:?}", excess);
-                let t = node.inventory_change_at_least(product, -excess);
+                let t = node.inventory_change_at_least(product, excess);
                 trace!("change at least - so close is: {:?}", t);
                 t
             };
