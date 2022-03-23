@@ -5,6 +5,7 @@ use std::{
     vec::Drain,
 };
 
+use float_ord::FloatOrd;
 use itertools::Itertools;
 use pyo3::{pyclass, pymethods};
 
@@ -65,18 +66,30 @@ pub struct Solution<'p> {
     evaluation: Cell<Option<Evaluation>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct InventoryViolation {
+    /// The total amount by which upper inventory levels are exceeded over the planning period.
+    pub excess: Quantity,
+    /// The total amount by which lower inventory levels are violated over the planning period.
+    pub shortage: Quantity,
+}
+
 /// Evaluation of a solution's quality
 #[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Evaluation {
     /// The total cost of the solution
     pub cost: f64,
-    /// The total amount of shortage over the planning period.
-    /// I.e. shortage = sum(-min(0, inventory) for all inventories at farms)
-    pub shortage: Quantity,
-    /// The total amount of excess over the planning period. In other words,
-    /// the sum of the amounts exceeding nodes' capacity over the planning period
-    pub excess: Quantity,
+    /// Statistics for the nodes
+    pub nodes: InventoryViolation,
+    /// Statistics for the vessels
+    pub vessels: InventoryViolation,
+}
+
+impl Evaluation {
+    pub fn inventory_violation(&self) -> f64 {
+        self.nodes.excess + self.nodes.shortage + self.vessels.excess + self.vessels.shortage
+    }
 }
 
 impl Eq for Evaluation {}
@@ -84,10 +97,14 @@ impl Eq for Evaluation {}
 impl PartialOrd for Evaluation {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         // We will weigh violations equally.
-        let v1 = self.shortage + self.excess;
-        let v2 = other.shortage + other.excess;
+        let v1 =
+            self.nodes.shortage + self.nodes.excess + self.vessels.shortage + self.vessels.excess;
+        let v2 = other.nodes.shortage
+            + other.nodes.excess
+            + other.vessels.shortage
+            + other.vessels.excess;
 
-        self.cost.partial_cmp(&other.cost).and(v1.partial_cmp(&v2))
+        FloatOrd(v1).partial_cmp(&FloatOrd(v2)).into()
     }
 }
 
@@ -240,8 +257,55 @@ impl<'p> Solution<'p> {
         cost
     }
 
+    /// Calculates the vessel shortage and excess of this solution
+    fn vessel_violations(&self) -> InventoryViolation {
+        let mut shortage = 0.0;
+        let mut excess = 0.0;
+
+        for (v, route) in self.routes.iter().enumerate() {
+            let vessel = &self.problem.vessels()[v];
+            let mut inventory = vessel.initial_inventory().as_inv().clone();
+
+            // Artificial visit for "end of planning horizon"
+            // Note: a streaming iterator would have been nice here
+            let end = (0..self.problem.products())
+                .map(|p| Visit {
+                    node: 0,
+                    product: p,
+                    time: self.problem.timesteps() - 1,
+                    quantity: 0.0,
+                })
+                .collect::<Vec<_>>();
+
+            // When the inventory for product type `p` was last updated
+            let mut last_updated = vec![vessel.available_from(); self.problem.products()];
+
+            // We are always "present" at `visit` (i.e. the vessel has the inventory it has leaving v0),
+            // and will calculate how large the violation is in the time before we arrive at `visit`
+            for visit in route.iter().chain(&end) {
+                let time_spanned = (visit.time - last_updated[visit.product]) as f64;
+                last_updated[visit.product] = visit.time;
+                // This is the amount by which the inventory limit is breached over the time span.
+                // The slack (capacity_for) is negative if the inventory exceeds the amount that can be stored in `vessel.compartments()`
+                // If the slack is negative, we use that (since -slack is positive in that case)
+                // and if it is positive we will use 0 (since -slack will be negative in that case).
+                let capacity = -inventory.capacity_for(visit.product, vessel.compartments());
+                let e = (-capacity).max(0.0);
+                // The shortage is the abs of the inventory if it is negative.
+                let s = (-inventory[visit.product]).max(0.0);
+
+                excess += time_spanned * e;
+                shortage += time_spanned * s;
+
+                inventory[visit.product] += visit.quantity
+            }
+        }
+
+        InventoryViolation { excess, shortage }
+    }
+
     /// Calculates the accumulated shortage and excess of this solution
-    fn inventory_violations(&self) -> (f64, f64) {
+    fn node_violations(&self) -> InventoryViolation {
         let mut shortage = 0.0;
         let mut excess = 0.0;
 
@@ -267,7 +331,7 @@ impl<'p> Solution<'p> {
             }
         }
 
-        (shortage, excess)
+        InventoryViolation { excess, shortage }
     }
 
     /// The evaluation of this solution
@@ -277,12 +341,13 @@ impl<'p> Solution<'p> {
         }
 
         let cost = self.cost();
-        let (shortage, excess) = self.inventory_violations();
+        let nodes = self.node_violations();
+        let vessels = self.vessel_violations();
 
         let eval = Evaluation {
             cost,
-            shortage,
-            excess,
+            nodes,
+            vessels,
         };
 
         self.evaluation.set(Some(eval));
