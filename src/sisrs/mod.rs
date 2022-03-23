@@ -466,6 +466,8 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                         | (!(lb..ub).is_empty() && chosen.len() == l)
                 );
 
+                trace!("v = {}, vehicles used = {:?}", v, vehicles_used);
+
                 vehicles_used.insert(v);
                 time_periods
                     .push(solution[v][chosen.start].time..=solution[v][chosen.end - 1].time);
