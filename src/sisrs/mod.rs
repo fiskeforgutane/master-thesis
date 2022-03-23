@@ -758,7 +758,6 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let eval_new = new.evaluation();
             let eval_old = solution.evaluation();
             let eval_best = best.evaluation();
-            let noise = t * uniform.sample(&mut rand::thread_rng()).ln();
 
             debug!("New solution: {:?}", eval_new);
 
@@ -767,7 +766,11 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 best = new.clone();
             }
 
-            if eval_new.inventory_violation() < eval_old.inventory_violation() + noise {
+            let dE = (eval_new.inventory_violation() - eval_old.inventory_violation());
+            let h = (-dE / t).exp();
+            debug!("dE = {}, h = {}", dE, h);
+
+            if uniform.sample(&mut rand::thread_rng()) < h {
                 info!("Replacing current solution");
                 solution = new;
             } else {
