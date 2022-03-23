@@ -78,7 +78,7 @@ impl Problem {
     /// The minimum amount of time we need to spend at `node` in order to load/unload `quantity`.
     pub fn min_loading_time(&self, node: NodeIndex, quantity: Quantity) -> TimeIndex {
         let rate = self.nodes[node].max_loading_amount();
-        (rate / quantity).ceil() as TimeIndex
+        (quantity.abs() / rate.abs()).ceil() as TimeIndex
     }
     /// Returns the consumption nodes of the problem
     /// **VERY BAD** should be done once in the constructor
