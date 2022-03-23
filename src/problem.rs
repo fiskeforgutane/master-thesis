@@ -593,6 +593,7 @@ enum RawInventory {
     Multiple(Vec<Quantity>),
 }
 
+#[pyclass]
 #[derive(Debug, Clone)]
 pub struct Inventory(RawInventory);
 

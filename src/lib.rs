@@ -16,7 +16,9 @@ use problem::Node;
 use problem::NodeType;
 use problem::Problem;
 use problem::Quantity;
+use problem::TimeIndex;
 use problem::Vessel;
+use problem::VesselIndex;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::wrap_pymodule;
@@ -54,6 +56,18 @@ impl Solution {
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
 
         Ok(solution.evaluation())
+    }
+
+    pub fn vessel_inventory_at(
+        &self,
+        problem: &Problem,
+        vessel: VesselIndex,
+        time: TimeIndex,
+    ) -> PyResult<Inventory> {
+        let solution = solution::Solution::new(problem, self.routes.clone())
+            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
+
+        Ok(solution.vessel_inventory_at(vessel, time))
     }
 
     pub fn __str__(&self) -> String {
@@ -215,6 +229,30 @@ impl Evaluation {
 
     pub fn __repr__(&self) -> String {
         self.__str__()
+    }
+}
+
+#[pymethods]
+impl Inventory {
+    pub fn __str__(&self) -> String {
+        format!(
+            "Inventory({:?})",
+            (0..self.num_products())
+                .map(|i| self[i])
+                .collect::<Vec<_>>()
+        )
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+
+    pub fn __len__(&self) -> usize {
+        self.num_products()
+    }
+
+    pub fn __getitem__(&self, idx: usize) -> f64 {
+        self[idx]
     }
 }
 
