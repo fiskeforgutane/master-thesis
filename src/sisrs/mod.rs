@@ -214,11 +214,24 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         drop(allowed_assignments.drain(start..));
 
         // The amount remaining for the delivery to be completed
+        // Note: will be positive for delivery nodes and negative for pickup nodes
         let mut remaining = orders.iter().map(|o| o.quantity()).collect::<Vec<_>>();
         // The indices of the orders that are not yet covered
         let mut uncovered = (0..orders.len()).collect::<HashSet<_>>();
 
         // Decide on an assignment of the visits
+        debug!(
+            "Assigning orders to visits... (combinations = {}, # allowed assignments: {:?})",
+            allowed_assignments
+                .iter()
+                .map(|(_, xs)| xs.len() as u128)
+                .product::<u128>(),
+            allowed_assignments
+                .iter()
+                .map(|(i, xs)| (i, xs.len()))
+                .collect::<Vec<_>>()
+        );
+        let start = std::time::Instant::now();
         let assigned = Self::assign(
             &mut remaining,
             &mut uncovered,
@@ -226,8 +239,12 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             &visits,
             0,
         );
-
-        trace!("Assignment successful = {}", assigned);
+        let end = std::time::Instant::now();
+        debug!(
+            "Assignment computed in {}ms. successful = {}",
+            (end - start).as_millis(),
+            assigned
+        );
 
         uncovered
             .into_iter()
@@ -255,10 +272,18 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let (visit, alternatives) = &allowed_assignments[idx];
 
         for &order in alternatives {
+            // If this was covered further up in the call chain, we can skip it.
+            if !uncovered.contains(&order) {
+                continue;
+            }
+
             let (_, visit) = &visits[*visit];
             let old = remaining[order];
             let new = old - visit.quantity;
-            let remove = old >= 1e-5 && new <= 1e-5;
+            // Whether we cover `order` when assigning `visit` to it.
+            // This is given by whether the post-assignment value is (a) close
+            // to zero or (b) of the opposite sign of `old`
+            let remove = new.abs() <= 1e-5 || old.signum() != new.signum();
 
             // Apply the change
             remaining[order] = new;
@@ -269,6 +294,11 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             if Self::assign(remaining, uncovered, allowed_assignments, visits, idx + 1) {
                 return true;
             }
+
+            // TODO: do somethings about this
+            // The number of combinations grows by so much that we can't really do the full enumeration.
+            // Instead: we will only try the first option
+            break;
 
             // Undo the change
             remaining[order] = old;
@@ -416,7 +446,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 // and let min_offset be the smallest offset such that idx + l - offset <= t
                 // i.e. offset >= idx + l - t and offset >= 0
                 let ub = (l + 1).min(idx);
-                let lb = (idx + l - t).max(0);
+                let lb = ((idx + l - t) as isize).max(0) as usize;
                 // The range of allowed offsets that also gives a slice of size `l`
                 let range = lb..ub;
 
@@ -435,6 +465,8 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                     ((lb..ub).is_empty() && chosen.len() == t)
                         | (!(lb..ub).is_empty() && chosen.len() == l)
                 );
+
+                trace!("v = {}, vehicles used = {:?}", v, vehicles_used);
 
                 vehicles_used.insert(v);
                 time_periods
@@ -523,16 +555,18 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 + problem.min_loading_time(from.node, from.quantity)
                 + problem.travel_time(from.node, order.node(), boat);
             // The latest time at which we can leave `order.node` and still make it to `to` in time.
-            let latest = to.map_or(problem.timesteps(), |to| {
+            let latest = (to.map_or(problem.timesteps(), |to| {
                 to.time - problem.travel_time(order.node(), to.node, boat)
-            }) - problem.min_loading_time(order.node(), amount);
+            }) - problem.min_loading_time(order.node(), amount)) as isize;
 
-            let intersection =
-                earliest.max(order.open()).max(boat.available_from())..latest.min(order.close());
-
+            // Note: `latest` can possibly be negative (i.e. a huge number when converted to usize),
+            // so we must take care of that by doing latest.max(0)
+            let open = earliest.max(order.open()).max(boat.available_from());
+            let close = (latest.max(0) as usize).min(order.close());
+            let intersection = open..close;
             trace!(
                 "Insertion-times: {:?}, Order window: {:?}, Available: {:?}, Intersection: {:?}",
-                earliest..latest,
+                (earliest as isize)..latest,
                 order.open()..order.close(),
                 boat.available_from()..,
                 intersection
@@ -540,17 +574,33 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
             // Note: the inventory of the vessel should be constant for the duration between the two visits
             let inventory = solution.vessel_inventory_at(vessel, intersection.start);
-            // Note: this is really short-sighted, since it might cause an invalid inventory at a later time.
-            let max_quantity = inventory[order.product()];
-            let quantity = max_quantity.min(amount);
+
+            // If `amount` is negative, this is a pickup-order, and a delivery-node if `amount` is positive
+            let quantity = match amount.signum() as i64 {
+                1 => {
+                    // Note: this is really short-sighted, since it might cause an invalid inventory at a later time.
+                    let max_quantity = inventory[order.product()];
+                    max_quantity.min(amount)
+                }
+                -1 => {
+                    let pickup = -inventory.capacity_for(order.product(), boat.compartments());
+                    pickup.max(amount)
+                }
+                _ => unreachable!(),
+            };
 
             trace!(
-                "Inventory: {:?}, Capacity for product {}: {}, Order remaining {}",
+                "Inventory: {:?}, Compartments: {:?}, Order remaining {}, quantity {}",
                 inventory,
-                order.product(),
-                max_quantity,
-                amount
+                boat.compartments(),
+                amount,
+                quantity
             );
+
+            if quantity.abs() < problem.nodes()[order.node()].min_unloading_amount() {
+                trace!("Insertable amount less than min unloading amount... skipping");
+                continue;
+            }
 
             let port_cost = problem.nodes()[order.node()].port_fee();
             // The additional distance that must be travelled
@@ -598,12 +648,19 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
             // Choose the candidate that maximizing quantity while minimizing cost,
             // using blinks with probability alpha.
+            let mut cands = 0;
             let chosen = candidates.max_by_key(|candidate| {
+                cands += 1;
                 match rand::random::<f64>() < self.config.alpha {
                     true => (FloatOrd(f64::NEG_INFINITY), FloatOrd(f64::NEG_INFINITY)),
-                    false => (FloatOrd(candidate.quantity), FloatOrd(-candidate.cost)),
+                    false => (
+                        FloatOrd(candidate.quantity.abs()),
+                        FloatOrd(-candidate.cost),
+                    ),
                 }
             });
+
+            debug!("Chose {:?} among {} candidates", chosen, cands);
 
             let candidate = match chosen {
                 Some(x) => {
@@ -611,7 +668,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                     x
                 }
                 None => {
-                    info!("No candidates for order #{}: {:?}", o, orders[o]);
+                    debug!("No candidates for order #{}: {:?}", o, orders[o]);
                     continue;
                 }
             };
@@ -633,11 +690,11 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
     fn ruin(&self, solution: &mut Solution) {
         // Select strings for removal, and create a new solution without them
-        trace!("Ruining solution.");
+        debug!("Ruining solution.");
         let strings =
             SlackInductionByStringRemoval::select_strings(&self.config, solution, self.problem);
 
-        trace!("Dropping strings {:?}", &strings);
+        debug!("Dropping strings {:?}", &strings);
         // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
         // There can not occur any case where one range is "displaced" due to another range being removed from the same Vec.
         for (vessel, range) in strings {
@@ -646,7 +703,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     }
 
     fn recreate(&self, solution: &mut Solution) {
-        trace!("Recreating solution.");
+        debug!("Recreating solution.");
         // Determine the orders that are uncovered, and the amount by which they're uncovered
         let mut uncovered = SlackInductionByStringRemoval::uncovered(solution, self.orders);
 
@@ -681,6 +738,10 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let mut t = self.config.t0;
         for iteration in 0..self.config.iterations {
             debug!("SISRs iteration {}", iteration);
+            debug!(
+                "# visits in current solution: {}",
+                solution.routes().iter().map(|xs| xs.len()).sum::<usize>()
+            );
 
             // Create a new solution by R&R-ing the current one
             let mut new = solution.clone();
@@ -696,14 +757,17 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             debug!("New solution: {:?}", eval_new);
 
             if eval_new.shortage + eval_new.excess < eval_best.shortage + eval_best.excess + noise {
-                if eval_new.cost < eval_best.cost + noise {
-                    info!("Found new best solution with {:?}", eval_new);
-                    best = new.clone();
-                }
+                //if eval_new.cost < eval_best.cost + noise {
+                info!("Found new best solution with {:?}", eval_new);
+                best = new.clone();
+                //}
             }
 
-            if eval_new.shortage < eval_old.shortage + noise {
+            if eval_new.shortage + eval_new.excess < eval_old.shortage + eval_old.excess + noise {
+                info!("Replacing current solution");
                 solution = new;
+            } else {
+                info!("Keeping old solution");
             }
 
             t *= c;

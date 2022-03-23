@@ -13,8 +13,8 @@ use crate::problem::{
 };
 
 /// A `Visit` is a visit to a `node` at a `time` where unloading/loading of a given `quantity` of `product` is started.
-/// Assumption: quantity is relative to the vessel's inventory. In other words, the quantity is positive if an amount is loaded onto the
-/// vessel and negative is an amount is unloaded.
+/// Assumption: `quantity` is relative to the node getting services. That is, a positive `quantity` means a delivery to a location,
+/// while a negative quantity means a pick-up from a farm. Thus, `node.inventory[product] += quantity` while `vessel.inventory[product] -= quantity`
 #[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Visit {
@@ -137,6 +137,10 @@ impl<'p> Solution<'p> {
             route.sort_unstable_by_key(|x| x.time);
         }
 
+        if routes.len() != problem.vessels().len() {
+            return Err(InsertionError::IncorrectRouteCount);
+        }
+
         let mut solution = Self {
             problem,
             routes: routes.iter().map(|r| Vec::with_capacity(r.len())).collect(),
@@ -151,6 +155,15 @@ impl<'p> Solution<'p> {
         }
 
         Ok(solution)
+    }
+
+    pub fn new_unchecked(problem: &'p Problem, routes: Vec<Vec<Visit>>) -> Self {
+        Self {
+            problem,
+            routes,
+            npt_cache: Cell::default(),
+            evaluation: Cell::default(),
+        }
     }
 
     /// Invalidate caches.
@@ -305,10 +318,29 @@ impl<'p> Solution<'p> {
         let mut inventory = vehicle.initial_inventory().as_inv().clone();
 
         for visit in visits {
-            inventory[visit.product] += visit.quantity;
+            inventory[visit.product] -= visit.quantity;
         }
 
         inventory
+    }
+
+    /// Returns the inventory of a node at a specific point in time
+    pub fn node_product_inventory_at(
+        &self,
+        node: NodeIndex,
+        product: ProductIndex,
+        time: TimeIndex,
+    ) -> f64 {
+        let n = &self.problem.nodes()[node];
+        let base = n.inventory_without_deliveries(product)[time];
+
+        let delta = self
+            .deliveries(node, product, 0..time + 1)
+            .iter()
+            .map(|(_, visit)| visit.quantity)
+            .sum::<f64>();
+
+        base + delta
     }
 
     /// Whether it is allowed to insert `visit` as visit number `position` in `vessel`'s route
@@ -446,6 +478,8 @@ impl<'cell> Deref for NPTVSlice<'cell> {
 
 #[derive(Debug)]
 pub enum InsertionError {
+    /// The number of routes is incorrect
+    IncorrectRouteCount,
     /// The vessel index is invalid
     VesselIndexOutOfBounds,
     /// The position we're trying to insert at is out of bounds,

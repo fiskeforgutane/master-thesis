@@ -78,7 +78,7 @@ impl Problem {
     /// The minimum amount of time we need to spend at `node` in order to load/unload `quantity`.
     pub fn min_loading_time(&self, node: NodeIndex, quantity: Quantity) -> TimeIndex {
         let rate = self.nodes[node].max_loading_amount();
-        (rate / quantity).ceil() as TimeIndex
+        (quantity.abs() / rate.abs()).ceil() as TimeIndex
     }
     /// Returns the consumption nodes of the problem
     /// **VERY BAD** should be done once in the constructor
@@ -597,6 +597,7 @@ enum RawInventory {
     Multiple(Vec<Quantity>),
 }
 
+#[pyclass]
 #[derive(Debug, Clone)]
 pub struct Inventory(RawInventory);
 
@@ -606,6 +607,14 @@ impl Inventory {
             0 => None,
             1 => Some(Inventory(RawInventory::Single(value[0]))),
             _ => Some(Inventory(RawInventory::Multiple(value.to_vec()))),
+        }
+    }
+
+    pub fn zeroed(size: usize) -> Option<Self> {
+        match size {
+            0 => None,
+            1 => Some(Inventory(RawInventory::Single(0.0))),
+            n => Some(Inventory(RawInventory::Multiple(vec![0.0; n]))),
         }
     }
 
