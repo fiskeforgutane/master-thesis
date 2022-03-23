@@ -313,7 +313,9 @@ impl<'p> Solution<'p> {
         for (n, node) in self.problem.nodes().iter().enumerate() {
             for p in 0..self.problem.products() {
                 let accumulative = node.inventory_without_deliveries(p);
+                let capacity = node.capacity()[p];
                 let mut delta = 0.0;
+
                 for t in 0..self.problem.timesteps() {
                     // This should be either one or zero deliveries. `visit.node == n` and `visit.product == p` by construction.
                     for (_, visit) in self.deliveries(n, p, t..t + 1).iter() {
@@ -322,10 +324,9 @@ impl<'p> Solution<'p> {
 
                     // The quantity at the farm/factory
                     let inv = accumulative[t] + delta;
-                    let capacity = node.capacity()[p];
 
                     // Calculate shortage and excess at the current time.
-                    shortage += f64::min(inv, 0.0).abs();
+                    shortage += f64::max(-inv, 0.0);
                     excess += f64::max(0.0, inv - capacity);
                 }
             }
