@@ -298,7 +298,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             // TODO: do somethings about this
             // The number of combinations grows by so much that we can't really do the full enumeration.
             // Instead: we will only try the first option
-            // break;
+            break;
 
             // Undo the change
             remaining[order] = old;
