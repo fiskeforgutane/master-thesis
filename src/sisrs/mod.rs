@@ -341,6 +341,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         time_period: &RangeInclusive<TimeIndex>,
         solution: &Solution,
     ) -> Vec<(VesselIndex, usize)> {
+        debug!("vehicles used = {:?}", vehicles_used);
         let mut candidates = solution
             .routes()
             .iter()
