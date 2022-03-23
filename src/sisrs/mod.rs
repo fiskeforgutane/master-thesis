@@ -629,7 +629,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 }
             });
 
-            debug!("Chose {} among {} candidates", chosen, cands);
+            debug!("Chose {:?} among {} candidates", chosen, cands);
 
             let candidate = match chosen {
                 Some(x) => {
