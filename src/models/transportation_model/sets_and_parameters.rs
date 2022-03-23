@@ -1,5 +1,5 @@
 use crate::{problem::Problem, quants::Quantities};
-use log::{debug, info, trace, warn};
+use log::trace;
 use std::collections::HashMap;
 
 type NodeIndex = usize;
