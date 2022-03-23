@@ -184,7 +184,7 @@ impl Quantities {
                 // The initial inventory plus the deliveries made so far
                 let excess = node.initial_inventory()[product] + accumulated_deliveries - delivery;
 
-                node.inventory_change_at_least(product, excess);
+                node.inventory_change_at_least(product, excess)
             };
             windows.push((open, close))
         }
