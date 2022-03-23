@@ -280,7 +280,7 @@ impl<'p> Solution<'p> {
             // When the inventory for product type `p` was last updated
             let mut last_updated = vec![vessel.available_from(); self.problem.products()];
 
-            // We are always "present" at `visit` (i.e. the vessel has the inventory it has leaving v0),
+            // We are always "present" at `visit` (i.e. the vessel has the inventory it has leaving `visit`),
             // and will calculate how large the violation is in the time before we arrive at `visit`
             for visit in route.iter().chain(&end) {
                 let time_spanned = (visit.time - last_updated[visit.product]) as f64;
@@ -289,7 +289,7 @@ impl<'p> Solution<'p> {
                 // The slack (capacity_for) is negative if the inventory exceeds the amount that can be stored in `vessel.compartments()`
                 // If the slack is negative, we use that (since -slack is positive in that case)
                 // and if it is positive we will use 0 (since -slack will be negative in that case).
-                let capacity = -inventory.capacity_for(visit.product, vessel.compartments());
+                let capacity = inventory.capacity_for(visit.product, vessel.compartments());
                 let e = (-capacity).max(0.0);
                 // The shortage is the abs of the inventory if it is negative.
                 let s = (-inventory[visit.product]).max(0.0);
