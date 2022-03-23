@@ -575,12 +575,15 @@ impl Node {
     pub fn inventory_change_at_least(&self, product: ProductIndex, amount: Quantity) -> TimeIndex {
         let arr = self.inventory_without_deliveries(product);
         let initial = self.initial_inventory()[product];
+
         let index = arr.partition_point(|x| (x - initial).abs() <= amount);
 
-        // This should hold, unless `amount` is negative. Just a sanity check
-        assert!(index > 0);
-
-        return index - 1;
+        // Note: index will be zero in cases where amount < abs(delta in first time step).
+        // Since we can't realistically have a "timestep before that", we do this
+        match index {
+            0 => 0,
+            n => n - 1,
+        }
     }
 
     pub fn cumulative_inventory(&self) -> &Vec<Vec<Quantity>> {
