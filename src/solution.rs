@@ -314,7 +314,7 @@ impl<'p> Solution<'p> {
         let mut inventory = vehicle.initial_inventory().as_inv().clone();
 
         for visit in visits {
-            inventory[visit.product] += visit.quantity;
+            inventory[visit.product] -= visit.quantity;
         }
 
         inventory
