@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use grb::Result;
-use log::trace;
 use pyo3::pyclass;
 
 use crate::models::transportation_model::model::TransportationSolver;
@@ -184,10 +183,8 @@ impl Quantities {
             let close = {
                 // The initial inventory plus the deliveries made so far
                 let excess = node.initial_inventory()[product] + accumulated_deliveries - delivery;
-                trace!("excess: {:?}", excess);
-                let t = node.inventory_change_at_least(product, excess);
-                trace!("change at least - so close is: {:?}", t);
-                t
+
+                node.inventory_change_at_least(product, excess);
             };
             windows.push((open, close))
         }
