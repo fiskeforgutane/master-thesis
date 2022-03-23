@@ -652,10 +652,15 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let chosen = candidates.max_by_key(|candidate| {
                 cands += 1;
                 match rand::random::<f64>() < self.config.alpha {
-                    true => (FloatOrd(f64::NEG_INFINITY), FloatOrd(f64::NEG_INFINITY)),
+                    true => (
+                        FloatOrd(f64::NEG_INFINITY),
+                        FloatOrd(f64::NEG_INFINITY),
+                        FloatOrd(f64::NEG_INFINITY),
+                    ),
                     false => (
                         FloatOrd(candidate.quantity.abs()),
                         FloatOrd(-candidate.cost),
+                        FloatOrd(rand::thread_rng().gen()),
                     ),
                 }
             });
