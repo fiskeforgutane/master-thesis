@@ -231,6 +231,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 .map(|(i, xs)| (i, xs.len()))
                 .collect::<Vec<_>>()
         );
+        let start = std::time::Instant::now();
         let assigned = Self::assign(
             &mut remaining,
             &mut uncovered,
@@ -238,7 +239,12 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             &visits,
             0,
         );
-        debug!("Assignment successful = {}", assigned);
+        let end = std::time::Instant::now();
+        debug!(
+            "Assignment computed in {}ms. successful = {}",
+            (end - start).as_millis(),
+            assigned
+        );
 
         uncovered
             .into_iter()
@@ -266,6 +272,11 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let (visit, alternatives) = &allowed_assignments[idx];
 
         for &order in alternatives {
+            // If this was covered further up in the call chain, we can skip it.
+            if !uncovered.contains(&order) {
+                continue;
+            }
+
             let (_, visit) = &visits[*visit];
             let old = remaining[order];
             let new = old - visit.quantity;
@@ -283,6 +294,11 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             if Self::assign(remaining, uncovered, allowed_assignments, visits, idx + 1) {
                 return true;
             }
+
+            // TODO: do somethings about this
+            // The number of combinations grows by so much that we can't really do the full enumeration.
+            // Instead: we will only try the first option
+            // break;
 
             // Undo the change
             remaining[order] = old;
