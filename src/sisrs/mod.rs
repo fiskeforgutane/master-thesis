@@ -568,6 +568,11 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 quantity
             );
 
+            if quantity.abs() < problem.nodes()[order.node()].min_unloading_amount() {
+                trace!("Insertable amount less than min unloading amount... skipping");
+                continue;
+            }
+
             let port_cost = problem.nodes()[order.node()].port_fee();
             // The additional distance that must be travelled
             let distance = problem.distance(from.node, order.node())
