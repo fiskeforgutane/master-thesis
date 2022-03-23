@@ -71,6 +71,19 @@ impl Solution {
         Ok(solution.vessel_inventory_at(vessel, time))
     }
 
+    pub fn node_product_inventory_at(
+        &self,
+        problem: &Problem,
+        node: usize,
+        product: usize,
+        time: usize,
+    ) -> PyResult<f64> {
+        let solution = solution::Solution::new(problem, self.routes.clone())
+            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
+
+        Ok(solution.node_product_inventory_at(node, product, time))
+    }
+
     pub fn __str__(&self) -> String {
         format!("{:#?}", self.routes)
     }

@@ -610,6 +610,14 @@ impl Inventory {
         }
     }
 
+    pub fn zeroed(size: usize) -> Option<Self> {
+        match size {
+            0 => None,
+            1 => Some(Inventory(RawInventory::Single(0.0))),
+            n => Some(Inventory(RawInventory::Multiple(vec![0.0; n]))),
+        }
+    }
+
     pub fn single(value: Quantity) -> Self {
         Inventory(RawInventory::Single(value))
     }

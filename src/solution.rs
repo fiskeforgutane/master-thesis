@@ -320,6 +320,25 @@ impl<'p> Solution<'p> {
         inventory
     }
 
+    /// Returns the inventory of a node at a specific point in time
+    pub fn node_product_inventory_at(
+        &self,
+        node: NodeIndex,
+        product: ProductIndex,
+        time: TimeIndex,
+    ) -> f64 {
+        let n = &self.problem.nodes()[node];
+        let base = n.inventory_without_deliveries(product)[time];
+
+        let delta = self
+            .deliveries(node, product, 0..time + 1)
+            .iter()
+            .map(|(_, visit)| visit.quantity)
+            .sum::<f64>();
+
+        base + delta
+    }
+
     /// Whether it is allowed to insert `visit` as visit number `position` in `vessel`'s route
     /// Returns `Ok(())` if the insertion is valid, and `Err(InsertionError::*)` otherwise
     pub fn can_insert(
