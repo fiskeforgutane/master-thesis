@@ -666,7 +666,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 }
             });
 
-            debug!("Chose {:?} among {} candidates", chosen, cands);
+            trace!("Chose {:?} among {} candidates", chosen, cands);
 
             let candidate = match chosen {
                 Some(x) => {
@@ -674,7 +674,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                     x
                 }
                 None => {
-                    debug!("No candidates for order #{}: {:?}", o, orders[o]);
+                    trace!("No candidates for order #{}: {:?}", o, orders[o]);
                     continue;
                 }
             };
