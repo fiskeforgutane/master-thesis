@@ -431,7 +431,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 Some(&x) => x,
                 None => {
                     warn!("No more adjacents found");
-                    continue;
+                    break;
                 }
             };
 
