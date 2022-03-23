@@ -52,6 +52,14 @@ impl Solution {
         Self { routes }
     }
 
+    pub fn __len__(&self) -> usize {
+        self.routes.len()
+    }
+
+    pub fn __getitem__(&self, idx: usize) -> Vec<Visit> {
+        self.routes[idx].clone()
+    }
+
     pub fn evaluate(&self, problem: &Problem) -> PyResult<solution::Evaluation> {
         let solution = solution::Solution::new(problem, self.routes.clone())
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
