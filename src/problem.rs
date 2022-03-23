@@ -575,7 +575,7 @@ impl Node {
     pub fn inventory_change_at_least(&self, product: ProductIndex, amount: Quantity) -> TimeIndex {
         let arr = self.inventory_without_deliveries(product);
         let initial = self.initial_inventory()[product];
-        let index = arr.partition_point(|x| (x - initial).abs() < amount);
+        let index = arr.partition_point(|x| (x - initial).abs() <= amount);
 
         // This should hold, unless `amount` is negative. Just a sanity check
         assert!(index > 0);
