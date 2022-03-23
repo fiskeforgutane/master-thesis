@@ -562,8 +562,9 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             };
 
             trace!(
-                "Inventory: {:?}, Order remaining {}, quantity {}",
+                "Inventory: {:?}, Compartments: {:?}, Order remaining {}, quantity {}",
                 inventory,
+                boat.compartments(),
                 amount,
                 quantity
             );
@@ -727,8 +728,11 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 //}
             }
 
-            if eval_new.shortage < eval_old.shortage + noise {
+            if eval_new.shortage + eval_new.excess < eval_old.shortage + eval_old.excess + noise {
+                info!("Replacing current solution");
                 solution = new;
+            } else {
+                info!("Keeping old solution");
             }
 
             t *= c;
