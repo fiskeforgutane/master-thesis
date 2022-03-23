@@ -137,6 +137,10 @@ impl<'p> Solution<'p> {
             route.sort_unstable_by_key(|x| x.time);
         }
 
+        if routes.len() != problem.vessels().len() {
+            return Err(InsertionError::IncorrectRouteCount);
+        }
+
         let mut solution = Self {
             problem,
             routes: routes.iter().map(|r| Vec::with_capacity(r.len())).collect(),
@@ -474,6 +478,8 @@ impl<'cell> Deref for NPTVSlice<'cell> {
 
 #[derive(Debug)]
 pub enum InsertionError {
+    /// The number of routes is incorrect
+    IncorrectRouteCount,
     /// The vessel index is invalid
     VesselIndexOutOfBounds,
     /// The position we're trying to insert at is out of bounds,
