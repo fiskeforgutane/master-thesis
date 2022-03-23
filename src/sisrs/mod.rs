@@ -214,6 +214,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         drop(allowed_assignments.drain(start..));
 
         // The amount remaining for the delivery to be completed
+        // Note: will be positive for delivery nodes and negative for pickup nodes
         let mut remaining = orders.iter().map(|o| o.quantity()).collect::<Vec<_>>();
         // The indices of the orders that are not yet covered
         let mut uncovered = (0..orders.len()).collect::<HashSet<_>>();
@@ -258,7 +259,10 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let (_, visit) = &visits[*visit];
             let old = remaining[order];
             let new = old - visit.quantity;
-            let remove = old >= 1e-5 && new <= 1e-5;
+            // Whether we cover `order` when assigning `visit` to it.
+            // This is given by whether the post-assignment value is (a) close
+            // to zero or (b) of the opposite sign of `old`
+            let remove = new.abs() <= 1e-5 || old.signum() != new.signum();
 
             // Apply the change
             remaining[order] = new;
