@@ -220,6 +220,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         let mut uncovered = (0..orders.len()).collect::<HashSet<_>>();
 
         // Decide on an assignment of the visits
+        debug!("Assigning orders to visits...");
         let assigned = Self::assign(
             &mut remaining,
             &mut uncovered,
@@ -227,8 +228,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             &visits,
             0,
         );
-
-        trace!("Assignment successful = {}", assigned);
+        debug!("Assignment successful = {}", assigned);
 
         uncovered
             .into_iter()
