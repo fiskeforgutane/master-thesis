@@ -6,6 +6,7 @@ use crate::{
 use grb::{prelude::*, Result};
 use itertools::iproduct;
 use log::{debug, info};
+use pyo3::pyclass;
 
 use super::sets_and_parameters::{Parameters, Sets};
 
@@ -547,6 +548,7 @@ struct RouteVars {
     pub q: Vec<Vec<Vec<Vec<Vec<Var>>>>>,
 }
 
+#[pyclass]
 pub struct PathFlowResult {
     /// The shortage objective
     pub shortage: f64,

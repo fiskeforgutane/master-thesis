@@ -6,6 +6,10 @@ pub mod route_pool;
 pub mod sisrs;
 pub mod solution;
 
+use models::path_flow::model::PathFlowResult;
+use models::path_flow::model::PathFlowSolver;
+use models::path_flow::sets_and_parameters::Parameters;
+use models::path_flow::sets_and_parameters::Sets;
 use models::path_flow::sets_and_parameters::Voyage;
 use problem::Compartment;
 use problem::Cost;
@@ -350,6 +354,17 @@ fn initial_orders(problem: &Problem) -> PyResult<Vec<Order>> {
     quants::initial_orders(&problem).map_err(pyerr)
 }
 
+#[pyfunction]
+fn path_flow_optimize(problem: &Problem, voyages: Vec<Voyage>) -> PyResult<PathFlowResult> {
+    let sets = Sets::new(problem, &voyages);
+    let params = Parameters::new(problem, &sets, &voyages);
+    let res = PathFlowSolver::build(&sets, &params).map_err(pyerr)?;
+    let mut model = res.0;
+    let variables = res.1;
+    let result = PathFlowSolver::solve(&variables, &mut model).map_err(pyerr)?;
+    Ok(result)
+}
+
 #[pymodule]
 fn sisr(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(optimize, m)?)?;
@@ -372,6 +387,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(test_logging, m)?)?;
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(path_flow_optimize, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
@@ -381,6 +397,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Visit>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
+    m.add_class::<Voyage>()?;
 
     // Submodule for SISR
     m.add_wrapped(wrap_pymodule!(sisr))?;
