@@ -6,6 +6,7 @@ pub mod route_pool;
 pub mod sisrs;
 pub mod solution;
 
+use models::path_flow::sets_and_parameters::Voyage;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -26,6 +27,7 @@ use quants::Order;
 use quants::Quantities;
 use solution::{Evaluation, Visit};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::Debug;
 
 #[pyfunction]
@@ -75,7 +77,6 @@ impl Solution {
     ) -> PyResult<Inventory> {
         let solution = solution::Solution::new(problem, self.routes.clone())
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
-
         Ok(solution.vessel_inventory_at(vessel, time))
     }
 
@@ -90,6 +91,14 @@ impl Solution {
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
 
         Ok(solution.node_product_inventory_at(node, product, time))
+    }
+
+    pub fn voyages(&self, problem: &Problem) -> PyResult<Vec<Voyage>> {
+        let solution = solution::Solution::new(problem, self.routes.clone())
+            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
+        let voyages: Vec<Voyage> = solution.voyages().into_iter().collect();
+
+        Ok(voyages)
     }
 
     pub fn __str__(&self) -> String {

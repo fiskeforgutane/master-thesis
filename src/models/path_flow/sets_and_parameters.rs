@@ -1,4 +1,5 @@
 use crate::problem::{Cost, NodeIndex, Problem, Vessel};
+use pyo3::pyclass;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
@@ -6,8 +7,11 @@ type VoyageIndex = usize;
 type VisitIndex = usize;
 type VoyagePool = HashSet<Voyage>;
 
+#[pyclass]
 pub struct Voyage {
+    #[pyo3(get)]
     visits: Vec<NodeIndex>,
+    #[pyo3(get)]
     costs: Vec<Cost>,
 }
 
