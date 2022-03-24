@@ -1,5 +1,6 @@
 use std::{
     cell::Cell,
+    collections::HashSet,
     fmt::Debug,
     ops::{Deref, Index, Range, RangeBounds},
     vec::Drain,
@@ -8,8 +9,9 @@ use std::{
 use itertools::Itertools;
 use pyo3::{pyclass, pymethods};
 
-use crate::problem::{
-    Inventory, NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex,
+use crate::{
+    models::path_flow::sets_and_parameters::Voyage,
+    problem::{Inventory, NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex},
 };
 
 /// A `Visit` is a visit to a `node` at a `time` where unloading/loading of a given `quantity` of `product` is started.
@@ -429,6 +431,56 @@ impl<'p> Solution<'p> {
         range: R,
     ) -> Drain<'_, Visit> {
         self.routes[vessel].drain(range)
+    }
+
+    /// extracts the unique voyages for every vessel
+    pub fn voyages(&self) -> HashSet<Voyage> {
+        let mut voyages = HashSet::new();
+        let nodes = self.problem.nodes();
+        for route in &self.routes {
+            // get the indices of the production nodes in the visist
+            let split_idxs: Vec<usize> = route
+                .iter()
+                .enumerate()
+                .filter_map(|(i, visit)| match nodes[visit.node].r#type() {
+                    crate::problem::NodeType::Consumption => None,
+                    crate::problem::NodeType::Production => Some(i),
+                })
+                .collect();
+
+            // get the slices for every voyage starting and ending at a production node
+            for e in split_idxs.windows(2) {
+                let (i, j) = (e[0], e[1]);
+                let node_idxs: Vec<NodeIndex> =
+                    route[i..=j].iter().map(|visit| visit.node).collect();
+                // insert the voyage to the hash set (does not insert if the voyage is already there)
+                voyages.insert(node_idxs);
+            }
+
+            // get the first and last voyage which might not start and end at a production node
+            let first_idx = split_idxs.first();
+            if let Some(x) = first_idx {
+                let node_idxs: Vec<NodeIndex> =
+                    route[0..=*x].iter().map(|visit| visit.node).collect();
+                if !node_idxs.is_empty() {
+                    voyages.insert(node_idxs);
+                }
+            }
+
+            let last_idx = split_idxs.last();
+            if let Some(x) = last_idx {
+                let node_idxs: Vec<NodeIndex> =
+                    route[*x..].iter().map(|visit| visit.node).collect();
+                if !node_idxs.is_empty() {
+                    voyages.insert(node_idxs);
+                }
+            }
+        }
+        // convert the identified voyages to voyage objects
+        voyages
+            .into_iter()
+            .map(|v| Voyage::new(v, self.problem))
+            .collect()
     }
 }
 
