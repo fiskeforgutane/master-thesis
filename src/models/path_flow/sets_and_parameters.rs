@@ -2,9 +2,9 @@ use crate::problem::{Cost, NodeIndex, Problem, Vessel};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
-type RouteIndex = usize;
+type VoyageIndex = usize;
 type VisitIndex = usize;
-type RoutePool = HashSet<Voyage>;
+type VoyagePool = HashSet<Voyage>;
 
 pub struct Voyage {
     visits: Vec<NodeIndex>,
@@ -40,20 +40,20 @@ impl Voyage {
         for (i, n) in visits[0..visits.len() - 1].iter().enumerate() {
             let t_time = problem.travel_time(*n, visits[i + 1], vessel);
             let t_cost = t_time as f64 * vessel.travel_unit_cost();
-            // port fee of the next port, the first node is thus not accounted for as this was accounted for in the route bringing the vessel
-            // to the origin of the next route
+            // port fee of the next port, the first node is thus not accounted for as this was accounted for in the voyage bringing the vessel
+            // to the origin of the next voyage
             let port_fee = problem.nodes()[visits[i + 1]].port_fee();
             res += t_cost + port_fee;
         }
         res
     }
 
-    /// Get a reference to the route's costs.
+    /// Get a reference to the voyage's costs.
     pub fn costs(&self) -> &[f64] {
         self.costs.as_ref()
     }
 
-    /// Get a reference to the route's visits.
+    /// Get a reference to the voyage's visits.
     pub fn visits(&self) -> &[usize] {
         self.visits.as_ref()
     }
@@ -61,7 +61,7 @@ impl Voyage {
 
 #[allow(non_snake_case)]
 pub struct Sets {
-    /// Set of routes
+    /// Set of voyages
     pub R: usize,
     /// Set of Vessels
     pub V: usize,
@@ -71,9 +71,9 @@ pub struct Sets {
     pub P: usize,
     /// Set of time steps
     pub T: usize,
-    /// Set of the last time step that vessel v can be at visit i in route R indexed (rvi)
+    /// Set of the last time step that vessel v can be at visit i in voyage R indexed (rvi)
     pub T_r: Vec<Vec<Vec<usize>>>,
-    /// # The number of visits of route r
+    /// # The number of visits of voyage r
     pub I_r: Vec<usize>,
     /// set of production nodes
     pub N_P: Vec<usize>,
@@ -82,15 +82,15 @@ pub struct Sets {
 }
 
 impl Sets {
-    pub fn new(problem: &Problem, routes: &RoutePool) -> Sets {
+    pub fn new(problem: &Problem, voyages: &VoyagePool) -> Sets {
         Sets {
-            R: routes.len(),
+            R: voyages.len(),
             V: problem.vessels().len(),
             N: problem.nodes().len(),
             P: problem.products(),
             T: problem.timesteps(),
-            T_r: routes.iter().map(|r| Self::get_T_r(problem, r)).collect(),
-            I_r: routes.iter().map(|r| r.visits().len()).collect(),
+            T_r: voyages.iter().map(|r| Self::get_T_r(problem, r)).collect(),
+            I_r: voyages.iter().map(|r| r.visits().len()).collect(),
             N_P: problem
                 .production_nodes()
                 .iter()
@@ -105,13 +105,13 @@ impl Sets {
     }
 
     #[allow(non_snake_case)]
-    pub fn get_T_r(problem: &Problem, route: &Voyage) -> Vec<Vec<usize>> {
-        // we assume that all production nodes always are feasible destination nodes, i.e. the end of the route is always good
+    pub fn get_T_r(problem: &Problem, voyage: &Voyage) -> Vec<Vec<usize>> {
+        // we assume that all production nodes always are feasible destination nodes, i.e. the end of the voyage is always good
         let mut vessel_res = Vec::new();
         for v in problem.vessels() {
             let mut t = problem.timesteps();
-            let mut next = route.visits().last().unwrap();
-            let mut times = route
+            let mut next = voyage.visits().last().unwrap();
+            let mut times = voyage
                 .visits()
                 .iter()
                 .rev()
@@ -129,16 +129,16 @@ impl Sets {
         vessel_res
     }
 
-    pub fn add_route(&mut self, problem: &Problem, route: &Voyage) {
+    pub fn add_voyage(&mut self, problem: &Problem, voyage: &Voyage) {
         self.R += 1;
-        self.T_r.push(Self::get_T_r(problem, route));
-        self.I_r.push(route.visits().len());
+        self.T_r.push(Self::get_T_r(problem, voyage));
+        self.I_r.push(voyage.visits().len());
     }
 }
 
 #[allow(non_snake_case)]
 pub struct Parameters {
-    /// Cost of route r for vessel v
+    /// Cost of voyage r for vessel v
     /// This includes the travel cost and fixed port fees,
     /// but not fixed cost of operating the vessel as this depends on the time the vessel spends in port
     pub C_r: Vec<Vec<f64>>,
@@ -148,9 +148,9 @@ pub struct Parameters {
     pub D: Vec<Vec<Vec<f64>>>,
     /// The time step in which vessel v becomes available
     pub T_0: Vec<usize>,
-    /// The travel time from visit i to visit i+1 for vessel v in route r, indexed (r,i,v)
+    /// The travel time from visit i to visit i+1 for vessel v in voyage r, indexed (r,i,v)
     pub travel: Vec<Vec<Vec<usize>>>,
-    /// The nodeindex of visit i in route r, indexed (r,i)
+    /// The nodeindex of visit i in voyage r, indexed (r,i)
     pub N_r: Vec<Vec<usize>>,
     /// Orign of vessel v
     pub O: Vec<usize>,
@@ -168,14 +168,17 @@ pub struct Parameters {
     pub F_max: Vec<Vec<f64>>,
     // The kind of node, 1 for production, -1 for consumption
     kind: Vec<isize>,
-    // routes
-    routes: Vec<Vec<NodeIndex>>,
+    // voyages
+    voyages: Vec<Vec<NodeIndex>>,
 }
 
 #[allow(unused, non_snake_case)]
 impl Parameters {
-    pub fn new(problem: &Problem, sets: &Sets, routes: &RoutePool) -> Parameters {
-        let C_r = routes.iter().map(|r: &Voyage| r.costs().to_vec()).collect();
+    pub fn new(problem: &Problem, sets: &Sets, voyages: &VoyagePool) -> Parameters {
+        let C_r = voyages
+            .iter()
+            .map(|r: &Voyage| r.costs().to_vec())
+            .collect();
         let S_0 = problem
             .nodes()
             .iter()
@@ -204,7 +207,7 @@ impl Parameters {
             .map(|v| v.available_from())
             .collect();
 
-        let travel = routes
+        let travel = voyages
             .iter()
             .map(|r: &Voyage| {
                 r.visits()[0..r.visits().len() - 1]
@@ -220,7 +223,7 @@ impl Parameters {
                     .collect()
             })
             .collect();
-        let N_r = routes.iter().map(|r| r.visits().to_vec()).collect();
+        let N_r = voyages.iter().map(|r| r.visits().to_vec()).collect();
         let O = problem.vessels().iter().map(|v| v.origin()).collect();
         let S_max = problem
             .nodes()
@@ -277,7 +280,7 @@ impl Parameters {
             })
             .collect();
 
-        let routes = routes
+        let voyages = voyages
             .into_iter()
             .map(|r| r.visits().clone().to_vec())
             .collect();
@@ -296,36 +299,36 @@ impl Parameters {
             F_min,
             F_max,
             kind,
-            routes,
+            voyages,
         }
     }
 
     pub fn kind(&self, n: NodeIndex) -> isize {
         self.kind[n]
     }
-    pub fn node(&self, r: RouteIndex, i: VisitIndex) -> Option<NodeIndex> {
-        Some(*self.routes.get(r)?.get(i)?)
+    pub fn node(&self, r: VoyageIndex, i: VisitIndex) -> Option<NodeIndex> {
+        Some(*self.voyages.get(r)?.get(i)?)
     }
-    pub fn visit_kind(&self, r: RouteIndex, i: VisitIndex) -> Option<isize> {
+    pub fn visit_kind(&self, r: VoyageIndex, i: VisitIndex) -> Option<isize> {
         Some(self.kind(self.node(r, i)?))
     }
 
-    pub fn add_route(&mut self, route: &Voyage, problem: &Problem) {
-        self.C_r.push(route.costs().to_vec());
+    pub fn add_voyage(&mut self, voyage: &Voyage, problem: &Problem) {
+        self.C_r.push(voyage.costs().to_vec());
         self.travel.push(
-            route.visits()[0..route.visits().len() - 1]
+            voyage.visits()[0..voyage.visits().len() - 1]
                 .iter()
                 .enumerate()
                 .map(|(i, n)| {
                     problem
                         .vessels()
                         .iter()
-                        .map(|v| problem.travel_time(*n, route.visits()[i + 1], v))
+                        .map(|v| problem.travel_time(*n, voyage.visits()[i + 1], v))
                         .collect()
                 })
                 .collect(),
         );
-        self.N_r.push(route.visits().to_vec());
-        self.routes.push(route.visits().clone().to_vec());
+        self.N_r.push(voyage.visits().to_vec());
+        self.voyages.push(voyage.visits().clone().to_vec());
     }
 }
