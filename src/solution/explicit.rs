@@ -440,8 +440,10 @@ impl<'p> Solution<'p> {
             // get the slices for every voyage starting and ending at a production node
             for e in split_idxs.windows(2) {
                 let (i, j) = (e[0], e[1]);
-                let node_idxs: Vec<NodeIndex> =
+                let mut node_idxs: Vec<NodeIndex> =
                     route[i..=j].iter().map(|visit| visit.node).collect();
+                // remove consecutive duplicates
+                node_idxs.dedup();
                 // insert the voyage to the hash set (does not insert if the voyage is already there)
                 voyages.insert(node_idxs);
             }
@@ -449,18 +451,22 @@ impl<'p> Solution<'p> {
             // get the first and last voyage which might not start and end at a production node
             let first_idx = split_idxs.first();
             if let Some(x) = first_idx {
-                let node_idxs: Vec<NodeIndex> =
+                let mut node_idxs: Vec<NodeIndex> =
                     route[0..=*x].iter().map(|visit| visit.node).collect();
                 if !node_idxs.is_empty() {
+                    // remove consecutive duplicates
+                    node_idxs.dedup();
                     voyages.insert(node_idxs);
                 }
             }
 
             let last_idx = split_idxs.last();
             if let Some(x) = last_idx {
-                let node_idxs: Vec<NodeIndex> =
+                let mut node_idxs: Vec<NodeIndex> =
                     route[*x..].iter().map(|visit| visit.node).collect();
                 if !node_idxs.is_empty() {
+                    // remove consecutive duplicates
+                    node_idxs.dedup();
                     voyages.insert(node_idxs);
                 }
             }
