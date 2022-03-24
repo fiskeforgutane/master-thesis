@@ -378,9 +378,10 @@ impl<'p> Solution<'p> {
         // (if there is no next, we still require this visit to be done by the end of the planning period)
         let latest_depart = next.map_or(self.problem.timesteps(), |next| {
             let arrival = next.time;
-            let loading_time = self.problem.min_loading_time(next.node, next.quantity);
+            //let loading_time = self.problem.min_loading_time(next.node, next.quantity);
             let travel_time = self.problem.travel_time(visit.node, next.node, boat);
-            arrival - loading_time - travel_time
+            //arrival - loading_time - travel_time
+            arrival - travel_time
         });
 
         if visit.time < earliest_arrival {
