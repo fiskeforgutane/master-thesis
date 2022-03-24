@@ -1,5 +1,6 @@
 use super::{AnySolution, Evaluation, InsertionError, InventoryViolation, Visit};
 use itertools::Itertools;
+use log::warn;
 use std::{
     cell::Cell,
     collections::HashSet,
@@ -456,8 +457,12 @@ impl<'p> Solution<'p> {
                 let mut node_idxs: Vec<NodeIndex> =
                     route[0..=*x].iter().map(|visit| visit.node).collect();
                 if node_idxs.len() > 1 {
+                    let had = node_idxs.clone();
                     // remove consecutive duplicates
                     node_idxs.dedup();
+                    if node_idxs.len() == 1 {
+                        panic!("had {:?}, now, {:?}", had, node_idxs)
+                    }
                     voyages.insert(node_idxs);
                 }
             }
@@ -467,8 +472,12 @@ impl<'p> Solution<'p> {
                 let mut node_idxs: Vec<NodeIndex> =
                     route[*x..].iter().map(|visit| visit.node).collect();
                 if !node_idxs.len() > 1 {
+                    let had = node_idxs.clone();
                     // remove consecutive duplicates
                     node_idxs.dedup();
+                    if node_idxs.len() == 1 {
+                        panic!("had {:?}, now, {:?}", had, node_idxs)
+                    }
                     voyages.insert(node_idxs);
                 }
             }
