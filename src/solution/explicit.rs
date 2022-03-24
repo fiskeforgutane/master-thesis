@@ -365,7 +365,7 @@ impl<'p> Solution<'p> {
         };
 
         // The next visit, if any.
-        let next = route.get(position + 1);
+        let next = route.get(position);
 
         // The earliest time at which we might arrive at the visit we're attempting to insert
         let earliest_arrival = previous.time
