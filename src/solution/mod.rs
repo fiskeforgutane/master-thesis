@@ -10,12 +10,22 @@ use itertools::Itertools;
 use pyo3::{pyclass, pymethods};
 
 use crate::problem::{
-    Inventory, NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex,
+    FixedInventory, Inventory, NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex,
 };
 
 pub mod explicit;
+pub mod implicit;
 
 pub use explicit::{NPTVSlice, Solution, NPTV};
+
+pub trait AnySolution {
+    type Inner: Deref<Target = [Visit]>;
+
+    /// The problem this solution belongs to
+    fn problem(&self) -> &Problem;
+    /// A list of visits for each vehicle. Each vehicle's list of visits *must* be ordered ascending by time
+    fn routes(&self) -> &[Self::Inner];
+}
 
 /// A `Visit` is a visit to a `node` at a `time` where unloading/loading of a given `quantity` of `product` is started.
 /// Assumption: `quantity` is relative to the node getting services. That is, a positive `quantity` means a delivery to a location,
@@ -55,6 +65,7 @@ impl Visit {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct InventoryViolation {
     /// The total amount by which upper inventory levels are exceeded over the planning period.
@@ -67,10 +78,13 @@ pub struct InventoryViolation {
 #[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Evaluation {
+    #[pyo3(get)]
     /// The total cost of the solution
     pub cost: f64,
+    #[pyo3(get)]
     /// Statistics for the nodes
     pub nodes: InventoryViolation,
+    #[pyo3(get)]
     /// Statistics for the vessels
     pub vessels: InventoryViolation,
 }
@@ -117,4 +131,6 @@ pub enum InsertionError {
     /// There is not enough time to reach the node after the one we're trying to insert in time
     /// to serve it at the required time.
     NotEnoughTimeToReachNext,
+    /// A visit is invalid
+    InvalidVisit,
 }

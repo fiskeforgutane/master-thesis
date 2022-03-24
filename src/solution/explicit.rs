@@ -1,4 +1,4 @@
-use super::{Evaluation, InsertionError, InventoryViolation, Visit};
+use super::{AnySolution, Evaluation, InsertionError, InventoryViolation, Visit};
 use crate::problem::{Inventory, NodeIndex, Problem, ProductIndex, TimeIndex, VesselIndex};
 use itertools::Itertools;
 use std::{
@@ -19,6 +19,18 @@ pub struct Solution<'p> {
     npt_cache: Cell<Vec<(VesselIndex, Visit)>>,
     /// A cache of the evaluation of this solution
     evaluation: Cell<Option<Evaluation>>,
+}
+
+impl<'p> AnySolution for Solution<'p> {
+    type Inner = Vec<Visit>;
+
+    fn problem(&self) -> &Problem {
+        self.problem
+    }
+
+    fn routes(&self) -> &[Self::Inner] {
+        &self.routes
+    }
 }
 
 impl<'p> std::fmt::Debug for Solution<'p> {
@@ -81,13 +93,9 @@ impl<'p> Solution<'p> {
         Ok(solution)
     }
 
-    pub fn new_unchecked(problem: &'p Problem, routes: Vec<Vec<Visit>>) -> Self {
-        Self {
-            problem,
-            routes,
-            npt_cache: Cell::default(),
-            evaluation: Cell::default(),
-        }
+    // Dissolve this solution into the problem and routes it consists of.
+    pub fn dissolve(self) -> (&'p Problem, Vec<Vec<Visit>>) {
+        (self.problem, self.routes)
     }
 
     /// Invalidate caches.
