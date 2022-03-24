@@ -453,7 +453,7 @@ impl<'p> Solution<'p> {
             if let Some(x) = first_idx {
                 let mut node_idxs: Vec<NodeIndex> =
                     route[0..=*x].iter().map(|visit| visit.node).collect();
-                if !node_idxs.is_empty() {
+                if node_idxs.len() > 1 {
                     // remove consecutive duplicates
                     node_idxs.dedup();
                     voyages.insert(node_idxs);
@@ -464,7 +464,7 @@ impl<'p> Solution<'p> {
             if let Some(x) = last_idx {
                 let mut node_idxs: Vec<NodeIndex> =
                     route[*x..].iter().map(|visit| visit.node).collect();
-                if !node_idxs.is_empty() {
+                if !node_idxs.len() > 1 {
                     // remove consecutive duplicates
                     node_idxs.dedup();
                     voyages.insert(node_idxs);
