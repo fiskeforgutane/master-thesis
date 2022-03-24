@@ -1,22 +1,38 @@
 use crate::problem::{Cost, NodeIndex, Problem, Vessel};
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 
 type RouteIndex = usize;
 type VisitIndex = usize;
-type RoutePool = Vec<Route>;
+type RoutePool = HashSet<Voyage>;
 
-pub struct Route {
+pub struct Voyage {
     visits: Vec<NodeIndex>,
     costs: Vec<Cost>,
 }
 
-impl Route {
-    pub fn new(visits: Vec<NodeIndex>, problem: &Problem) -> Route {
+impl Hash for Voyage {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.visits.hash(state);
+    }
+}
+
+impl Eq for Voyage {}
+
+impl PartialEq for Voyage {
+    fn eq(&self, other: &Self) -> bool {
+        self.visits == other.visits
+    }
+}
+
+impl Voyage {
+    pub fn new(visits: Vec<NodeIndex>, problem: &Problem) -> Voyage {
         let costs = problem
             .vessels()
             .iter()
             .map(|v| Self::cost(&visits, problem, v))
             .collect();
-        Route { visits, costs }
+        Voyage { visits, costs }
     }
 
     pub fn cost(visits: &Vec<NodeIndex>, problem: &Problem, vessel: &Vessel) -> f64 {
@@ -89,7 +105,7 @@ impl Sets {
     }
 
     #[allow(non_snake_case)]
-    pub fn get_T_r(problem: &Problem, route: &Route) -> Vec<Vec<usize>> {
+    pub fn get_T_r(problem: &Problem, route: &Voyage) -> Vec<Vec<usize>> {
         // we assume that all production nodes always are feasible destination nodes, i.e. the end of the route is always good
         let mut vessel_res = Vec::new();
         for v in problem.vessels() {
@@ -113,7 +129,7 @@ impl Sets {
         vessel_res
     }
 
-    pub fn add_route(&mut self, problem: &Problem, route: &Route) {
+    pub fn add_route(&mut self, problem: &Problem, route: &Voyage) {
         self.R += 1;
         self.T_r.push(Self::get_T_r(problem, route));
         self.I_r.push(route.visits().len());
@@ -159,7 +175,7 @@ pub struct Parameters {
 #[allow(unused, non_snake_case)]
 impl Parameters {
     pub fn new(problem: &Problem, sets: &Sets, routes: &RoutePool) -> Parameters {
-        let C_r = routes.iter().map(|r: &Route| r.costs().to_vec()).collect();
+        let C_r = routes.iter().map(|r: &Voyage| r.costs().to_vec()).collect();
         let S_0 = problem
             .nodes()
             .iter()
@@ -190,7 +206,7 @@ impl Parameters {
 
         let travel = routes
             .iter()
-            .map(|r: &Route| {
+            .map(|r: &Voyage| {
                 r.visits()[0..r.visits().len() - 1]
                     .iter()
                     .enumerate()
@@ -294,7 +310,7 @@ impl Parameters {
         Some(self.kind(self.node(r, i)?))
     }
 
-    pub fn add_route(&mut self, route: &Route, problem: &Problem) {
+    pub fn add_route(&mut self, route: &Voyage, problem: &Problem) {
         self.C_r.push(route.costs().to_vec());
         self.travel.push(
             route.visits()[0..route.visits().len() - 1]
