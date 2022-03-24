@@ -485,7 +485,7 @@ impl Node {
         for product in 0..capacity.num_products() {
             let mut inventory = initial_inventory[product];
             for delta in &inventory_changes {
-                inventory += f64::abs(delta[product]);
+                inventory += delta[product];
                 cumulative_inventory[product].push(inventory);
             }
         }
@@ -573,13 +573,16 @@ impl Node {
 
     /// The timestep before the node has consumed/produced at least the given amount of the given product
     pub fn inventory_change_at_least(&self, product: ProductIndex, amount: Quantity) -> TimeIndex {
-        let initial_inv = self.initial_inventory()[product];
-        match self
-            .inventory_without_deliveries(product)
-            .binary_search_by(|k| k.partial_cmp(&(amount + initial_inv)).unwrap())
-        {
-            Ok(x) => x,
-            Err(x) => x,
+        let arr = self.inventory_without_deliveries(product);
+        let initial = self.initial_inventory()[product];
+
+        let index = arr.partition_point(|x| (x - initial).abs() <= amount);
+
+        // Note: index will be zero in cases where amount < abs(delta in first time step).
+        // Since we can't realistically have a "timestep before that", we do this
+        match index {
+            0 => 0,
+            n => n - 1,
         }
     }
 

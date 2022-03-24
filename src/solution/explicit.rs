@@ -1,3 +1,5 @@
+use super::{AnySolution, Evaluation, InsertionError, InventoryViolation, Visit};
+use itertools::Itertools;
 use std::{
     cell::Cell,
     collections::HashSet,
@@ -6,51 +8,12 @@ use std::{
     vec::Drain,
 };
 
-use itertools::Itertools;
 use pyo3::{pyclass, pymethods};
 
 use crate::{
     models::path_flow::sets_and_parameters::Voyage,
     problem::{Inventory, NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex},
 };
-
-/// A `Visit` is a visit to a `node` at a `time` where unloading/loading of a given `quantity` of `product` is started.
-/// Assumption: `quantity` is relative to the node getting services. That is, a positive `quantity` means a delivery to a location,
-/// while a negative quantity means a pick-up from a farm. Thus, `node.inventory[product] += quantity` while `vessel.inventory[product] -= quantity`
-#[pyclass]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Visit {
-    #[pyo3(get, set)]
-    /// The node we're visiting.
-    pub node: NodeIndex,
-    #[pyo3(get, set)]
-    /// The product being delivered.
-    pub product: ProductIndex,
-    #[pyo3(get, set)]
-    /// The time at which delivery starts.
-    pub time: TimeIndex,
-    #[pyo3(get, set)]
-    /// The quantity delivered.
-    pub quantity: Quantity,
-}
-
-#[pymethods]
-impl Visit {
-    #[new]
-    pub fn new(
-        node: NodeIndex,
-        product: ProductIndex,
-        time: TimeIndex,
-        quantity: Quantity,
-    ) -> Self {
-        Self {
-            node,
-            product,
-            time,
-            quantity,
-        }
-    }
-}
 
 /// A solution to `Problem`, i.e. a specification of the routes taken by each vehicle.
 /// Note that the solution is in no way guaranteed to be optimal or even capacity-feasible.
@@ -67,39 +30,19 @@ pub struct Solution<'p> {
     evaluation: Cell<Option<Evaluation>>,
 }
 
-/// Evaluation of a solution's quality
-#[pyclass]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Evaluation {
-    /// The total cost of the solution
-    pub cost: f64,
-    /// The total amount of shortage over the planning period.
-    /// I.e. shortage = sum(-min(0, inventory) for all inventories at farms)
-    pub shortage: Quantity,
-    /// The total amount of excess over the planning period. In other words,
-    /// the sum of the amounts exceeding nodes' capacity over the planning period
-    pub excess: Quantity,
-}
+impl<'p> AnySolution for Solution<'p> {
+    type Inner = Vec<Visit>;
 
-impl Eq for Evaluation {}
+    fn problem(&self) -> &Problem {
+        self.problem
+    }
 
-impl PartialOrd for Evaluation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // We will weigh violations equally.
-        let v1 = self.shortage + self.excess;
-        let v2 = other.shortage + other.excess;
-
-        self.cost.partial_cmp(&other.cost).and(v1.partial_cmp(&v2))
+    fn routes(&self) -> &[Self::Inner] {
+        &self.routes
     }
 }
 
-impl Ord for Evaluation {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).expect("non-nan")
-    }
-}
-
-impl<'p> Debug for Solution<'p> {
+impl<'p> std::fmt::Debug for Solution<'p> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Solution")
             .field("problem", &self.problem)
@@ -159,13 +102,9 @@ impl<'p> Solution<'p> {
         Ok(solution)
     }
 
-    pub fn new_unchecked(problem: &'p Problem, routes: Vec<Vec<Visit>>) -> Self {
-        Self {
-            problem,
-            routes,
-            npt_cache: Cell::default(),
-            evaluation: Cell::default(),
-        }
+    // Dissolve this solution into the problem and routes it consists of.
+    pub fn dissolve(self) -> (&'p Problem, Vec<Vec<Visit>>) {
+        (self.problem, self.routes)
     }
 
     /// Invalidate caches.
@@ -242,8 +181,55 @@ impl<'p> Solution<'p> {
         cost
     }
 
+    /// Calculates the vessel shortage and excess of this solution
+    fn vessel_violations(&self) -> InventoryViolation {
+        let mut shortage = 0.0;
+        let mut excess = 0.0;
+
+        for (v, route) in self.routes.iter().enumerate() {
+            let vessel = &self.problem.vessels()[v];
+            let mut inventory = vessel.initial_inventory().as_inv().clone();
+
+            // Artificial visit for "end of planning horizon"
+            // Note: a streaming iterator would have been nice here
+            let end = (0..self.problem.products())
+                .map(|p| Visit {
+                    node: 0,
+                    product: p,
+                    time: self.problem.timesteps() - 1,
+                    quantity: 0.0,
+                })
+                .collect::<Vec<_>>();
+
+            // When the inventory for product type `p` was last updated
+            let mut last_updated = vec![vessel.available_from(); self.problem.products()];
+
+            // We are always "present" at `visit` (i.e. the vessel has the inventory it has leaving `visit`),
+            // and will calculate how large the violation is in the time before we arrive at `visit`
+            for visit in route.iter().chain(&end) {
+                let time_spanned = (visit.time - last_updated[visit.product]) as f64;
+                last_updated[visit.product] = visit.time;
+                // This is the amount by which the inventory limit is breached over the time span.
+                // The slack (capacity_for) is negative if the inventory exceeds the amount that can be stored in `vessel.compartments()`
+                // If the slack is negative, we use that (since -slack is positive in that case)
+                // and if it is positive we will use 0 (since -slack will be negative in that case).
+                let capacity = inventory.capacity_for(visit.product, vessel.compartments());
+                let e = (-capacity).max(0.0);
+                // The shortage is the abs of the inventory if it is negative.
+                let s = (-inventory[visit.product]).max(0.0);
+
+                excess += time_spanned * e;
+                shortage += time_spanned * s;
+
+                inventory[visit.product] += visit.quantity
+            }
+        }
+
+        InventoryViolation { excess, shortage }
+    }
+
     /// Calculates the accumulated shortage and excess of this solution
-    fn inventory_violations(&self) -> (f64, f64) {
+    fn node_violations(&self) -> InventoryViolation {
         let mut shortage = 0.0;
         let mut excess = 0.0;
 
@@ -251,7 +237,9 @@ impl<'p> Solution<'p> {
         for (n, node) in self.problem.nodes().iter().enumerate() {
             for p in 0..self.problem.products() {
                 let accumulative = node.inventory_without_deliveries(p);
+                let capacity = node.capacity()[p];
                 let mut delta = 0.0;
+
                 for t in 0..self.problem.timesteps() {
                     // This should be either one or zero deliveries. `visit.node == n` and `visit.product == p` by construction.
                     for (_, visit) in self.deliveries(n, p, t..t + 1).iter() {
@@ -260,16 +248,15 @@ impl<'p> Solution<'p> {
 
                     // The quantity at the farm/factory
                     let inv = accumulative[t] + delta;
-                    let capacity = node.capacity()[p];
 
                     // Calculate shortage and excess at the current time.
-                    shortage += f64::min(inv, 0.0).abs();
+                    shortage += f64::max(-inv, 0.0);
                     excess += f64::max(0.0, inv - capacity);
                 }
             }
         }
 
-        (shortage, excess)
+        InventoryViolation { excess, shortage }
     }
 
     /// The evaluation of this solution
@@ -279,12 +266,13 @@ impl<'p> Solution<'p> {
         }
 
         let cost = self.cost();
-        let (shortage, excess) = self.inventory_violations();
+        let nodes = self.node_violations();
+        let vessels = self.vessel_violations();
 
         let eval = Evaluation {
             cost,
-            shortage,
-            excess,
+            nodes,
+            vessels,
         };
 
         self.evaluation.set(Some(eval));
@@ -429,7 +417,7 @@ impl<'p> Solution<'p> {
         &mut self,
         vessel: VesselIndex,
         range: R,
-    ) -> Drain<'_, Visit> {
+    ) -> std::vec::Drain<'_, Visit> {
         self.routes[vessel].drain(range)
     }
 
@@ -526,20 +514,4 @@ impl<'cell> Deref for NPTVSlice<'cell> {
     fn deref(&self) -> &Self::Target {
         &self.inner[self.range.clone()]
     }
-}
-
-#[derive(Debug)]
-pub enum InsertionError {
-    /// The number of routes is incorrect
-    IncorrectRouteCount,
-    /// The vessel index is invalid
-    VesselIndexOutOfBounds,
-    /// The position we're trying to insert at is out of bounds,
-    PositionOufOfBounds,
-    /// There is not enough time to reach the node we're trying to insert in time to
-    /// serve it at the required time step
-    NotEnoughTimeToReach,
-    /// There is not enough time to reach the node after the one we're trying to insert in time
-    /// to serve it at the required time.
-    NotEnoughTimeToReachNext,
 }

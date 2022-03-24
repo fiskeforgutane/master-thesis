@@ -341,6 +341,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         time_period: &RangeInclusive<TimeIndex>,
         solution: &Solution,
     ) -> Vec<(VesselIndex, usize)> {
+        debug!("vehicles used = {:?}", vehicles_used);
         let mut candidates = solution
             .routes()
             .iter()
@@ -426,53 +427,53 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 }
             }
 
-            if adjacents.is_empty() {
-                warn!("No more adjacents found");
-                break;
-            }
+            let (v, idx) = match adjacents.first() {
+                Some(&x) => x,
+                None => {
+                    warn!("No more adjacents found");
+                    break;
+                }
+            };
 
-            for (v, idx) in adjacents {
-                // The maximum cardinality we allow for this string.
-                let t = solution[v].len();
-                let l_max = t.min(ls_max as usize);
-                // Draw a random cardinality uniformly form [1, max]
-                let l = Uniform::new(1, l_max + 1).sample(&mut rand::thread_rng());
-                // We will now select a continuous string containing `idx`
-                // Base case: draw the continuous range [idx..idx + l].
-                // Using an offset: draw from the continuous range [idx - offset..idx + l - offset].
-                // For an offset to be valid, we want it to have the correct length.
-                // Let max_offset be the largest offset < l such that idx - offset >= 0,
-                // i.e. offset <= l + 1 && offset <= idx.
-                // and let min_offset be the smallest offset such that idx + l - offset <= t
-                // i.e. offset >= idx + l - t and offset >= 0
-                let ub = (l + 1).min(idx);
-                let lb = ((idx + l - t) as isize).max(0) as usize;
-                // The range of allowed offsets that also gives a slice of size `l`
-                let range = lb..ub;
+            // The maximum cardinality we allow for this string.
+            let t = solution[v].len();
+            let l_max = t.min(ls_max as usize);
+            // Draw a random cardinality uniformly form [1, max]
+            let l = Uniform::new(1, l_max + 1).sample(&mut rand::thread_rng());
+            // We will now select a continuous string containing `idx`
+            // Base case: draw the continuous range [idx..idx + l].
+            // Using an offset: draw from the continuous range [idx - offset..idx + l - offset].
+            // For an offset to be valid, we want it to have the correct length.
+            // Let max_offset be the largest offset < l such that idx - offset >= 0,
+            // i.e. offset <= l + 1 && offset <= idx.
+            // and let min_offset be the smallest offset such that idx + l - offset <= t
+            // i.e. offset >= idx + l - t and offset >= 0
+            let ub = (l + 1).min(idx);
+            let lb = ((idx + l - t) as isize).max(0) as usize;
+            // The range of allowed offsets that also gives a slice of size `l`
+            let range = lb..ub;
 
-                trace!("L = {}, idx = {}, allowed offsets = {:?}", l, idx, range);
+            trace!("L = {}, idx = {}, allowed offsets = {:?}", l, idx, range);
 
-                let chosen = match range.is_empty() {
-                    true => 0..t,
-                    false => {
-                        let offset = rand::thread_rng().gen_range(range);
-                        idx - offset..idx + l - offset
-                    }
-                };
+            let chosen = match range.is_empty() {
+                true => 0..t,
+                false => {
+                    let offset = rand::thread_rng().gen_range(range);
+                    idx - offset..idx + l - offset
+                }
+            };
 
-                // This should hold, unless there's a bug in the above calculations.
-                assert!(
-                    ((lb..ub).is_empty() && chosen.len() == t)
-                        | (!(lb..ub).is_empty() && chosen.len() == l)
-                );
+            // This should hold, unless there's a bug in the above calculations.
+            assert!(
+                ((lb..ub).is_empty() && chosen.len() == t)
+                    | (!(lb..ub).is_empty() && chosen.len() == l)
+            );
 
-                trace!("v = {}, vehicles used = {:?}", v, vehicles_used);
+            debug!("v = {}, vehicles used = {:?}", v, vehicles_used);
 
-                vehicles_used.insert(v);
-                time_periods
-                    .push(solution[v][chosen.start].time..=solution[v][chosen.end - 1].time);
-                strings.push((v, chosen));
-            }
+            vehicles_used.insert(v);
+            time_periods.push(solution[v][chosen.start].time..=solution[v][chosen.end - 1].time);
+            strings.push((v, chosen));
         }
 
         strings
@@ -652,15 +653,20 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let chosen = candidates.max_by_key(|candidate| {
                 cands += 1;
                 match rand::random::<f64>() < self.config.alpha {
-                    true => (FloatOrd(f64::NEG_INFINITY), FloatOrd(f64::NEG_INFINITY)),
+                    true => (
+                        FloatOrd(f64::NEG_INFINITY),
+                        FloatOrd(f64::NEG_INFINITY),
+                        FloatOrd(f64::NEG_INFINITY),
+                    ),
                     false => (
                         FloatOrd(candidate.quantity.abs()),
                         FloatOrd(-candidate.cost),
+                        FloatOrd(rand::thread_rng().gen()),
                     ),
                 }
             });
 
-            debug!("Chose {:?} among {} candidates", chosen, cands);
+            trace!("Chose {:?} among {} candidates", chosen, cands);
 
             let candidate = match chosen {
                 Some(x) => {
@@ -668,7 +674,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                     x
                 }
                 None => {
-                    debug!("No candidates for order #{}: {:?}", o, orders[o]);
+                    trace!("No candidates for order #{}: {:?}", o, orders[o]);
                     continue;
                 }
             };
@@ -752,18 +758,19 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             let eval_new = new.evaluation();
             let eval_old = solution.evaluation();
             let eval_best = best.evaluation();
-            let noise = t * uniform.sample(&mut rand::thread_rng()).ln();
 
             debug!("New solution: {:?}", eval_new);
 
-            if eval_new.shortage + eval_new.excess < eval_best.shortage + eval_best.excess + noise {
-                //if eval_new.cost < eval_best.cost + noise {
+            if eval_new.inventory_violation() <= eval_best.inventory_violation() {
                 info!("Found new best solution with {:?}", eval_new);
                 best = new.clone();
-                //}
             }
 
-            if eval_new.shortage + eval_new.excess < eval_old.shortage + eval_old.excess + noise {
+            let dE = (eval_new.inventory_violation() - eval_old.inventory_violation());
+            let h = (-dE / t).exp();
+            debug!("dE = {}, h = {}", dE, h);
+
+            if uniform.sample(&mut rand::thread_rng()) < h {
                 info!("Replacing current solution");
                 solution = new;
             } else {
