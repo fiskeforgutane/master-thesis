@@ -95,7 +95,7 @@ impl<'p> Solution<'p> {
 
         for (v, route) in routes.iter().enumerate() {
             for (i, visit) in route.iter().enumerate() {
-                solution.can_insert(v, i, *visit)?;
+                solution.insert(v, i, *visit)?;
             }
         }
 
