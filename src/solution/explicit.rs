@@ -445,7 +445,9 @@ impl<'p> Solution<'p> {
                 // remove consecutive duplicates
                 node_idxs.dedup();
                 // insert the voyage to the hash set (does not insert if the voyage is already there)
-                voyages.insert(node_idxs);
+                if node_idxs.len() > 1 {
+                    voyages.insert(node_idxs);
+                }
             }
 
             // get the first and last voyage which might not start and end at a production node
