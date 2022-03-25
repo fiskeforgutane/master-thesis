@@ -307,13 +307,14 @@ impl sisrs::Config {
 #[pymethods]
 impl sisrs::SortingWeights {
     #[new]
-    pub fn new_py(random: f64, earliest: f64, furthest: f64, closest: f64, demand: f64) -> Self {
+    pub fn new_py(random: f64, earliest: f64, furthest: f64, closest: f64, demand: f64, min_added: f64) -> Self {
         Self {
             random,
             earliest,
             furthest,
             closest,
             demand,
+            min_added,
         }
     }
 }

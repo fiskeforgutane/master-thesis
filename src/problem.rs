@@ -4,6 +4,7 @@ use std::{
 };
 
 use derive_more::Constructor;
+use itertools::Itertools;
 use log::trace;
 use pyo3::{pyclass, FromPyObject};
 
@@ -31,6 +32,9 @@ pub struct Problem {
     #[pyo3(get)]
     /// The nodes of this problem. This contains both consumption and production nodes.
     nodes: Vec<Node>,
+    #[pyo3(get)]
+    /// The index of the first consumption node in the set of nodes
+    slice: usize,
     #[pyo3(get)]
     /// The number of time steps in the problem
     timesteps: usize,
@@ -197,6 +201,7 @@ impl Problem {
         distances: &[Vec<Distance>],
         products: usize,
         timesteps: usize,
+        slice: usize,
     ) -> Result<(), ProblemConstructionError> {
         use ProblemConstructionError::*;
         let n = nodes.len();
@@ -207,6 +212,8 @@ impl Problem {
                 actual: distances.len(),
             });
         }
+
+        
 
         for (i, row) in distances.iter().enumerate() {
             if row.len() != n {
@@ -309,9 +316,13 @@ impl Problem {
         let v = vessels.len();
         let t = timesteps;
         let p = products;
+        let slice = nodes.iter().position(|n| match n.r#type() {
+            NodeType::Consumption => true,
+            NodeType::Production => false,
+        }).unwrap();
 
         // Perform general checks
-        Self::general_checks(&nodes, &distances, timesteps, products)?;
+        Self::general_checks(&nodes, &distances, timesteps, products, slice)?;
         // Check each node
         for (i, node) in nodes.iter().enumerate() {
             Self::check_node(i, node, t, p)?;
@@ -324,6 +335,7 @@ impl Problem {
         Ok(Self {
             vessels,
             nodes,
+            slice,
             timesteps,
             products,
             distances,

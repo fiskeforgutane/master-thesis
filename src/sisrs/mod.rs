@@ -1,5 +1,5 @@
 use std::{
-    cmp::Ordering,
+    cmp::{min, Ordering},
     collections::HashSet,
     ops::{Range, RangeInclusive},
 };
@@ -48,6 +48,8 @@ pub struct SortingWeights {
     pub closest: f64,
     /// Sort by demand
     pub demand: f64,
+    /// Sort by added distance to existing voyages if inserted at minimum position
+    pub min_added: f64,
 }
 
 impl SortingWeights {
@@ -59,6 +61,7 @@ impl SortingWeights {
             SortingCriteria::Furthest => self.furthest,
             SortingCriteria::Closest => self.closest,
             SortingCriteria::Demand => self.demand,
+            SortingCriteria::MinAdded => self.min_added,
         }
     }
 
@@ -70,6 +73,7 @@ impl SortingWeights {
             SortingCriteria::Furthest,
             SortingCriteria::Closest,
             SortingCriteria::Demand,
+            SortingCriteria::MinAdded,
         ]
         .choose_weighted(&mut rand::thread_rng(), |x| self.weight_of(x))
         .unwrap()
@@ -89,6 +93,8 @@ pub enum SortingCriteria {
     Closest,
     /// Sort such that the orders with high demand are routed first
     Demand,
+    /// Sort such that the orders with minimum added distance to voyages are routed first
+    MinAdded,
 }
 
 impl Default for SortingWeights {
@@ -99,6 +105,7 @@ impl Default for SortingWeights {
             earliest: 4.0,
             furthest: 2.0,
             closest: 1.0,
+            min_added: 3.0,
         }
     }
 }
@@ -719,15 +726,84 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         match self.config.weights.choose() {
             SortingCriteria::Random => uncovered.shuffle(&mut rand::thread_rng()),
             SortingCriteria::Earliest => uncovered.sort_by_key(|(o, _)| self.orders[*o].open()),
-            SortingCriteria::Furthest => (),
-            SortingCriteria::Closest => (),
+            SortingCriteria::Furthest => uncovered.sort_by(|(a, _), (b, _)| {
+                self.dist_to_factory(&self.orders[*a].node(), false)
+                    .partial_cmp(&self.dist_to_factory(&self.orders[*b].node(), false))
+                    .unwrap()
+            }),
+            SortingCriteria::Closest => uncovered.sort_by(|(a, _), (b, _)| {
+                self.dist_to_factory(&self.orders[*a].node(), true)
+                    .partial_cmp(&self.dist_to_factory(&self.orders[*b].node(), true))
+                    .unwrap()
+            }),
             SortingCriteria::Demand => uncovered.sort_by(|(_, a), (_, b)| {
                 b.partial_cmp(a).expect("should be non-nan by construction")
+            }),
+            SortingCriteria::MinAdded => uncovered.sort_by(|(a,_), (b,_)| {
+                self.min_added_distance(&self.orders[*a].node(), solution)
+                    .partial_cmp(&self.min_added_distance(&self.orders[*b].node(), solution))
+                    .unwrap()
             }),
         }
 
         // Repair the new solution
         self.repair(solution, self.orders, &uncovered);
+    }
+
+    fn dist_to_factory(&self, node: &NodeIndex, min: bool) -> f64 {
+        let production_nodes = &self.problem.production_nodes();
+        let factories = production_nodes
+            .into_iter()
+            .map(|n| n.index());
+
+        let key = |a: &usize, b: &usize| {
+            self.problem
+                .distance(*a, *node)
+                .partial_cmp(&self.problem.distance(*b, *node))
+                .unwrap()
+        };
+
+        let n = match min {
+            true => factories.min_by(key),
+            false => factories.max_by(key),
+        }.unwrap();
+
+        self.problem.distance(*node, n)
+    }
+
+    fn min_added_distance(&self, node: &NodeIndex, solution: &Solution) -> f64 {
+        let mut min_dist = f64::MAX;
+
+        let routes = solution.routes();
+
+        for route in routes {
+            let min_pos = route
+                .iter()
+                .enumerate()
+                .min_by(|(a, _), (b, _)| {
+                    self.pos_distance(node, *a, route)
+                        .partial_cmp(&self.pos_distance(node, *b, route))
+                        .unwrap()
+                })
+                .unwrap()
+                .1;
+
+            let dist = self.problem.distance(*node, min_pos.node);
+
+            if dist < min_dist {
+                min_dist = dist;
+            }
+        }
+
+        min_dist
+    }
+
+    fn pos_distance(&self, node: &NodeIndex, position: usize, route: &Vec<Visit>) -> f64 {
+        self.problem.distance(route[position - 1].node, *node)
+            + self.problem.distance(*node, route[position].node)
+            - self
+                .problem
+                .distance(route[position - 1].node, route[position].node)
     }
 
     /// Run SISRs starting from the given solution
