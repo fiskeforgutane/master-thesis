@@ -1,4 +1,5 @@
 pub mod destroy_and_repair;
+pub mod ga;
 pub mod models;
 pub mod problem;
 pub mod quants;
