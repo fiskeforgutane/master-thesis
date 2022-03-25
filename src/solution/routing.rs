@@ -4,7 +4,7 @@ use std::{ops::Deref, sync::Arc};
 
 use pyo3::pyclass;
 
-use crate::problem::Problem;
+use crate::problem::{Problem, VesselIndex};
 use crate::solution::Visit;
 
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
@@ -161,5 +161,14 @@ impl DerefMut for RoutingSolutionMut<'_> {
 impl Drop for RoutingSolutionMut<'_> {
     fn drop(&mut self) {
         self.0.invalidate_caches();
+        let timesteps = self.0.problem.timesteps();
+
+        // Check that the visit times are correct
+        for plan in &self.0.routes {
+            assert!(match plan.last() {
+                Some(visit) => visit.time < timesteps,
+                None => true,
+            });
+        }
     }
 }
