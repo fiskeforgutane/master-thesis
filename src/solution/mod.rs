@@ -7,6 +7,9 @@ use pyo3::{pyclass, pymethods};
 use crate::problem::{NodeIndex, Problem, ProductIndex, Quantity, TimeIndex};
 
 pub mod explicit;
+pub mod routing;
+pub mod visit;
+pub use visit::Visit;
 
 pub use explicit::{FullSolution, NPTVSlice, NPTV};
 
@@ -18,19 +21,6 @@ pub trait AnySolution {
     /// A list of visits for each vehicle. Each vehicle's list of visits *must* be ordered ascending by time
     fn routes(&self) -> &[Self::Inner];
 }
-
-/// A `Visit` is a visit to a `node` at a specific `time`.
-#[pyclass]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Visit {
-    #[pyo3(get, set)]
-    /// The node we're visiting.
-    pub node: NodeIndex,
-    #[pyo3(get, set)]
-    /// The time at which delivery starts.
-    pub time: TimeIndex,
-}
-
 /// A `Visit` is a visit to a `node` at a `time` where unloading/loading of a given `quantity` of `product` is started.
 /// Assumption: `quantity` is relative to the node getting services. That is, a positive `quantity` means a delivery to a location,
 /// while a negative quantity means a pick-up from a farm. Thus, `node.inventory[product] += quantity` while `vessel.inventory[product] -= quantity`
