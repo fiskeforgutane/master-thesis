@@ -4,8 +4,7 @@ use std::{
 };
 
 use derive_more::Constructor;
-use log::trace;
-use pyo3::{pyclass, FromPyObject};
+use pyo3::pyclass;
 
 use crate::solution::Delivery;
 
@@ -291,9 +290,9 @@ impl Problem {
     pub fn check_vessel(
         v: usize,
         vessel: &Vessel,
-        n: usize,
-        t: usize,
-        p: usize,
+        _n: usize,
+        _t: usize,
+        _p: usize,
     ) -> Result<(), ProblemConstructionError> {
         if vessel.compartments.len() == 0 {
             return Err(ProblemConstructionError::NoCompartments { vessel: v });
@@ -319,7 +318,7 @@ impl Problem {
         distances: Vec<Vec<Distance>>,
     ) -> Result<Problem, ProblemConstructionError> {
         let n = nodes.len();
-        let v = vessels.len();
+        let _v = vessels.len();
         let t = timesteps;
         let p = products;
 
@@ -645,7 +644,7 @@ impl Inventory {
         }
     }
 
-    pub fn capacity_for(&self, product: ProductIndex, compartments: &[Compartment]) -> Quantity {
+    pub fn capacity_for(&self, _product: ProductIndex, compartments: &[Compartment]) -> Quantity {
         if self.num_products() == 1 {
             let capacity = compartments.iter().map(|c| c.0).sum::<f64>();
             return capacity - self[0];

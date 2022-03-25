@@ -5,7 +5,6 @@ use std::{
 };
 
 use float_ord::FloatOrd;
-use itertools::Itertools;
 use log::{debug, info, trace, warn};
 use pyo3::pyclass;
 use rand::{
@@ -301,10 +300,10 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
             break;
 
             // Undo the change
-            remaining[order] = old;
-            if remove {
-                uncovered.insert(order);
-            }
+            // remaining[order] = old;
+            // if remove {
+            //     uncovered.insert(order);
+            // }
         }
 
         return false;
@@ -766,9 +765,9 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 best = new.clone();
             }
 
-            let dE = (eval_new.inventory_violation() - eval_old.inventory_violation());
-            let h = (-dE / t).exp();
-            debug!("dE = {}, h = {}", dE, h);
+            let d_e = eval_new.inventory_violation() - eval_old.inventory_violation();
+            let h = (-d_e / t).exp();
+            debug!("dE = {}, h = {}", d_e, h);
 
             if uniform.sample(&mut rand::thread_rng()) < h {
                 info!("Replacing current solution");
@@ -782,60 +781,5 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
         info!("Best solution found by SISRs was {:?}", &best);
         solution
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::problem::{Compartment, FixedInventory, Inventory, Node, Problem, Vessel};
-
-    use super::Config;
-
-    static TIMESTEPS: usize = 360;
-    static PRODUCTS: usize = 2;
-    static N_VESSELS: usize = 2;
-    static N_FARMS: usize = 3;
-    static N_FACTORIES: usize = 2;
-
-    pub fn test_instance() -> Problem {
-        let vessel = Vessel::new(
-            vec![Compartment(100.0), Compartment(100.0), Compartment(100.0)],
-            1.0,
-            1.0,
-            0.7,
-            0.5,
-            0.3,
-            0,
-            Inventory::new(&vec![0.0; PRODUCTS]).unwrap().into(),
-            0,
-            "Class 1".to_owned(),
-        );
-        todo!()
-    }
-
-    #[test]
-    fn uncovered_is_empty_with_nosplit_delivery() {
-        // TODO
-    }
-
-    #[test]
-    fn uncovered_is_empty_with_split_delivery() {
-        // TODO
-    }
-
-    #[test]
-    fn uncovered_identifies_unfulfilled_delivery() {
-        // TODO
-    }
-
-    #[test]
-    fn uncovered_works_with_delivery_not_belonging_to_any_order() {
-        // TODO
-    }
-
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
     }
 }

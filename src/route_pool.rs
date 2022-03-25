@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::problem::{NodeIndex, Quantity, Problem, Node};
-use crate::destroy_and_repair::route_operators::{RemoveNode, InsertNode};
+use crate::destroy_and_repair::route_operators::{InsertNode, RemoveNode};
+use crate::problem::{Node, NodeIndex, Problem, Quantity};
 
 #[derive(Clone, Debug)]
 /// A Route is defined as a path for a vehicle starting and ending in a production nodex
@@ -29,15 +29,13 @@ impl Route {
 }
 
 /// A Pool is the set of routes currently being optimized by the path flow MIP
-struct RoutePool<'a>{
+pub struct RoutePool<'a> {
     routes: Vec<&'a mut Route>,
 }
 
-impl <'a> RoutePool<'a> {
-    fn new(problem: &Problem) -> RoutePool{
-        RoutePool {
-            routes: Vec::new(),
-        }
+impl<'a> RoutePool<'a> {
+    fn new(problem: &Problem) -> RoutePool {
+        RoutePool { routes: Vec::new() }
     }
 
     fn add_route(&mut self, route: &'a mut Route) {
@@ -63,11 +61,15 @@ pub struct UpdateRoutePool {
 }
 
 impl UpdateRoutePool {
-    fn new(problem: &Problem, destroy_operators: Vec<Box<dyn RemoveNode>>, repair_operator: Box<dyn InsertNode>) -> Self{
+    fn new(
+        problem: &Problem,
+        destroy_operators: Vec<Box<dyn RemoveNode>>,
+        repair_operator: Box<dyn InsertNode>,
+    ) -> Self {
         UpdateRoutePool {
             neighbor_map: UpdateRoutePool::generate_neighbor_map(problem),
             destroy_operators,
-            repair_operator
+            repair_operator,
         }
     }
 
@@ -88,7 +90,7 @@ impl UpdateRoutePool {
                         .unwrap()
                 })
                 .unwrap();
-            
+
             neighbor_map.insert(index, nearest_neighbor.index());
         }
 

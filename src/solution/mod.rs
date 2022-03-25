@@ -1,17 +1,10 @@
-use std::{
-    cell::Cell,
-    fmt::Debug,
-    ops::{Deref, Index, Range, RangeBounds},
-    vec::Drain,
-};
+use std::{fmt::Debug, ops::Deref};
 
 use float_ord::FloatOrd;
-use itertools::Itertools;
+
 use pyo3::{pyclass, pymethods};
 
-use crate::problem::{
-    FixedInventory, Inventory, NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex,
-};
+use crate::problem::{NodeIndex, Problem, ProductIndex, Quantity, TimeIndex};
 
 pub mod explicit;
 
