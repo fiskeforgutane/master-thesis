@@ -41,10 +41,6 @@ impl<'s> IntoIterator for &'s Plan {
     }
 }
 
-pub enum RoutingError {
-    IncorrectVesselCount,
-}
-
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
 /// It does not quarantee feasibility in any manner, it is possible to write a routing solution that e.g. requires a vessel to be present at two different nodes
 /// at the exact same time. Avoiding this is usually the responsibility of whoever creates the solution (e.g. the GA)
