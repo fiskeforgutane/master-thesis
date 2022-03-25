@@ -53,7 +53,7 @@ impl Twerk {
 }
 
 impl Twerk {
-    pub fn those_hips<R: rand::Rng>(mut rng: &mut R, problem: &Problem, plan: &mut [Visit]) {
+    pub fn those_hips<R: rand::Rng>(rng: &mut R, problem: &Problem, plan: &mut [Visit]) {
         // Note: assumes that the visits are sorted in ascending order by time, which is normally enforced by the mutation guard.
         // However, if this is called after some other mutation that breaks that guarantee we might have to fix it here
         let total_time = plan
