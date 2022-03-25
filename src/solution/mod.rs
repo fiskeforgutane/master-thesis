@@ -14,7 +14,6 @@ use crate::problem::{
 };
 
 pub mod explicit;
-pub mod implicit;
 
 pub use explicit::{NPTVSlice, Solution, NPTV};
 
