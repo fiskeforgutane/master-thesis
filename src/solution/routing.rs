@@ -16,7 +16,7 @@ pub struct Plan {
 }
 
 impl Plan {
-    fn new(raw: Vec<Visit>) -> Self {
+    fn new(mut raw: Vec<Visit>) -> Self {
         raw.sort_by_key(|v| v.time);
         Self { sorted: raw }
     }
