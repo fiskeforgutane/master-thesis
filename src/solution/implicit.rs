@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use crate::problem::Problem;
 
-use super::{explicit, InsertionError, Visit};
+use super::{explicit, Delivery, InsertionError};
 
 /// A solution that only considers visits to consumption nodes, forming a "giant tour" for each vessel.
 /// We then attempt to split this by inserting factory visits at suitable places such that inventory levels are maintained.
@@ -10,16 +10,16 @@ pub struct Solution<'p> {
     /// The problem this solution belongs to
     pub problem: &'p Problem,
     /// The set of consumption visits for each vehicle. Sorted ascending by time.
-    consumption_visits: Vec<Vec<Visit>>,
+    consumption_visits: Vec<Vec<Delivery>>,
     /// The set of visits after inserting production visits.
-    routes: Cell<Vec<Vec<Visit>>>,
+    routes: Cell<Vec<Vec<Delivery>>>,
 }
 
 impl<'p> Solution<'p> {
     /// Construct a new implicit solution for `problem` with the consumption visits given in `consumption_visits`
     pub fn new(
         problem: &'p Problem,
-        consumption_visits: Vec<Vec<Visit>>,
+        consumption_visits: Vec<Vec<Delivery>>,
     ) -> Result<Self, InsertionError> {
         // Check that none of the visits are to production nodes.
         for route in &consumption_visits {

@@ -24,7 +24,7 @@ use pyo3_log;
 use pyo3_log::Logger;
 use quants::Order;
 use quants::Quantities;
-use solution::{Evaluation, Visit};
+use solution::{Delivery, Evaluation};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -42,13 +42,13 @@ pub fn test_logging() {
 #[derive(Debug, Clone)]
 pub struct Solution {
     #[pyo3(get, set)]
-    pub routes: Vec<Vec<Visit>>,
+    pub routes: Vec<Vec<Delivery>>,
 }
 
 #[pymethods]
 impl Solution {
     #[new]
-    pub fn new(routes: Vec<Vec<Visit>>) -> Self {
+    pub fn new(routes: Vec<Vec<Delivery>>) -> Self {
         Self { routes }
     }
 
@@ -56,7 +56,7 @@ impl Solution {
         self.routes.len()
     }
 
-    pub fn __getitem__(&self, idx: usize) -> Vec<Visit> {
+    pub fn __getitem__(&self, idx: usize) -> Vec<Delivery> {
         self.routes[idx].clone()
     }
 
@@ -369,7 +369,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Node>()?;
     m.add_class::<NodeType>()?;
     m.add_class::<Compartment>()?;
-    m.add_class::<Visit>()?;
+    m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
 

@@ -7,7 +7,7 @@ use derive_more::Constructor;
 use log::trace;
 use pyo3::{pyclass, FromPyObject};
 
-use crate::solution::Visit;
+use crate::solution::Delivery;
 
 /// A point in Euclidean 2d-space.
 pub struct Point(f64, f64);
@@ -143,9 +143,9 @@ impl Problem {
     }
 
     /// Return the `origin` visit of a `vessel`
-    pub fn origin_visit(&self, vessel: VesselIndex) -> Visit {
+    pub fn origin_visit(&self, vessel: VesselIndex) -> Delivery {
         let vessel = &self.vessels[vessel];
-        Visit {
+        Delivery {
             node: vessel.origin(),
             product: 0,
             time: vessel.available_from(),

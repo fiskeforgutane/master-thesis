@@ -20,7 +20,7 @@ use crate::{
         TimeIndex, VesselIndex,
     },
     quants::Order,
-    solution::{Solution, Visit, NPTV},
+    solution::{Delivery, Solution, NPTV},
 };
 /// Implements a variant of the SISRs R&R algorithm presented by J. Christiaens and
 /// G. V. Berge adapted for use in a VRP variant with MIRP-style time windows.
@@ -310,14 +310,14 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
         return false;
     }
 
-    pub fn average_tour_cardinality(solution: &[Vec<Visit>]) -> f64 {
+    pub fn average_tour_cardinality(solution: &[Vec<Delivery>]) -> f64 {
         let total_length = solution.iter().map(|xs| xs.len()).sum::<usize>();
         let tour_count = solution.len();
 
         (total_length as f64) / (tour_count as f64)
     }
 
-    pub fn select_random_visit(solution: &[Vec<Visit>]) -> Option<(VesselIndex, usize)> {
+    pub fn select_random_visit(solution: &[Vec<Delivery>]) -> Option<(VesselIndex, usize)> {
         // Choose a vessel whose solution we will draw from, and then an index from that vessel's solution
         if solution.len() == 0 {
             return None;
@@ -359,7 +359,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
 
         candidates.sort_unstable_by(|&x, &y| {
             let key = |(v, i)| {
-                let visit: Visit = solution[v][i];
+                let visit: Delivery = solution[v][i];
                 let distance = solution.problem.distance(node, visit.node);
                 let skew_start = visit.time - time_period.start();
                 let skew_end = time_period.end() - visit.time;
@@ -480,7 +480,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
     }
 
     /// Returns the inventory after each visit
-    pub fn inventories(tour: &[Visit], initial: Inventory) -> Vec<FixedInventory> {
+    pub fn inventories(tour: &[Delivery], initial: Inventory) -> Vec<FixedInventory> {
         tour.iter()
             .scan(initial, |state, visit| {
                 state[visit.product] += visit.quantity;
@@ -683,7 +683,7 @@ impl<'p, 'o, 'c> SlackInductionByStringRemoval<'p, 'o, 'c> {
                 .insert(
                     candidate.vessel,
                     candidate.idx,
-                    Visit {
+                    Delivery {
                         node: order.node(),
                         product: order.product(),
                         time: candidate.time,
