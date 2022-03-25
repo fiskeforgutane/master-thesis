@@ -3,7 +3,6 @@ pub mod models;
 pub mod problem;
 pub mod quants;
 pub mod route_pool;
-pub mod sisrs;
 pub mod solution;
 
 use problem::Compartment;
@@ -19,12 +18,11 @@ use problem::Vessel;
 use problem::VesselIndex;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::wrap_pymodule;
 use pyo3_log;
 use pyo3_log::Logger;
 use quants::Order;
 use quants::Quantities;
-use solution::{Evaluation, Visit};
+use solution::{Delivery, Evaluation};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -42,13 +40,13 @@ pub fn test_logging() {
 #[derive(Debug, Clone)]
 pub struct Solution {
     #[pyo3(get, set)]
-    pub routes: Vec<Vec<Visit>>,
+    pub routes: Vec<Vec<Delivery>>,
 }
 
 #[pymethods]
 impl Solution {
     #[new]
-    pub fn new(routes: Vec<Vec<Visit>>) -> Self {
+    pub fn new(routes: Vec<Vec<Delivery>>) -> Self {
         Self { routes }
     }
 
@@ -56,7 +54,7 @@ impl Solution {
         self.routes.len()
     }
 
-    pub fn __getitem__(&self, idx: usize) -> Vec<Visit> {
+    pub fn __getitem__(&self, idx: usize) -> Vec<Delivery> {
         self.routes[idx].clone()
     }
 
@@ -278,59 +276,6 @@ impl Inventory {
     }
 }
 
-#[pymethods]
-impl sisrs::Config {
-    #[new]
-    pub fn new_py(
-        average_removal: usize,
-        max_cardinality: usize,
-        alpha: f64,
-        blink_rate: f64,
-        t0: f64,
-        tk: f64,
-        iterations: usize,
-        weights: sisrs::SortingWeights,
-    ) -> Self {
-        Self {
-            average_removal,
-            max_cardinality,
-            alpha,
-            blink_rate,
-            t0,
-            tk,
-            iterations,
-            weights,
-        }
-    }
-}
-
-#[pymethods]
-impl sisrs::SortingWeights {
-    #[new]
-    pub fn new_py(random: f64, earliest: f64, furthest: f64, closest: f64, demand: f64) -> Self {
-        Self {
-            random,
-            earliest,
-            furthest,
-            closest,
-            demand,
-        }
-    }
-}
-
-#[pyfunction]
-fn optimize(
-    problem: Problem,
-    orders: Vec<Order>,
-    initial: Solution,
-    config: sisrs::Config,
-) -> PyResult<Solution> {
-    let initial = solution::Solution::new(&problem, initial.routes).map_err(pyerr)?;
-    let mut sisr = sisrs::SlackInductionByStringRemoval::new(&problem, &orders, &config);
-    let result = sisr.run(initial);
-    Ok(Solution::new(result.routes().to_vec()))
-}
-
 #[pyfunction]
 fn initial_quantities(problem: &Problem, product: usize) -> HashMap<usize, f64> {
     Quantities::quantities(problem, product)
@@ -339,15 +284,6 @@ fn initial_quantities(problem: &Problem, product: usize) -> HashMap<usize, f64> 
 #[pyfunction]
 fn initial_orders(problem: &Problem) -> PyResult<Vec<Order>> {
     quants::initial_orders(&problem).map_err(pyerr)
-}
-
-#[pymodule]
-fn sisr(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(optimize, m)?)?;
-    m.add_class::<sisrs::SortingWeights>()?;
-    m.add_class::<sisrs::Config>()?;
-
-    Ok(())
 }
 
 /// A Python module implemented in Rust. The name of this function must match
@@ -369,12 +305,9 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Node>()?;
     m.add_class::<NodeType>()?;
     m.add_class::<Compartment>()?;
-    m.add_class::<Visit>()?;
+    m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
-
-    // Submodule for SISR
-    m.add_wrapped(wrap_pymodule!(sisr))?;
 
     Ok(())
 }

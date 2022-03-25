@@ -1,4 +1,4 @@
-use super::{AnySolution, Evaluation, InsertionError, InventoryViolation, Visit};
+use super::{AnySolution, Delivery, Evaluation, InsertionError, InventoryViolation};
 use crate::problem::{Inventory, NodeIndex, Problem, ProductIndex, TimeIndex, VesselIndex};
 use itertools::Itertools;
 use std::{
@@ -14,15 +14,15 @@ pub struct Solution<'p> {
     /// The problem this solution belongs to
     pub problem: &'p Problem,
     /// The routes taken by each vehicle
-    routes: Vec<Vec<Visit>>,
+    routes: Vec<Vec<Delivery>>,
     /// A cache of the routes stored sorted by (node, product, time, vessel). This allows us to lookup visits to a (node, product)-pair within a time window in log(n)
-    npt_cache: Cell<Vec<(VesselIndex, Visit)>>,
+    npt_cache: Cell<Vec<(VesselIndex, Delivery)>>,
     /// A cache of the evaluation of this solution
     evaluation: Cell<Option<Evaluation>>,
 }
 
 impl<'p> AnySolution for Solution<'p> {
-    type Inner = Vec<Visit>;
+    type Inner = Vec<Delivery>;
 
     fn problem(&self) -> &Problem {
         self.problem
@@ -43,7 +43,7 @@ impl<'p> std::fmt::Debug for Solution<'p> {
 }
 
 impl<'p> Index<VesselIndex> for Solution<'p> {
-    type Output = [Visit];
+    type Output = [Delivery];
 
     fn index(&self, index: VesselIndex) -> &Self::Output {
         &self.routes[index]
@@ -67,7 +67,10 @@ impl<'p> Clone for Solution<'p> {
 }
 
 impl<'p> Solution<'p> {
-    pub fn new(problem: &'p Problem, mut routes: Vec<Vec<Visit>>) -> Result<Self, InsertionError> {
+    pub fn new(
+        problem: &'p Problem,
+        mut routes: Vec<Vec<Delivery>>,
+    ) -> Result<Self, InsertionError> {
         // We uphold an invariant that the routes are always sorted ascending by time.
         for route in &mut routes {
             route.sort_unstable_by_key(|x| x.time);
@@ -94,7 +97,7 @@ impl<'p> Solution<'p> {
     }
 
     // Dissolve this solution into the problem and routes it consists of.
-    pub fn dissolve(self) -> (&'p Problem, Vec<Vec<Visit>>) {
+    pub fn dissolve(self) -> (&'p Problem, Vec<Vec<Delivery>>) {
         (self.problem, self.routes)
     }
 
@@ -107,7 +110,7 @@ impl<'p> Solution<'p> {
     }
 
     /// Update the flat list of visists sorted by (Node, Product, Time) that allows efficient lookup of visits to a node of a certain product within a time window
-    fn updated_nptv_cache(&self) -> Vec<(usize, Visit)> {
+    fn updated_nptv_cache(&self) -> Vec<(usize, Delivery)> {
         self.routes
             .iter()
             .enumerate()
@@ -119,7 +122,7 @@ impl<'p> Solution<'p> {
     }
 
     /// Access the list of routes for each vehicle
-    pub fn routes(&self) -> &[Vec<Visit>] {
+    pub fn routes(&self) -> &[Vec<Delivery>] {
         &self.routes
     }
 
@@ -139,9 +142,9 @@ impl<'p> Solution<'p> {
     }
 
     /// Return the `origin` visit of a `vessel`
-    pub fn origin_visit(&self, vessel: VesselIndex) -> Visit {
+    pub fn origin_visit(&self, vessel: VesselIndex) -> Delivery {
         let vessel = &self.problem.vessels()[vessel];
-        Visit {
+        Delivery {
             node: vessel.origin(),
             product: 0,
             time: vessel.available_from(),
@@ -184,7 +187,7 @@ impl<'p> Solution<'p> {
             // Artificial visit for "end of planning horizon"
             // Note: a streaming iterator would have been nice here
             let end = (0..self.problem.products())
-                .map(|p| Visit {
+                .map(|p| Delivery {
                     node: 0,
                     product: p,
                     time: self.problem.timesteps() - 1,
@@ -330,7 +333,7 @@ impl<'p> Solution<'p> {
         &mut self,
         vessel: VesselIndex,
         position: usize,
-        visit: Visit,
+        visit: Delivery,
     ) -> Result<(), InsertionError> {
         // To make all of this slightly more concise
         use InsertionError::*;
@@ -346,7 +349,7 @@ impl<'p> Solution<'p> {
         // If there is no previous, we will make a visit for the origin that delivers absolutely,
         // at the time where the vessel becomes available.
         let previous = match position {
-            0 => Visit {
+            0 => Delivery {
                 node: boat.origin(),
                 product: 0,
                 time: boat.available_from(),
@@ -389,7 +392,7 @@ impl<'p> Solution<'p> {
         &mut self,
         vessel: VesselIndex,
         position: usize,
-        visit: Visit,
+        visit: Delivery,
     ) -> Result<(), InsertionError> {
         // Check if we can insert the visit
         self.can_insert(vessel, position, visit)?;
@@ -408,16 +411,16 @@ impl<'p> Solution<'p> {
         &mut self,
         vessel: VesselIndex,
         range: R,
-    ) -> std::vec::Drain<'_, Visit> {
+    ) -> std::vec::Drain<'_, Delivery> {
         self.routes[vessel].drain(range)
     }
 }
 
 pub struct NPTV<'cell> {
     /// The Cell that is supposed to hold the `inner` value when this is dropped
-    cell: &'cell Cell<Vec<(VesselIndex, Visit)>>,
+    cell: &'cell Cell<Vec<(VesselIndex, Delivery)>>,
     /// The inner Vec
-    inner: Vec<(VesselIndex, Visit)>,
+    inner: Vec<(VesselIndex, Delivery)>,
 }
 
 impl<'cell> NPTV<'cell> {
@@ -430,7 +433,7 @@ impl<'cell> NPTV<'cell> {
 }
 
 impl<'cell> Deref for NPTV<'cell> {
-    type Target = [(VesselIndex, Visit)];
+    type Target = [(VesselIndex, Delivery)];
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -450,7 +453,7 @@ pub struct NPTVSlice<'cell> {
 }
 
 impl<'cell> Deref for NPTVSlice<'cell> {
-    type Target = [(VesselIndex, Visit)];
+    type Target = [(VesselIndex, Delivery)];
 
     fn deref(&self) -> &Self::Target {
         &self.inner[self.range.clone()]

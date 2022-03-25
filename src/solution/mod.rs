@@ -1,25 +1,17 @@
-use std::{
-    cell::Cell,
-    fmt::Debug,
-    ops::{Deref, Index, Range, RangeBounds},
-    vec::Drain,
-};
+use std::{fmt::Debug, ops::Deref};
 
 use float_ord::FloatOrd;
-use itertools::Itertools;
+
 use pyo3::{pyclass, pymethods};
 
-use crate::problem::{
-    FixedInventory, Inventory, NodeIndex, Problem, ProductIndex, Quantity, TimeIndex, VesselIndex,
-};
+use crate::problem::{NodeIndex, Problem, ProductIndex, Quantity, TimeIndex};
 
 pub mod explicit;
-pub mod implicit;
 
 pub use explicit::{NPTVSlice, Solution, NPTV};
 
 pub trait AnySolution {
-    type Inner: Deref<Target = [Visit]>;
+    type Inner: Deref<Target = [Delivery]>;
 
     /// The problem this solution belongs to
     fn problem(&self) -> &Problem;
@@ -32,7 +24,7 @@ pub trait AnySolution {
 /// while a negative quantity means a pick-up from a farm. Thus, `node.inventory[product] += quantity` while `vessel.inventory[product] -= quantity`
 #[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Visit {
+pub struct Delivery {
     #[pyo3(get, set)]
     /// The node we're visiting.
     pub node: NodeIndex,
@@ -48,7 +40,7 @@ pub struct Visit {
 }
 
 #[pymethods]
-impl Visit {
+impl Delivery {
     #[new]
     pub fn new(
         node: NodeIndex,
