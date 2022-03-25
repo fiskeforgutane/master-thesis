@@ -1,4 +1,7 @@
-use rand::{prelude::StdRng, Rng, SeedableRng};
+use rand::{
+    prelude::{SliceRandom, StdRng},
+    Rng, SeedableRng,
+};
 
 use crate::{problem::Problem, solution::routing::RoutingSolution};
 
@@ -142,3 +145,108 @@ impl Penalty for Nop {
         0.0
     }
 }
+
+/// Vectors are used for "choice", i.e. choose one of (unweighted)
+impl<M> Mutation for Vec<M>
+where
+    M: Mutation,
+{
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        let mutation = self.choose_mut(&mut rand::thread_rng()).unwrap();
+        mutation.apply(problem, solution)
+    }
+}
+
+/// Vector of tuples are used for "weighted choice".
+impl<M> Mutation for Vec<(M, f64)>
+where
+    M: Mutation,
+{
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        let (mutation, _) = self
+            .choose_weighted_mut(&mut rand::thread_rng(), |(_, w)| *w)
+            .unwrap();
+        mutation.apply(problem, solution)
+    }
+}
+
+/// Vectors are used for "choice", i.e. choose inweighted
+impl<R> Recombination for Vec<R>
+where
+    R: Recombination,
+{
+    fn apply(
+        &mut self,
+        problem: &Problem,
+        left: &mut RoutingSolution,
+        right: &mut RoutingSolution,
+    ) {
+        let recombination = self.choose_mut(&mut rand::thread_rng()).unwrap();
+        recombination.apply(problem, left, right)
+    }
+}
+
+/// Vectors of tuples are used for weighted choice
+impl<R> Recombination for Vec<(R, f64)>
+where
+    R: Recombination,
+{
+    fn apply(
+        &mut self,
+        problem: &Problem,
+        left: &mut RoutingSolution,
+        right: &mut RoutingSolution,
+    ) {
+        let (recombination, _) = self
+            .choose_weighted_mut(&mut rand::thread_rng(), |(_, w)| *w)
+            .unwrap();
+        recombination.apply(problem, left, right)
+    }
+}
+
+// Array implementations for Mutation and Recombination
+macro_rules! impl_array_choice {
+    ($n:expr) => {
+        impl<M> Mutation for [M; $n]
+        where
+            M: Mutation,
+        {
+            fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+                let mutation = self.choose_mut(&mut rand::thread_rng()).unwrap();
+                mutation.apply(problem, solution)
+            }
+        }
+
+        impl<R> Recombination for [R; $n]
+        where
+            R: Recombination,
+        {
+            fn apply(
+                &mut self,
+                problem: &Problem,
+                left: &mut RoutingSolution,
+                right: &mut RoutingSolution,
+            ) {
+                let recombination = self.choose_mut(&mut rand::thread_rng()).unwrap();
+                recombination.apply(problem, left, right)
+            }
+        }
+    };
+}
+
+impl_array_choice!(1);
+impl_array_choice!(2);
+impl_array_choice!(3);
+impl_array_choice!(4);
+impl_array_choice!(5);
+impl_array_choice!(6);
+impl_array_choice!(7);
+impl_array_choice!(8);
+impl_array_choice!(9);
+impl_array_choice!(10);
+impl_array_choice!(11);
+impl_array_choice!(12);
+impl_array_choice!(13);
+impl_array_choice!(14);
+impl_array_choice!(15);
+impl_array_choice!(16);
