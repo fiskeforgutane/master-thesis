@@ -35,9 +35,9 @@ pub trait SurvivalSelection {
         &mut self,
         count: usize,
         objective_fn: F,
-        population: &Vec<RoutingSolution>,
-        parents: &Vec<&RoutingSolution>,
-        children: &Vec<RoutingSolution>,
+        population: &[RoutingSolution],
+        parents: &[&RoutingSolution],
+        children: &[RoutingSolution],
         out: &mut Vec<RoutingSolution>,
     ) where
         F: Fn(&RoutingSolution) -> (f64, bool);
