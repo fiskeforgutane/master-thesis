@@ -1,7 +1,10 @@
 use derive_more::{Deref, From, Into};
 use typed_index_collections::TiVec;
 
-use crate::problem::Problem;
+use crate::{
+    problem::{Problem, Vessel},
+    solution::{routing::RoutingSolution, Visit},
+};
 
 pub enum Error {
     WrongOrderException(String),
@@ -37,10 +40,59 @@ pub struct Sets {
     pub J_v: TiVec<VesselIndex, Vec<VisitIndex>>,
 }
 
+impl Sets {
+    pub fn new(solution: &RoutingSolution) -> (Sets, Vec<(usize, Visit)>, TiVec<NodeIndex, usize>) {
+        macro_rules! set {
+            ($type:ident, $n:expr) => {
+                (0..$n).map(|i| $type(i)).collect::<Vec<_>>()
+            };
+        }
+
+        let problem = solution.problem();
+        let n = problem.nodes().len();
+        let v = problem.vessels().len();
+        let t = problem.timesteps();
+        let p = problem.products();
+
+        let mut J = solution
+            .iter()
+            .enumerate()
+            .flat_map(|(v, plan)| plan.iter().map(|&visit| (v, visit)))
+            .collect::<Vec<_>>();
+        J.sort_unstable_by_key(|(v, visit)| visit.time);
+
+        let J_n: TiVec<NodeIndex, Vec<VisitIndex>> = vec![Vec::new(); n].into();
+        let J_v: TiVec<VesselIndex, Vec<VisitIndex>> = vec![Vec::new(); v].into();
+        // When a node is first visited
+        let mut t_0: TiVec<NodeIndex, usize> = vec![t - 1; n].into();
+
+        for (j, &(v, visit)) in J.iter().enumerate() {
+            let (v, j, n) = (VesselIndex(v), VisitIndex(j), NodeIndex(n));
+            J_v[v].append(j);
+            J_n[n].append(j);
+            t_0[n] = t_0[n].min(visit.time);
+        }
+
+        (
+            Sets {
+                P: set!(ProductIndex, p),
+                V: set!(VesselIndex, v),
+                N: set!(NodeIndex, n),
+                J: set!(VisitIndex, J.len()),
+                J_n,
+                J_v,
+            },
+            J,
+            t_0,
+        )
+    }
+}
+
 #[allow(non_snake_case)]
 pub struct Parameters<'a> {
     /// The sets used to create these parameters
-    sets: &'a Sets,
+    sets: Sets,
+    /// The problem these parameters "belong" to.
     problem: &'a Problem,
     /// Node of visit j in J
     pub N_j: TiVec<VisitIndex, NodeIndex>,
@@ -66,6 +118,63 @@ pub struct Parameters<'a> {
     pub R: TiVec<VisitIndex, f64>,
     /// Arrival time of visit j
     pub T: TiVec<VisitIndex, usize>,
+}
+
+impl<'a> Parameters<'a> {
+    pub fn new(solution: &RoutingSolution) -> Self {
+        let (sets, J, t0) = Sets::new(solution);
+        let problem = solution.problem();
+        let p = problem.products();
+        let n = problem.nodes().len();
+
+        let N_j = J.iter().map(|(_, visit)| NodeIndex(visit.node)).collect();
+        let V_j = J.iter().map(|(v, _)| VesselIndex(*v)).collect();
+
+        let q = |vessel: &Vessel| vessel.compartments().iter().map(|c| c.0).sum();
+        let Q = problem.vessels().iter().map(q).sum();
+
+        let l = |vessel: &Vessel| (0..p).map(|p| vessel.initial_inventory()[p]).collect();
+        let L_0: TiVec<VesselIndex, TiVec<ProductIndex, _>> =
+            problem.vessels().iter().map(l).collect();
+
+        let S_0: TiVec<NodeIndex, TiVec<ProductIndex, f64>> = (0..n)
+            .map(|i| {
+                let t = t0[NodeIndex(i)];
+                let node = &problem.nodes()[i];
+
+                (0..p)
+                    .map(|p| node.inventory_without_deliveries(p)[t])
+                    .collect()
+            })
+            .collect();
+
+        let S_min = vec![vec![0.0; p].into(); J.len()].into();
+        let S_max = J
+            .iter()
+            .map(|(v, visit)| {
+                let node = &problem.nodes()[visit.node];
+                let capacity = node.capacity();
+                (0..p).map(|i| capacity[i]).collect()
+            })
+            .collect();
+
+        Parameters {
+            problem,
+            N_j,
+            V_j,
+            Q,
+            L_0,
+            S_0,
+            S_min,
+            S_max,
+            I: todo!(),
+            K: todo!(),
+            A: todo!(),
+            R: todo!(),
+            T: todo!(),
+            sets,
+        }
+    }
 }
 
 #[allow(non_snake_case)]
