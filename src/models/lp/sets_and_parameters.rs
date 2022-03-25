@@ -3,22 +3,23 @@ use typed_index_collections::TiVec;
 
 use crate::problem::Problem;
 
+#[derive(Debug)]
 pub enum Error {
     WrongOrderException(String),
     DifferentNodesException(String),
     VisitDoesNotExistException(String),
 }
 
-#[derive(Deref, Debug, PartialEq, PartialOrd, From, Into, Clone, Copy)]
+#[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
 pub struct NodeIndex(usize);
 
-#[derive(Deref, Debug, PartialEq, PartialOrd, From, Into, Clone, Copy)]
+#[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
 pub struct VesselIndex(usize);
 
-#[derive(Deref, Debug, PartialEq, PartialOrd, From, Into, Clone, Copy)]
+#[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
 pub struct ProductIndex(usize);
 
-#[derive(Deref, Debug, PartialEq, PartialOrd, From, Into, Clone, Copy)]
+#[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
 pub struct VisitIndex(usize);
 
 #[allow(non_snake_case)]
@@ -35,6 +36,24 @@ pub struct Sets {
     pub J_n: TiVec<NodeIndex, Vec<VisitIndex>>,
     /// Set of visitis at node n, sorted on arrival time
     pub J_v: TiVec<VesselIndex, Vec<VisitIndex>>,
+}
+
+impl Sets {
+    pub fn production_visits(&self) -> Vec<VisitIndex> {
+        todo!()
+    }
+
+    pub fn consumption_visits(&self) -> Vec<VisitIndex> {
+        todo!()
+    }
+
+    pub fn production_nodes(&self) -> Vec<NodeIndex> {
+        todo!()
+    }
+
+    pub fn consumption_nodes(&self) -> Vec<NodeIndex> {
+        todo!()
+    }
 }
 
 #[allow(non_snake_case)]
@@ -61,7 +80,7 @@ pub struct Parameters<'a> {
     /// Kind of the node, +1 for production, -1 for consumption
     pub K: TiVec<NodeIndex, usize>,
     /// The number of time periods that the vessel can spend on the given vessel v
-    pub A: TiVec<VesselIndex, usize>,
+    pub A: TiVec<VisitIndex, f64>,
     /// The loading/unloading rate per time period at visit j
     pub R: TiVec<VisitIndex, f64>,
     /// Arrival time of visit j
@@ -91,15 +110,15 @@ impl<'a> Parameters<'a> {
     }
 
     /// Return (+1) for production node (-1) for consumption node
-    pub fn kind(&self, n: NodeIndex) -> isize {
+    pub fn kind(&self, n: NodeIndex) -> f64 {
         match &self.problem.nodes()[*n].r#type() {
-            crate::problem::NodeType::Consumption => -1,
-            crate::problem::NodeType::Production => 1,
+            crate::problem::NodeType::Consumption => -1.0,
+            crate::problem::NodeType::Production => 1.0,
         }
     }
 
     /// Returns the kind of the node associated with the given visit
-    pub fn v_kind(&self, visit: VisitIndex) -> isize {
+    pub fn v_kind(&self, visit: VisitIndex) -> f64 {
         // get the node index of the node associated with the visit
         let n_idx = self.N_j[visit];
         self.kind(n_idx)
