@@ -10,7 +10,7 @@ use std::{
 /// Note that the solution is in no way guaranteed to be optimal or even capacity-feasible.
 /// However, it does guarantee that the solution is possible to actually perform. I.e. that each vessel
 /// is able to perform its scheduled visits while conformning to restrictions on travel and (un)loading times.
-pub struct Solution<'p> {
+pub struct FullSolution<'p> {
     /// The problem this solution belongs to
     pub problem: &'p Problem,
     /// The routes taken by each vehicle
@@ -21,7 +21,7 @@ pub struct Solution<'p> {
     evaluation: Cell<Option<Evaluation>>,
 }
 
-impl<'p> AnySolution for Solution<'p> {
+impl<'p> AnySolution for FullSolution<'p> {
     type Inner = Vec<Delivery>;
 
     fn problem(&self) -> &Problem {
@@ -33,7 +33,7 @@ impl<'p> AnySolution for Solution<'p> {
     }
 }
 
-impl<'p> std::fmt::Debug for Solution<'p> {
+impl<'p> std::fmt::Debug for FullSolution<'p> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Solution")
             .field("problem", &self.problem)
@@ -42,7 +42,7 @@ impl<'p> std::fmt::Debug for Solution<'p> {
     }
 }
 
-impl<'p> Index<VesselIndex> for Solution<'p> {
+impl<'p> Index<VesselIndex> for FullSolution<'p> {
     type Output = [Delivery];
 
     fn index(&self, index: VesselIndex) -> &Self::Output {
@@ -50,7 +50,7 @@ impl<'p> Index<VesselIndex> for Solution<'p> {
     }
 }
 
-impl<'p> Clone for Solution<'p> {
+impl<'p> Clone for FullSolution<'p> {
     fn clone(&self) -> Self {
         Self {
             problem: self.problem,
@@ -66,7 +66,7 @@ impl<'p> Clone for Solution<'p> {
     }
 }
 
-impl<'p> Solution<'p> {
+impl<'p> FullSolution<'p> {
     pub fn new(
         problem: &'p Problem,
         mut routes: Vec<Vec<Delivery>>,

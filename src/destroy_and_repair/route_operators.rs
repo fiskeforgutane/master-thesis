@@ -162,7 +162,7 @@ impl InsertNode for InsertAtLowestCost {
                     .unwrap()
             })
             .unwrap();
-        
+
         let insertion_point = self.find_insertion_point(node, best_route, problem).0;
 
         best_route.get_nodes_mut().insert(insertion_point, node);

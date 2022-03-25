@@ -8,7 +8,7 @@ use crate::problem::{NodeIndex, Problem, ProductIndex, Quantity, TimeIndex};
 
 pub mod explicit;
 
-pub use explicit::{NPTVSlice, Solution, NPTV};
+pub use explicit::{FullSolution, NPTVSlice, NPTV};
 
 pub trait AnySolution {
     type Inner: Deref<Target = [Delivery]>;
@@ -17,6 +17,18 @@ pub trait AnySolution {
     fn problem(&self) -> &Problem;
     /// A list of visits for each vehicle. Each vehicle's list of visits *must* be ordered ascending by time
     fn routes(&self) -> &[Self::Inner];
+}
+
+/// A `Visit` is a visit to a `node` at a specific `time`.
+#[pyclass]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Visit {
+    #[pyo3(get, set)]
+    /// The node we're visiting.
+    pub node: NodeIndex,
+    #[pyo3(get, set)]
+    /// The time at which delivery starts.
+    pub time: TimeIndex,
 }
 
 /// A `Visit` is a visit to a `node` at a `time` where unloading/loading of a given `quantity` of `product` is started.

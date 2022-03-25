@@ -59,7 +59,7 @@ impl Solution {
     }
 
     pub fn evaluate(&self, problem: &Problem) -> PyResult<solution::Evaluation> {
-        let solution = solution::Solution::new(problem, self.routes.clone())
+        let solution = solution::FullSolution::new(problem, self.routes.clone())
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
 
         Ok(solution.evaluation())
@@ -71,7 +71,7 @@ impl Solution {
         vessel: VesselIndex,
         time: TimeIndex,
     ) -> PyResult<Inventory> {
-        let solution = solution::Solution::new(problem, self.routes.clone())
+        let solution = solution::FullSolution::new(problem, self.routes.clone())
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
 
         Ok(solution.vessel_inventory_at(vessel, time))
@@ -84,7 +84,7 @@ impl Solution {
         product: usize,
         time: usize,
     ) -> PyResult<f64> {
-        let solution = solution::Solution::new(problem, self.routes.clone())
+        let solution = solution::FullSolution::new(problem, self.routes.clone())
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
 
         Ok(solution.node_product_inventory_at(node, product, time))
