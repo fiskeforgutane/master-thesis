@@ -5,6 +5,7 @@ pub mod quants;
 pub mod route_pool;
 pub mod solution;
 
+use models::lp::model::LpResult;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -308,6 +309,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
+    m.add_class::<LpResult>()?;
 
     Ok(())
 }

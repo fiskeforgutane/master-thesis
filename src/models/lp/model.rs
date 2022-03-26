@@ -7,6 +7,7 @@ use derive_more::Constructor;
 use grb::prelude::*;
 use itertools::iproduct;
 use log::trace;
+use pyo3::pyclass;
 
 #[derive(Constructor)]
 pub struct Variables {
@@ -266,14 +267,22 @@ impl LpSolver {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone)]
 pub struct LpResult {
+    #[pyo3(get)]
     pub x: Vec<Vec<f64>>,
+    #[pyo3(get)]
     pub s: Vec<Vec<f64>>,
+    #[pyo3(get)]
     pub l: Vec<Vec<f64>>,
+    #[pyo3(get)]
     pub w_minus: HashMap<(usize, usize), f64>,
+    #[pyo3(get)]
     pub w_plus: HashMap<(usize, usize), f64>,
+    #[pyo3(get)]
     pub w_minus_end: HashMap<(usize, usize), f64>,
+    #[pyo3(get)]
     pub w_plus_end: HashMap<(usize, usize), f64>,
 }
 
