@@ -41,24 +41,32 @@ pub struct Sets {
     pub J_n: TiVec<NodeIndex, Vec<VisitIndex>>,
     /// Set of visitis at node n, sorted on arrival time
     pub J_v: TiVec<VesselIndex, Vec<VisitIndex>>,
+    /// The set of production visits
+    production_visits: Vec<VisitIndex>,
+    /// The set of consumption visits
+    consumption_visits: Vec<VisitIndex>,
+    /// The set of production nodes
+    production_nodes: Vec<NodeIndex>,
+    /// The set of consumption nodes
+    consumption_nodes: Vec<NodeIndex>,
 }
 
 #[allow(non_snake_case)]
 impl Sets {
-    pub fn production_visits(&self) -> Vec<VisitIndex> {
-        todo!()
+    pub fn production_visits(&self) -> &[VisitIndex] {
+        &self.production_visits
     }
 
-    pub fn consumption_visits(&self) -> Vec<VisitIndex> {
-        todo!()
+    pub fn consumption_visits(&self) -> &[VisitIndex] {
+        &self.consumption_visits
     }
 
-    pub fn production_nodes(&self) -> Vec<NodeIndex> {
-        todo!()
+    pub fn production_nodes(&self) -> &[NodeIndex] {
+        &self.production_nodes
     }
 
-    pub fn consumption_nodes(&self) -> Vec<NodeIndex> {
-        todo!()
+    pub fn consumption_nodes(&self) -> &[NodeIndex] {
+        &self.consumption_nodes
     }
 
     pub fn new(
@@ -128,6 +136,36 @@ impl Sets {
                 J: set!(VisitIndex, J.len()),
                 J_n,
                 J_v,
+                production_visits: J
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| {
+                        matches!(problem.nodes()[t.1.node].r#type(), NodeType::Production)
+                    })
+                    .map(|(j, _)| VisitIndex(j))
+                    .collect(),
+                consumption_visits: J
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| {
+                        matches!(problem.nodes()[t.1.node].r#type(), NodeType::Consumption)
+                    })
+                    .map(|(j, _)| VisitIndex(j))
+                    .collect(),
+                production_nodes: problem
+                    .nodes()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| matches!(t.r#type(), NodeType::Production))
+                    .map(|(i, _)| NodeIndex(i))
+                    .collect(),
+                consumption_nodes: problem
+                    .nodes()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| matches!(t.r#type(), NodeType::Consumption))
+                    .map(|(i, _)| NodeIndex(i))
+                    .collect(),
             },
             J,
             t_0,

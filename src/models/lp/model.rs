@@ -50,7 +50,11 @@ impl LpSolver {
         let l = (J.len(), P.len()).cont(&mut model, &"l")?;
 
         // shortage at the node associated with the visit at the beginning of the visit
-        let indices = iproduct!(sets.consumption_visits(), P.into_iter().map(|p| *p)).collect();
+        let indices = iproduct!(
+            sets.consumption_visits().iter().cloned(),
+            P.into_iter().cloned()
+        )
+        .collect();
         let w_minus = vars(
             indices,
             &mut model,
@@ -60,7 +64,11 @@ impl LpSolver {
         )?;
 
         // shortage at the node associated with the visit at the beginning of the visit
-        let indices = iproduct!(sets.production_visits(), P.into_iter().map(|p| *p)).collect();
+        let indices = iproduct!(
+            sets.production_visits().iter().cloned(),
+            P.into_iter().map(|p| *p)
+        )
+        .collect();
         let w_plus = vars(
             indices,
             &mut model,
@@ -70,7 +78,11 @@ impl LpSolver {
         )?;
 
         // shortage at the node at ending of the planning period
-        let indices = iproduct!(sets.consumption_nodes(), P.into_iter().map(|p| *p)).collect();
+        let indices = iproduct!(
+            sets.consumption_nodes().iter().cloned(),
+            P.into_iter().map(|p| *p)
+        )
+        .collect();
         let w_minus_end = vars2(
             indices,
             &mut model,
@@ -80,7 +92,11 @@ impl LpSolver {
         )?;
 
         // overflow at the node at ending of the planning period
-        let indices = iproduct!(sets.production_nodes(), P.into_iter().map(|p| *p)).collect();
+        let indices = iproduct!(
+            sets.production_nodes().iter().cloned(),
+            P.into_iter().map(|p| *p)
+        )
+        .collect();
         let w_plus_end = vars2(
             indices,
             &mut model,
@@ -122,14 +138,14 @@ impl LpSolver {
         // LOAG SHORTAGE AND OVERFLOW
 
         // log overflow
-        for (j, p) in iproduct!(sets.production_visits(), P.into_iter().map(|p| *p)) {
+        for (&j, &p) in iproduct!(sets.production_visits(), P.into_iter()) {
             let lhs = s[*j][*p] - *w_plus.get(&(j, p)).unwrap();
             let rhs = parameters.S_max[j][p];
             model.add_constr(&format!("overflow_{:?}_{:?}", j, p), c!(lhs <= rhs))?;
         }
 
         // log shortage
-        for (j, p) in iproduct!(sets.consumption_visits(), P.into_iter().map(|p| *p)) {
+        for (&j, &p) in iproduct!(sets.consumption_visits(), P.into_iter()) {
             let lhs = s[*j][*p] + *w_minus.get(&(j, p)).unwrap();
             let rhs = parameters.S_min[j][p];
             model.add_constr(&format!("overflow_{:?}_{:?}", j, p), c!(lhs >= rhs))?;
@@ -192,7 +208,7 @@ impl LpSolver {
         }
 
         // log end shortage
-        for (n, p) in iproduct!(sets.consumption_nodes(), P) {
+        for (&n, p) in iproduct!(sets.consumption_nodes(), P) {
             let lhs = *w_minus_end.get(&(n, *p)).unwrap();
 
             // has no visits
@@ -209,7 +225,7 @@ impl LpSolver {
         }
 
         // log end overflow
-        for (n, p) in iproduct!(sets.production_nodes(), P) {
+        for (&n, p) in iproduct!(sets.production_nodes(), P) {
             let lhs = *w_plus_end.get(&(n, *p)).unwrap();
 
             // has no visits
