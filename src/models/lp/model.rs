@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::models::utils::{vars, vars2, AddVars};
+use crate::models::utils::{vars, vars2, AddVars, ConvertVars};
 
 use super::sets_and_parameters::{NodeIndex, Parameters, ProductIndex, Sets, VisitIndex};
 use derive_more::Constructor;
@@ -254,5 +254,63 @@ impl LpSolver {
             model,
             Variables::new(x, s, l, w_minus, w_plus, w_minus_end, w_plus_end),
         ))
+    }
+
+    pub fn solve(sets: &Sets, parameters: &Parameters) -> Result<LpResult, grb::Error> {
+        let (m, vars) = LpSolver::build(sets, parameters)?;
+        let mut model = m;
+
+        model.optimize()?;
+
+        LpResult::new(&vars, &model)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LpResult {
+    pub x: Vec<Vec<f64>>,
+    pub s: Vec<Vec<f64>>,
+    pub l: Vec<Vec<f64>>,
+    pub w_minus: HashMap<(usize, usize), f64>,
+    pub w_plus: HashMap<(usize, usize), f64>,
+    pub w_minus_end: HashMap<(usize, usize), f64>,
+    pub w_plus_end: HashMap<(usize, usize), f64>,
+}
+
+impl LpResult {
+    pub fn new(variables: &Variables, model: &Model) -> Result<LpResult, grb::Error> {
+        let x = variables.x.convert(model)?;
+        let s = variables.s.convert(model)?;
+        let l = variables.l.convert(model)?;
+        let w_minus = variables
+            .w_minus
+            .iter()
+            .map(|((v, p), var)| Ok(((**v, **p), model.get_obj_attr(attr::X, var)?)))
+            .collect::<Result<HashMap<(usize, usize), f64>, grb::Error>>()?;
+        let w_plus = variables
+            .w_plus
+            .iter()
+            .map(|((v, p), var)| Ok(((**v, **p), model.get_obj_attr(attr::X, var)?)))
+            .collect::<Result<HashMap<(usize, usize), f64>, grb::Error>>()?;
+        let w_minus_end = variables
+            .w_minus_end
+            .iter()
+            .map(|((v, p), var)| Ok(((**v, **p), model.get_obj_attr(attr::X, var)?)))
+            .collect::<Result<HashMap<(usize, usize), f64>, grb::Error>>()?;
+        let w_plus_end = variables
+            .w_plus_end
+            .iter()
+            .map(|((v, p), var)| Ok(((**v, **p), model.get_obj_attr(attr::X, var)?)))
+            .collect::<Result<HashMap<(usize, usize), f64>, grb::Error>>()?;
+
+        Ok(LpResult {
+            x,
+            s,
+            l,
+            w_minus,
+            w_plus,
+            w_minus_end,
+            w_plus_end,
+        })
     }
 }
