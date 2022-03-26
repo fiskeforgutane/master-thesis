@@ -284,6 +284,24 @@ impl Inventory {
     }
 }
 
+#[pymethods]
+impl Visit {
+    #[new]
+    /// Construct a new visit without checkout its validity.
+    /// Prefer to use `Visit::new` unless you have ensured that `node` and `time` are within bounds.
+    pub fn new_py(node: usize, time: usize) -> Visit {
+        Visit::new_unchecked(node, time)
+    }
+
+    pub fn __str__(&self) -> String {
+        format!("Visit(n = {}, t = {})", self.node, self.time)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
 #[pyfunction]
 fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<LpResult> {
     let solution = RoutingSolution::new(Arc::new(problem), routes);
@@ -325,6 +343,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
     m.add_class::<LpResult>()?;
+    m.add_Class::<Visit>()?;
 
     Ok(())
 }
