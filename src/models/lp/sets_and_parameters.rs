@@ -1,8 +1,9 @@
 use derive_more::{Deref, From, Into};
+use itertools::Itertools;
 use typed_index_collections::TiVec;
 
 use crate::{
-    problem::{Problem, Vessel},
+    problem::{NodeType, Problem, Vessel},
     solution::{routing::RoutingSolution, Visit},
 };
 
@@ -57,7 +58,10 @@ impl Sets {
     pub fn consumption_nodes(&self) -> Vec<NodeIndex> {
         todo!()
     }
-    pub fn new(solution: &RoutingSolution) -> (Sets, Vec<(usize, Visit)>, TiVec<NodeIndex, usize>) {
+
+    pub fn new(
+        solution: &RoutingSolution,
+    ) -> (Sets, Vec<(usize, Visit, usize)>, TiVec<NodeIndex, usize>) {
         macro_rules! set {
             ($type:ident, $n:expr) => {
                 (0..$n).map(|i| $type(i)).collect::<Vec<_>>()
@@ -73,19 +77,35 @@ impl Sets {
         let mut J = solution
             .iter()
             .enumerate()
-            .flat_map(|(v, plan)| plan.iter().map(|&visit| (v, visit)))
-            .collect::<Vec<_>>();
-        J.sort_unstable_by_key(|(v, visit)| visit.time);
+            .flat_map(|(v, plan)| {
+                let last = plan.last().map(|v| Visit {
+                    time: problem.timesteps(),
+                    node: v.node,
+                });
 
-        let J_n: TiVec<NodeIndex, Vec<VisitIndex>> = vec![Vec::new(); n].into();
-        let J_v: TiVec<VesselIndex, Vec<VisitIndex>> = vec![Vec::new(); v].into();
+                let it = plan.iter().cloned().chain(last);
+
+                it.tuple_windows().map(move |(visit, next)| {
+                    let vessel = &problem.vessels()[v];
+                    // This is the time at which we would need to depart from `visit.node` in order to make it to `next.node` in time.
+                    let departure_time =
+                        next.time - problem.travel_time(visit.node, next.node, vessel);
+                    let time_available = departure_time.max(visit.time) - visit.time;
+                    (v, visit, time_available)
+                })
+            })
+            .collect::<Vec<_>>();
+        J.sort_unstable_by_key(|(_, visit, _)| visit.time);
+
+        let mut J_n: TiVec<NodeIndex, Vec<VisitIndex>> = vec![Vec::new(); n].into();
+        let mut J_v: TiVec<VesselIndex, Vec<VisitIndex>> = vec![Vec::new(); v].into();
         // When a node is first visited
         let mut t_0: TiVec<NodeIndex, usize> = vec![t - 1; n].into();
 
-        for (j, &(v, visit)) in J.iter().enumerate() {
+        for (j, &(v, visit, _)) in J.iter().enumerate() {
             let (v, j, n) = (VesselIndex(v), VisitIndex(j), NodeIndex(n));
-            J_v[v].append(j);
-            J_n[n].append(j);
+            J_v[v].push(j);
+            J_n[n].push(j);
             t_0[n] = t_0[n].min(visit.time);
         }
 
@@ -129,10 +149,10 @@ pub struct Parameters<'a> {
     /// Upper limit at the given node of product p
     pub S_max_n: TiVec<NodeIndex, TiVec<ProductIndex, f64>>,
     /// Kind of the node associated with visit j, +1 for production, -1 for consumption
-    pub I: TiVec<VisitIndex, usize>,
+    pub I: TiVec<VisitIndex, f64>,
     /// Kind of the node, +1 for production, -1 for consumption
-    pub K: TiVec<NodeIndex, usize>,
-    /// The number of time periods that the vessel can spend on the given vessel v
+    pub K: TiVec<NodeIndex, f64>,
+    /// The number of time periods that the vessel can spend on the given visit j
     pub A: TiVec<VisitIndex, f64>,
     /// The loading/unloading rate per time period at visit j
     pub R: TiVec<VisitIndex, f64>,
@@ -141,26 +161,33 @@ pub struct Parameters<'a> {
 }
 
 impl<'a> Parameters<'a> {
-    pub fn new(solution: &RoutingSolution) -> Self {
+    pub fn new(solution: &'a RoutingSolution) -> Self {
+        // We'll be writing this a shotload of times. Save ourself some typing
+        macro_rules! map {
+            ($set:expr, $f:expr) => {
+                $set.iter().map($f).collect::<TiVec<_, _>>()
+            };
+        }
+
         let (sets, J, t0) = Sets::new(solution);
         let problem = solution.problem();
+        let nodes = problem.nodes();
         let p = problem.products();
-        let n = problem.nodes().len();
+        let n = nodes.len();
 
-        let N_j = J.iter().map(|(_, visit)| NodeIndex(visit.node)).collect();
-        let V_j = J.iter().map(|(v, _)| VesselIndex(*v)).collect();
+        let N_j = map!(J, |(_, visit, _)| NodeIndex(visit.node));
+        let V_j = map!(J, |(v, _, _)| VesselIndex(*v));
 
         let q = |vessel: &Vessel| vessel.compartments().iter().map(|c| c.0).sum();
-        let Q = problem.vessels().iter().map(q).sum();
+        let Q = map!(problem.vessels(), q);
 
         let l = |vessel: &Vessel| (0..p).map(|p| vessel.initial_inventory()[p]).collect();
-        let L_0: TiVec<VesselIndex, TiVec<ProductIndex, _>> =
-            problem.vessels().iter().map(l).collect();
+        let L_0 = map!(problem.vessels(), l);
 
         let S_0: TiVec<NodeIndex, TiVec<ProductIndex, f64>> = (0..n)
             .map(|i| {
                 let t = t0[NodeIndex(i)];
-                let node = &problem.nodes()[i];
+                let node = &nodes[i];
 
                 (0..p)
                     .map(|p| node.inventory_without_deliveries(p)[t])
@@ -169,14 +196,24 @@ impl<'a> Parameters<'a> {
             .collect();
 
         let S_min = vec![vec![0.0; p].into(); J.len()].into();
-        let S_max = J
-            .iter()
-            .map(|(v, visit)| {
-                let node = &problem.nodes()[visit.node];
-                let capacity = node.capacity();
-                (0..p).map(|i| capacity[i]).collect()
-            })
-            .collect();
+        let S_max = map!(J, |(v, visit, _)| {
+            let capacity = nodes[visit.node].capacity();
+            (0..p).map(|i| capacity[i]).collect()
+        });
+
+        let I = map!(J, |(_, visit, _)| match nodes[visit.node].r#type() {
+            NodeType::Consumption => -1.0,
+            NodeType::Production => 1.0,
+        });
+
+        let K = map!(nodes, |n| match n.r#type() {
+            NodeType::Consumption => -1.0,
+            NodeType::Production => 1.0,
+        });
+
+        let A = map!(J, |t| t.2 as f64);
+        let R = map!(J, |(_, visit, _)| nodes[visit.node].max_loading_amount());
+        let T = map!(J, |(_, visit, _)| visit.time);
 
         Parameters {
             problem,
@@ -187,11 +224,11 @@ impl<'a> Parameters<'a> {
             S_0,
             S_min,
             S_max,
-            I: todo!(),
-            K: todo!(),
-            A: todo!(),
-            R: todo!(),
-            T: todo!(),
+            I,
+            K,
+            A,
+            R,
+            T,
             sets,
             S_min_n: todo!(),
             S_max_n: todo!(),
