@@ -343,7 +343,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
     m.add_class::<LpResult>()?;
-    m.add_Class::<Visit>()?;
+    m.add_class::<Visit>()?;
 
     Ok(())
 }
