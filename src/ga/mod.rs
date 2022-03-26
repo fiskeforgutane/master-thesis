@@ -6,7 +6,7 @@ pub mod penalizers;
 pub mod recombinations;
 pub mod survival_selection;
 pub mod traits;
-pub mod population;
+pub mod chromosome;
 
 use std::sync::Arc;
 

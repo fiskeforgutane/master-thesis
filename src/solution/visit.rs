@@ -14,6 +14,7 @@ pub struct Visit {
     pub time: TimeIndex,
 }
 
+#[derive(Debug)]
 pub enum Error {
     InvalidNode(usize),
     InvalidTime(usize),
