@@ -1,11 +1,23 @@
+use std::collections::HashMap;
+
 use crate::models::utils::{vars, vars2, AddVars};
 
-use super::sets_and_parameters::{Parameters, Sets};
+use super::sets_and_parameters::{NodeIndex, Parameters, ProductIndex, Sets, VisitIndex};
+use derive_more::Constructor;
 use grb::prelude::*;
 use itertools::iproduct;
 use log::trace;
 
-pub struct Variables {}
+#[derive(Constructor)]
+pub struct Variables {
+    x: Vec<Vec<Var>>,
+    s: Vec<Vec<Var>>,
+    l: Vec<Vec<Var>>,
+    w_minus: HashMap<(VisitIndex, ProductIndex), Var>,
+    w_plus: HashMap<(VisitIndex, ProductIndex), Var>,
+    w_minus_end: HashMap<(NodeIndex, ProductIndex), Var>,
+    w_plus_end: HashMap<(NodeIndex, ProductIndex), Var>,
+}
 
 pub struct LpSolver {}
 
@@ -58,7 +70,7 @@ impl LpSolver {
 
         // shortage at the node at ending of the planning period
         let indices = iproduct!(sets.consumption_nodes(), P.into_iter().map(|p| *p)).collect();
-        let w_plus_end = vars2(
+        let w_minus_end = vars2(
             indices,
             &mut model,
             VarType::Continuous,
@@ -66,7 +78,7 @@ impl LpSolver {
             "w_end_minus",
         )?;
 
-        // shortage at the node at ending of the planning period
+        // overflow at the node at ending of the planning period
         let indices = iproduct!(sets.production_nodes(), P.into_iter().map(|p| *p)).collect();
         let w_plus_end = vars2(
             indices,
@@ -131,6 +143,116 @@ impl LpSolver {
             model.add_constr(&format!("l_rate_{:?}_{:?}", j, p), c!(lhs <= rhs))?;
         }
 
-        todo!()
+        // upper bound given from node and vessel inventory restrictions
+        for (j, p) in iproduct!(J, P) {
+            // production
+            if parameters.v_kind(*j) > 0.0 {
+                // dont pick up more than available
+                let lhs = x[**j][**p];
+                let rhs = s[**j][**p] - parameters.S_min[*j][*p];
+                model.add_constr(&format!("prod_available_{:?}_{:?}", j, p), c!(lhs <= rhs))?;
+
+                // do not load more onto a ship than there is room for
+                let lhs = x[**j][**p];
+                let rhs = parameters.Q[parameters.V_j[*j]] - l[**j].iter().grb_sum();
+                model.add_constr(&format!("vessel_space_{:?}_{:?}", j, p), c!(lhs <= rhs))?;
+            }
+            // consumption node
+            else {
+                // do not deliver more than there is room for at the node
+                let lhs = x[**j][**p];
+                let rhs = parameters.S_max[*j][*p] - s[**j][**p];
+                model.add_constr(&format!("consump_space_{:?}_{:?}", j, p), c!(lhs <= rhs))?;
+
+                // do not deliver more than available in the vessel
+                let lhs = x[**j][**p];
+                let rhs = l[**j][**p];
+                model.add_constr(&format!("vessel_available_{:?}_{:?}", j, p), c!(lhs <= rhs))?;
+            }
+        }
+
+        // log the vessel load
+        for (v, p) in iproduct!(V, P) {
+            // load of the first visit
+            let j = J_v[*v].first();
+            if let Some(j) = j {
+                let lhs = l[**j][**p];
+                let rhs = parameters.L_0[*v][*p];
+                model.add_constr(&format!("initial_load_{:?}_{:?}", v, p), c!(lhs == rhs))?;
+            }
+
+            // remaining visitis
+            for win in J_v[*v].windows(2) {
+                let (i, j) = (win[0], win[1]);
+                let lhs = l[*j][**p];
+                let rhs = l[*i][**p] + parameters.v_kind(i) * x[*i][**p];
+                model.add_constr(&format!("log_load_{:?}_{:?}", v, p), c!(lhs == rhs))?;
+            }
+        }
+
+        // log end shortage
+        for (n, p) in iproduct!(sets.consumption_nodes(), P) {
+            let lhs = *w_minus_end.get(&(n, *p)).unwrap();
+
+            // has no visits
+            if J_n[n].is_empty() {
+                let rhs =
+                    parameters.D_tot(n, *p) - (parameters.S_0[n][*p] - parameters.S_min_n[n][*p]);
+                model.add_constr(&format!("end_minus_{:?}_{:?}", n, p), c!(lhs >= rhs))?;
+            } else {
+                let j = J_n[n].first().unwrap();
+                let rhs = parameters.remaining(*j, *p)
+                    - (s[**j][**p] + x[**j][**p] - parameters.S_min_n[n][*p]);
+                model.add_constr(&format!("end_minus_{:?}_{:?}", n, p), c!(lhs >= rhs))?;
+            }
+        }
+
+        // log end overflow
+        for (n, p) in iproduct!(sets.production_nodes(), P) {
+            let lhs = *w_plus_end.get(&(n, *p)).unwrap();
+
+            // has no visits
+            if J_n[n].is_empty() {
+                let rhs =
+                    parameters.D_tot(n, *p) - (parameters.S_max_n[n][*p] - parameters.S_0[n][*p]);
+                model.add_constr(&format!("end_plus_{:?}_{:?}", n, p), c!(lhs >= rhs))?;
+            } else {
+                let j = J_n[n].first().unwrap();
+                let rhs = parameters.remaining(*j, *p)
+                    - (parameters.S_max_n[n][*p] - s[**j][**p] - x[**j][**p]);
+                model.add_constr(&format!("end_plus_{:?}_{:?}", n, p), c!(lhs >= rhs))?;
+            }
+        }
+
+        // SET OBJECTIVE
+
+        // shortage occuring during or before visits begin
+        let shortage = iproduct!(J, P)
+            .map(|(j, p)| match parameters.v_kind(*j) as isize {
+                1 => w_plus.get(&(*j, *p)).unwrap(),
+                -1 => w_minus.get(&(*j, *p)).unwrap(),
+                _ => unreachable!("fuck off - this is impossible"),
+            })
+            .grb_sum();
+
+        // end shortage
+        let end_shortage = iproduct!(N, P)
+            .map(|(n, p)| match parameters.kind(*n) as isize {
+                1 => w_plus_end.get(&(*n, *p)).unwrap(),
+                -1 => w_minus_end.get(&(*n, *p)).unwrap(),
+                _ => unreachable!("fuck off - this is impossible"),
+            })
+            .grb_sum();
+
+        model.set_objective(shortage + end_shortage, Minimize)?;
+
+        model.update()?;
+
+        trace!("Successfully built lp");
+
+        Ok((
+            model,
+            Variables::new(x, s, l, w_minus, w_plus, w_minus_end, w_plus_end),
+        ))
     }
 }

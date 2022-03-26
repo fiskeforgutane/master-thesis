@@ -124,6 +124,10 @@ pub struct Parameters<'a> {
     pub S_min: TiVec<VisitIndex, TiVec<ProductIndex, f64>>,
     /// Upper limit at the arrival time of j at node N_j[j] of product p indexed (j,p)
     pub S_max: TiVec<VisitIndex, TiVec<ProductIndex, f64>>,
+    /// Lower limit at the given node of product p
+    pub S_min_n: TiVec<NodeIndex, TiVec<ProductIndex, f64>>,
+    /// Upper limit at the given node of product p
+    pub S_max_n: TiVec<NodeIndex, TiVec<ProductIndex, f64>>,
     /// Kind of the node associated with visit j, +1 for production, -1 for consumption
     pub I: TiVec<VisitIndex, usize>,
     /// Kind of the node, +1 for production, -1 for consumption
@@ -189,6 +193,8 @@ impl<'a> Parameters<'a> {
             R: todo!(),
             T: todo!(),
             sets,
+            S_min_n: todo!(),
+            S_max_n: todo!(),
         }
     }
 }
@@ -266,5 +272,12 @@ impl<'a> Parameters<'a> {
             )));
         }
         Ok(())
+    }
+
+    /// returns the remaining consumption/production in the node associated with the given visit and product
+    pub fn remaining(&self, visit: VisitIndex, p: ProductIndex) -> f64 {
+        let arrival = self.T[visit];
+        let node = self.problem.nodes()[*self.N_j[visit]];
+        node.inventory_change(arrival, self.problem.timesteps() - 1, *p)
     }
 }
