@@ -113,7 +113,7 @@ impl Sets {
         );
 
         for (j, &(v, visit, _)) in J.iter().enumerate() {
-            let (v, j, n) = (VesselIndex(v), VisitIndex(j), NodeIndex(n));
+            let (v, j, n) = (VesselIndex(v), VisitIndex(j), NodeIndex(visit.node));
             trace!("{:?}, {:?}, {:?}", v, j, n);
             J_v[v].push(j);
             J_n[n].push(j);
