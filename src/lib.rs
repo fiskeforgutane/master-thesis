@@ -6,6 +6,9 @@ pub mod route_pool;
 pub mod solution;
 
 use models::lp::model::LpResult;
+use models::lp::model::LpSolver;
+use models::lp::sets_and_parameters::Parameters;
+use models::lp::sets_and_parameters::Sets;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -23,9 +26,13 @@ use pyo3_log;
 use pyo3_log::Logger;
 use quants::Order;
 use quants::Quantities;
+use solution::Visit;
 use solution::{Delivery, Evaluation};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
+
+use crate::solution::routing::RoutingSolution;
 
 #[pyfunction]
 pub fn test_logging() {
@@ -278,6 +285,13 @@ impl Inventory {
 }
 
 #[pyfunction]
+fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<LpResult> {
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    let parameters = Parameters::new(&solution);
+    LpSolver::solve(&parameters.sets, &parameters).map_err(pyerr)
+}
+
+#[pyfunction]
 fn initial_quantities(problem: &Problem, product: usize) -> HashMap<usize, f64> {
     Quantities::quantities(problem, product)
 }
@@ -314,11 +328,19 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
+macro_rules! impl_repr {
+    ($type:ident) => {
+        #[pymethods]
+        impl $type {
+            pub fn __str__(&self) -> String {
+                format!("{:#?}", self)
+            }
+
+            pub fn __repr__(&self) -> String {
+                self.__str__()
+            }
+        }
+    };
 }
+
+impl_repr!(LpResult);

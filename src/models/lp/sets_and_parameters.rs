@@ -128,9 +128,9 @@ impl Sets {
 #[allow(non_snake_case)]
 pub struct Parameters<'a> {
     /// The sets used to create these parameters
-    sets: Sets,
+    pub sets: Sets,
     /// The problem these parameters "belong" to.
-    problem: &'a Problem,
+    pub problem: &'a Problem,
     /// Node of visit j in J
     pub N_j: TiVec<VisitIndex, NodeIndex>,
     /// The vessel performing the given visit j
