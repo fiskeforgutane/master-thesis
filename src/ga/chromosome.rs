@@ -1,5 +1,9 @@
+use pyo3::pyclass;
+use rand::{
+    prelude::{IteratorRandom, SliceRandom},
+    Rng,
+};
 use std::collections::HashMap;
-use rand::{Rng, prelude::{IteratorRandom, SliceRandom}};
 
 use crate::{
     problem::Problem,
@@ -9,6 +13,7 @@ use crate::{
 
 use super::initialization::Initialization;
 
+#[pyclass]
 #[derive(Debug, Clone)]
 pub struct Chromosome {
     /// The population consists of a set of chromosomes (to be implemented)
@@ -26,10 +31,7 @@ impl Initialization for Init {
 }
 
 impl Chromosome {
-    
-    fn new(
-        problem: &Problem,
-    ) -> Result<Chromosome, Box<dyn std::error::Error>> {
+    pub fn new(problem: &Problem) -> Result<Chromosome, Box<dyn std::error::Error>> {
         let initial_orders: Vec<Order> = quants::initial_orders(problem)?;
         let vessels = problem.vessels();
         let mut rng = rand::thread_rng();
@@ -43,29 +45,33 @@ impl Chromosome {
             .iter()
             .map(|vessel| (vessel.index(), (vessel.origin(), vessel.available_from())))
             .collect::<HashMap<_, _>>();
-            
+
         for order in &initial_orders {
             let serve_time = rng.gen_range(order.open()..order.close());
 
             let first_choice = vessels
                 .iter()
-                .filter(|v| 
-                    avail_from[&v.index()].1 + problem.travel_time(avail_from[&v.index()].0, order.node(), *v) <= serve_time)
-                    .choose(&mut rng);
-            
+                .filter(|v| {
+                    avail_from[&v.index()].1
+                        + problem.travel_time(avail_from[&v.index()].0, order.node(), *v)
+                        <= serve_time
+                })
+                .choose(&mut rng);
+
             let chosen = first_choice.unwrap_or_else(|| vessels.choose(&mut rng).unwrap());
-            
-            chromosome.get_mut(chosen.index()).unwrap().push(Visit::new(problem, order.node(), serve_time).unwrap());
-            
+
+            chromosome
+                .get_mut(chosen.index())
+                .unwrap()
+                .push(Visit::new(problem, order.node(), serve_time).unwrap());
+
             avail_from.insert(chosen.index(), (order.node(), serve_time + 1));
         }
-        
+
         Ok(Self { chromosome })
     }
 
     pub fn get_chromosome(&self) -> &Vec<Vec<Visit>> {
         &self.chromosome
     }
-
-
 }

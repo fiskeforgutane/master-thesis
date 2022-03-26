@@ -6,6 +6,7 @@ pub mod quants;
 pub mod route_pool;
 pub mod solution;
 
+use ga::chromosome::Chromosome;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -23,6 +24,7 @@ use pyo3_log;
 use pyo3_log::Logger;
 use quants::Order;
 use quants::Quantities;
+use solution::Visit;
 use solution::{Delivery, Evaluation};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -238,6 +240,28 @@ impl Compartment {
     }
 }
 
+#[pymethods]
+impl Visit {
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
+#[pymethods]
+impl Chromosome {
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
 fn pyerr<D: Debug>(err: D) -> PyErr {
     PyErr::new::<PyValueError, _>(format!("{:?}", err))
 }
@@ -278,6 +302,11 @@ impl Inventory {
 }
 
 #[pyfunction]
+fn chromosome(problem: &Problem) -> PyResult<Chromosome> {
+    Chromosome::new(problem).map_err(pyerr)
+}
+
+#[pyfunction]
 fn initial_quantities(problem: &Problem, product: usize) -> HashMap<usize, f64> {
     Quantities::quantities(problem, product)
 }
@@ -309,6 +338,8 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
+    m.add_class::<Chromosome>()?;
+    m.add_class::<Visit>()?;
 
     Ok(())
 }
