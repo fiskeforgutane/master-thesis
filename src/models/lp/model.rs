@@ -1,4 +1,4 @@
-use crate::models::utils::{vars, AddVars};
+use crate::models::utils::AddVars;
 
 use super::sets_and_parameters::{Parameters, Sets};
 use grb::prelude::*;
@@ -33,13 +33,14 @@ impl LpSolver {
         let s = (J.len(), P.len()).free(&mut model, &"s")?;
 
         let indices = todo!();
+        /*
         let w_minus = vars(
             indices,
             &mut model,
             VarType::Continuous,
             &(0.0..f64::INFINITY),
             "w_minus",
-        );
+        ); */
 
         // shortage at the node associated with the visit at the beginning of the visit
 
