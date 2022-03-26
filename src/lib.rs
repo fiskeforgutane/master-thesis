@@ -5,6 +5,7 @@ pub mod problem;
 pub mod quants;
 pub mod route_pool;
 pub mod solution;
+pub mod ga;
 
 use problem::Compartment;
 use problem::Cost;
