@@ -1,5 +1,6 @@
 use derive_more::{Deref, From, Into};
 use itertools::Itertools;
+use log::trace;
 use typed_index_collections::TiVec;
 
 use crate::{
@@ -98,13 +99,22 @@ impl Sets {
             .collect::<Vec<_>>();
         J.sort_unstable_by_key(|(_, visit, _)| visit.time);
 
+        trace!("Before all the Js");
         let mut J_n: TiVec<NodeIndex, Vec<VisitIndex>> = vec![Vec::new(); n].into();
         let mut J_v: TiVec<VesselIndex, Vec<VisitIndex>> = vec![Vec::new(); v].into();
         // When a node is first visited
         let mut t_0: TiVec<NodeIndex, usize> = vec![t - 1; n].into();
 
+        trace!(
+            "Lengths: J_n = {:?}, J_v = {:?}, t_0 ={:?}",
+            J_n.len(),
+            J_v.len(),
+            t_0.len()
+        );
+
         for (j, &(v, visit, _)) in J.iter().enumerate() {
             let (v, j, n) = (VesselIndex(v), VisitIndex(j), NodeIndex(n));
+            trace!("{:?}, {:?}, {:?}", v, j, n);
             J_v[v].push(j);
             J_n[n].push(j);
             t_0[n] = t_0[n].min(visit.time);
@@ -171,18 +181,22 @@ impl<'a> Parameters<'a> {
             };
         }
 
+        trace!("A");
         let (sets, J, t0) = Sets::new(solution);
         let problem = solution.problem();
         let nodes = problem.nodes();
         let p = problem.products();
         let n = nodes.len();
 
+        trace!("B");
         let N_j = map!(J, |(_, visit, _)| NodeIndex(visit.node));
         let V_j = map!(J, |(v, _, _)| VesselIndex(*v));
 
+        trace!("C");
         let q = |vessel: &Vessel| vessel.compartments().iter().map(|c| c.0).sum();
         let Q = map!(problem.vessels(), q);
 
+        trace!("D");
         let l = |vessel: &Vessel| (0..p).map(|p| vessel.initial_inventory()[p]).collect();
         let L_0 = map!(problem.vessels(), l);
 
