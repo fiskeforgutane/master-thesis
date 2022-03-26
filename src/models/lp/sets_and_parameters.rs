@@ -42,6 +42,7 @@ pub struct Sets {
     pub J_v: TiVec<VesselIndex, Vec<VisitIndex>>,
 }
 
+#[allow(non_snake_case)]
 impl Sets {
     pub fn production_visits(&self) -> Vec<VisitIndex> {
         todo!()
@@ -160,6 +161,7 @@ pub struct Parameters<'a> {
     pub T: TiVec<VisitIndex, usize>,
 }
 
+#[allow(non_snake_case)]
 impl<'a> Parameters<'a> {
     pub fn new(solution: &'a RoutingSolution) -> Self {
         // We'll be writing this a shotload of times. Save ourself some typing
@@ -196,7 +198,7 @@ impl<'a> Parameters<'a> {
             .collect();
 
         let S_min = vec![vec![0.0; p].into(); J.len()].into();
-        let S_max = map!(J, |(v, visit, _)| {
+        let S_max = map!(J, |(_, visit, _)| {
             let capacity = nodes[visit.node].capacity();
             (0..p).map(|i| capacity[i]).collect()
         });
@@ -215,6 +217,14 @@ impl<'a> Parameters<'a> {
         let R = map!(J, |(_, visit, _)| nodes[visit.node].max_loading_amount());
         let T = map!(J, |(_, visit, _)| visit.time);
 
+        let S_min_n = vec![vec![0.0; problem.products()].into(); problem.nodes().len()].into();
+
+        let S_max_n = problem
+            .nodes()
+            .iter()
+            .map(|n| (0..problem.products()).map(|p| n.capacity()[p]).collect())
+            .collect();
+
         Parameters {
             problem,
             N_j,
@@ -230,8 +240,8 @@ impl<'a> Parameters<'a> {
             R,
             T,
             sets,
-            S_min_n: todo!(),
-            S_max_n: todo!(),
+            S_min_n,
+            S_max_n,
         }
     }
 }
@@ -314,7 +324,7 @@ impl<'a> Parameters<'a> {
     /// returns the remaining consumption/production in the node associated with the given visit and product
     pub fn remaining(&self, visit: VisitIndex, p: ProductIndex) -> f64 {
         let arrival = self.T[visit];
-        let node = self.problem.nodes()[*self.N_j[visit]];
+        let node = &self.problem.nodes()[*self.N_j[visit]];
         node.inventory_change(arrival, self.problem.timesteps() - 1, *p)
     }
 }

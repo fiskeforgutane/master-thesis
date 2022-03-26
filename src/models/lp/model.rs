@@ -10,13 +10,13 @@ use log::trace;
 
 #[derive(Constructor)]
 pub struct Variables {
-    x: Vec<Vec<Var>>,
-    s: Vec<Vec<Var>>,
-    l: Vec<Vec<Var>>,
-    w_minus: HashMap<(VisitIndex, ProductIndex), Var>,
-    w_plus: HashMap<(VisitIndex, ProductIndex), Var>,
-    w_minus_end: HashMap<(NodeIndex, ProductIndex), Var>,
-    w_plus_end: HashMap<(NodeIndex, ProductIndex), Var>,
+    pub x: Vec<Vec<Var>>,
+    pub s: Vec<Vec<Var>>,
+    pub l: Vec<Vec<Var>>,
+    pub w_minus: HashMap<(VisitIndex, ProductIndex), Var>,
+    pub w_plus: HashMap<(VisitIndex, ProductIndex), Var>,
+    pub w_minus_end: HashMap<(NodeIndex, ProductIndex), Var>,
+    pub w_plus_end: HashMap<(NodeIndex, ProductIndex), Var>,
 }
 
 pub struct LpSolver {}
