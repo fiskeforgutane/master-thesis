@@ -387,6 +387,12 @@ impl Vessel {
     pub fn compartments(&self) -> &[Compartment] {
         &self.compartments
     }
+
+    /// The total capacity if all compartments are allocated to a the same product type
+    pub fn capacity(&self) -> Quantity {
+        self.compartments.iter().map(|c| c.0).sum()
+    }
+
     /// The cruising speed of this vessel, in distance units per time step
     pub fn speed(&self) -> f64 {
         self.speed

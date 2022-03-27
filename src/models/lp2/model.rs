@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::models::{
     lp::sets_and_parameters::{NodeIndex, ProductIndex, TimeIndex, VesselIndex},
-    utils::{better_vars, AddVars, ConvertVars},
+    utils::better_vars,
 };
 
 use derive_more::Constructor;
@@ -154,11 +154,7 @@ impl LpSolver2 {
                 let i = t[0];
                 let j = t[1];
                 let lhs = *s.get(&(j, *n, *p)).unwrap();
-                let a = V_nt
-                    .get(&(*n, i))
-                    .iter()
-                    .flat_map(|vessels| vessels.iter().map(|v| *x.get(&(i, *n, *v, *p)).unwrap()))
-                    .grb_sum();
+
                 let rhs = *s.get(&(i, *n, *p)).unwrap()
                     - parameters.I[*n]
                         * V_nt
