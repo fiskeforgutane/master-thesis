@@ -69,10 +69,20 @@ pub struct Parameters<'a> {
 }
 
 impl<'a> Parameters<'a> {
-    pub fn D(n: NodeIndex, i: TimeIndex, j: TimeIndex, p: ProductIndex) {}
+    pub fn D(
+        &self,
+        n: NodeIndex,
+        i: TimeIndex,
+        j: TimeIndex,
+        p: ProductIndex,
+    ) -> Result<f64, Error> {
+        self.check_time_periods(i, j)?;
+        let node = &self.problem.nodes()[*n];
+        Ok(f64::abs(node.inventory_change(*i, *j - 1, *p)))
+    }
 
     pub fn check_time_periods(&self, i: TimeIndex, j: TimeIndex) -> Result<(), Error> {
-        if i > j {
+        if i >= j {
             return Err(Error::WrongOrderException(format!(
                 "{:?} is larger than {:?} - given in wrong order",
                 i, j
