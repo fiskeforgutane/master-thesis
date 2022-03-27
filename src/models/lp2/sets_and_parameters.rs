@@ -79,9 +79,16 @@ impl Sets {
                     let t = TimeIndex::from(t);
                     N_t.entry(t).or_default().push(n);
                     V_nt.entry((n, t)).or_default().push(VesselIndex::from(v));
+
                     match problem.nodes()[v1.node].r#type() {
-                        NodeType::Consumption => N_tC.entry(t).or_default().push(n),
-                        NodeType::Production => N_tP.entry(t).or_default().push(n),
+                        NodeType::Consumption => {
+                            N_tC.entry(t).or_default().push(n);
+                            N_tP.entry(t).or_insert(Vec::new());
+                        }
+                        NodeType::Production => {
+                            N_tP.entry(t).or_default().push(n);
+                            N_tC.entry(t).or_insert(Vec::new());
+                        }
                     }
 
                     T_n[n].push(t);
@@ -106,8 +113,8 @@ impl Sets {
         N_tP.values_mut().for_each(|xs| normalize!(xs));
         N_tC.values_mut().for_each(|xs| normalize!(xs));
         T_n.iter_mut().for_each(|xs| normalize!(xs));
+        normalize!(T);
 
-        let T = (0..problem.timesteps()).map(TimeIndex::from).collect();
         let P = (0..problem.products()).map(ProductIndex::from).collect();
         let V = (0..problem.vessels().len()).map(From::from).collect();
         let N = (0..problem.nodes().len()).map(NodeIndex::from).collect();
