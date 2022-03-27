@@ -37,9 +37,9 @@ pub struct Sets {
     /// Vessels performing a visit (or can perform a visit) at node n in time period t
     pub V_nt: HashMap<(NodeIndex, TimeIndex), Vec<VesselIndex>>,
     /// Production nodes in N_t
-    pub N_tP: HashMap<TimeIndex, Vec<TimeIndex>>,
+    pub N_tP: HashMap<TimeIndex, Vec<NodeIndex>>,
     /// Consumption nodes in N_t
-    pub N_tC: HashMap<TimeIndex, Vec<TimeIndex>>,
+    pub N_tC: HashMap<TimeIndex, Vec<NodeIndex>>,
     /// Time periods in which the node n can be visited
     pub T_n: Vec<Vec<TimeIndex>>,
 }
