@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::models::utils::{vars, vars2, AddVars, ConvertVars};
+use crate::models::utils::{vars2, vars3, AddVars, ConvertVars};
 
 use super::sets_and_parameters::{NodeIndex, Parameters, ProductIndex, Sets, VisitIndex};
 use derive_more::Constructor;
@@ -55,7 +55,7 @@ impl LpSolver {
             P.into_iter().cloned()
         )
         .collect();
-        let w_minus = vars(
+        let w_minus = vars3(
             indices,
             &mut model,
             VarType::Continuous,
@@ -69,7 +69,7 @@ impl LpSolver {
             P.into_iter().map(|p| *p)
         )
         .collect();
-        let w_plus = vars(
+        let w_plus = vars3(
             indices,
             &mut model,
             VarType::Continuous,

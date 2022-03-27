@@ -168,7 +168,7 @@ macro_rules! map {
 
 #[allow(non_snake_case)]
 impl<'a> Parameters<'a> {
-    pub fn new(&self, solution: &'a RoutingSolution) -> Self {
+    pub fn new(solution: &'a RoutingSolution) -> Self {
         let problem = solution.problem();
         let p = problem.products();
         let sets = Sets::new(solution);

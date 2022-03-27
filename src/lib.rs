@@ -9,6 +9,9 @@ use models::lp::model::LpResult;
 use models::lp::model::LpSolver;
 use models::lp::sets_and_parameters::Parameters;
 use models::lp::sets_and_parameters::Sets;
+use models::lp2;
+use models::lp2::model::LpResult2;
+use models::lp2::model::LpSolver2;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -303,10 +306,17 @@ impl Visit {
 }
 
 #[pyfunction]
-fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<LpResult> {
+fn solve_quantities_old(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<LpResult> {
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     let parameters = Parameters::new(&solution);
     LpSolver::solve(&parameters.sets, &parameters).map_err(pyerr)
+}
+
+#[pyfunction]
+fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<LpResult2> {
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    let parameters = lp2::sets_and_parameters::Parameters::new(&solution);
+    LpSolver2::solve(&parameters.sets, &parameters).map_err(pyerr)
 }
 
 #[pyfunction]
@@ -333,6 +343,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_quantities_old, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
