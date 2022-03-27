@@ -33,7 +33,7 @@ pub struct Sets {
     /// Set of vessels
     pub V: Vec<VesselIndex>,
     /// Nodes being visited (or a visit can be active) in time period t
-    pub N_t: HashMap<TimeIndex, Vec<TimeIndex>>,
+    pub N_t: HashMap<TimeIndex, Vec<NodeIndex>>,
     /// Vessels performing a visit (or can perform a visit) at node n in time period t
     pub V_nt: HashMap<(NodeIndex, TimeIndex), Vec<VesselIndex>>,
     /// Production nodes in N_t
@@ -41,7 +41,7 @@ pub struct Sets {
     /// Consumption nodes in N_t
     pub N_tC: HashMap<TimeIndex, Vec<NodeIndex>>,
     /// Time periods in which the node n can be visited
-    pub T_n: Vec<Vec<TimeIndex>>,
+    pub T_n: TiVec<NodeIndex, Vec<TimeIndex>>,
 }
 
 #[allow(non_snake_case)]
@@ -69,6 +69,7 @@ pub struct Parameters<'a> {
 }
 
 impl<'a> Parameters<'a> {
+    /// Quantity of product p produced/consumed at the node in the **exclusive** range [i,j)
     pub fn D(
         &self,
         n: NodeIndex,
@@ -79,6 +80,27 @@ impl<'a> Parameters<'a> {
         self.check_time_periods(i, j)?;
         let node = &self.problem.nodes()[*n];
         Ok(f64::abs(node.inventory_change(*i, *j - 1, *p)))
+    }
+
+    /// total consumption of node n of product p
+    pub fn D_tot(&self, n: NodeIndex, p: ProductIndex) -> Result<f64, Error> {
+        self.D(n, 0.into(), self.problem.timesteps().into(), p)
+    }
+
+    /// The remaining consumption of a node n of product p from the given time period
+    pub fn D_rem(&self, n: NodeIndex, p: ProductIndex, t: TimeIndex) -> Result<f64, Error> {
+        self.D(n, t, self.problem.timesteps().into(), p)
+    }
+
+    /// get the lower limit of product p at the given node in the last time period
+    pub fn S_min(&self, n: NodeIndex, p: ProductIndex) -> f64 {
+        0.0
+    }
+
+    /// get the upper limit of product p at the given node in the last time period
+    pub fn S_max(&self, n: NodeIndex, p: ProductIndex) -> f64 {
+        let node = &self.problem.nodes()[*n];
+        node.capacity()[*p]
     }
 
     pub fn check_time_periods(&self, i: TimeIndex, j: TimeIndex) -> Result<(), Error> {
