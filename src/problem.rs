@@ -390,7 +390,7 @@ impl Vessel {
 
     /// The total capacity if all compartments are allocated to a the same product type
     pub fn capacity(&self) -> Quantity {
-        self.compartments.iter().sum()
+        self.compartments.iter().map(|c| c.0).sum()
     }
 
     /// The cruising speed of this vessel, in distance units per time step
