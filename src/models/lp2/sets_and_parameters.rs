@@ -37,11 +37,101 @@ pub struct Sets {
     /// Vessels performing a visit (or can perform a visit) at node n in time period t
     pub V_nt: HashMap<(NodeIndex, TimeIndex), Vec<VesselIndex>>,
     /// Production nodes in N_t
-    pub N_tP: HashMap<TimeIndex, Vec<TimeIndex>>,
+    pub N_tP: HashMap<TimeIndex, Vec<NodeIndex>>,
     /// Consumption nodes in N_t
-    pub N_tC: HashMap<TimeIndex, Vec<TimeIndex>>,
+    pub N_tC: HashMap<TimeIndex, Vec<NodeIndex>>,
     /// Time periods in which the node n can be visited
-    pub T_n: Vec<Vec<TimeIndex>>,
+    pub T_n: TiVec<NodeIndex, Vec<TimeIndex>>,
+}
+
+#[allow(non_snake_case)]
+impl Sets {
+    pub fn new(solution: &RoutingSolution) -> Sets {
+        let problem = solution.problem();
+
+        let mut N_t = HashMap::<TimeIndex, Vec<_>>::new();
+        let mut V_nt = HashMap::<(NodeIndex, TimeIndex), Vec<VesselIndex>>::new();
+        let mut N_tP = HashMap::<TimeIndex, Vec<NodeIndex>>::new();
+        let mut N_tC = HashMap::<TimeIndex, Vec<NodeIndex>>::new();
+        let mut T_n = vec![Vec::new(); problem.nodes().len()].into();
+        let mut T = Vec::new();
+
+        for (v, plan) in solution.iter().enumerate() {
+            let vessel = &problem.vessels()[v];
+            // An artificial "last visit" to the same node in the final time step
+            let last = plan.last().map(|v| Visit {
+                node: v.node,
+                time: problem.timesteps(),
+            });
+
+            for (v1, v2) in plan.iter().chain(last.as_ref()).tuple_windows() {
+                let n = NodeIndex::from(v1.node);
+                // We must determine when we need to leave `v1.node` in order to make it to `v2.node` in time.
+                // Some additional arithmetic parkour is done to avoid underflow cases (damn usizes).
+                let travel_time = problem.travel_time(v1.node, v2.node, vessel);
+                let departure_time = v2.time - v2.time.min(travel_time);
+                // In addition, we can further restrict the active time periods by looking at the longest possible time
+                // the vessel can spend at the node doing constant loading/unloading.
+                let rate = problem.nodes()[v1.node].min_unloading_amount();
+                let max_loading_time = (vessel.capacity() / rate).ceil() as usize;
+                // let time_available = departure_time.max(v1.time) - v1.time;
+                for t in v1.time..departure_time.min(v1.time + max_loading_time) {
+                    let t = TimeIndex::from(t);
+                    N_t.entry(t).or_default().push(t);
+                    V_nt.entry((n, t)).or_default().push(VesselIndex::from(v));
+                    match problem.nodes()[v1.node].r#type() {
+                        NodeType::Consumption => N_tC.entry(t).or_default().push(n),
+                        NodeType::Production => N_tP.entry(t).or_default().push(n),
+                    }
+
+                    T_n[n].push(t);
+                    T.push(t);
+                }
+            }
+        }
+
+        // Sort and dedup
+        macro_rules! normalize {
+            ($it:expr) => {{
+                $it.sort_unstable_by_key(|x| x.into());
+                $it.dedup();
+            }};
+        }
+
+        N_t.values_mut().for_each(|xs| normalize!(xs));
+        V_nt.values_mut().for_each(|xs| normalize!(xs));
+        N_tP.values_mut().for_each(|xs| normalize!(xs));
+        N_tC.values_mut().for_each(|xs| normalize!(xs));
+        T_n.iter_mut().for_each(|xs| normalize!(xs));
+
+        let T = (0..problem.timesteps()).map(TimeIndex::from).collect();
+        let P = (0..problem.products()).map(ProductIndex::from).collect();
+        let V = (0..problem.vessels().len()).map(From::from).collect();
+        let N = (0..problem.nodes().len()).map(NodeIndex::from).collect();
+        let mut N_P = Vec::new();
+        let mut N_C = Vec::new();
+
+        for (n, node) in problem.nodes().iter().enumerate() {
+            match node.r#type() {
+                NodeType::Consumption => N_C.push(NodeIndex::from(n)),
+                NodeType::Production => N_P.push(NodeIndex::from(n)),
+            }
+        }
+
+        Sets {
+            T,
+            N,
+            N_P,
+            N_C,
+            P,
+            V,
+            N_t,
+            V_nt,
+            N_tP,
+            N_tC,
+            T_n,
+        }
+    }
 }
 
 #[allow(non_snake_case)]
@@ -50,7 +140,6 @@ pub struct Parameters<'a> {
     pub sets: Sets,
     /// The problem these parameters "belong" to.
     pub problem: &'a Problem,
-
     /// Capacity of each vessel v in V
     pub Q: TiVec<VesselIndex, f64>,
     /// initial load of vessel v of product p
