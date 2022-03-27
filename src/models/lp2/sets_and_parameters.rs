@@ -184,17 +184,21 @@ impl<'a> Parameters<'a> {
         let L_0 = map!(problem.vessels(), |vessel| {
             (0..p).map(|i| vessel.initial_inventory()[i]).collect()
         });
-        let S_0 = sets
-            .T_n
+        let S_0 = problem
+            .nodes()
             .iter()
-            .enumerate()
-            .map(|(n, times)| {
-                let time = times.first().cloned().unwrap_or(TimeIndex::from(0));
-                (0..p)
-                    .map(|i| problem.nodes()[n].inventory_without_deliveries(i)[*time])
-                    .collect()
-            })
+            .map(|n| (0..p).map(|p| n.initial_inventory()[p]).collect())
             .collect();
+        /* let S_0 = sets
+        .T_n
+        .iter()
+        .enumerate()
+        .map(|(n, times)| {
+            let time = times.first().cloned().unwrap_or(TimeIndex::from(0));
+            let inventory = problem.nodes()[n].inventory_without_deliveries(*time);
+            (0..p).map(|i| inventory[i]).collect()
+        })
+        .collect(); */
         let S_min = sets
             .T_n
             .iter_enumerated()

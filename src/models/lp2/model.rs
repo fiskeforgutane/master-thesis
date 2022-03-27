@@ -143,7 +143,8 @@ impl LpSolver2 {
                 // time period of first vist
                 let t_0 = T_n[*n].first().unwrap();
                 let lhs = *s.get(&(*t_0, *n, *p)).unwrap();
-                let rhs = parameters.S_0[*n][*p];
+                let rhs = parameters.S_0[*n][*p]
+                    - parameters.I[*n] * parameters.D(*n, 0.into(), *t_0, *p).unwrap();
                 model.add_constr(&format!("init_inv_{:?}_{:?}", n, p), c!(lhs == rhs))?;
             }
         }
