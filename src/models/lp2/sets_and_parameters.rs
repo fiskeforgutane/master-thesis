@@ -79,9 +79,16 @@ impl Sets {
                     let t = TimeIndex::from(t);
                     N_t.entry(t).or_default().push(n);
                     V_nt.entry((n, t)).or_default().push(VesselIndex::from(v));
+
                     match problem.nodes()[v1.node].r#type() {
-                        NodeType::Consumption => N_tC.entry(t).or_default().push(n),
-                        NodeType::Production => N_tP.entry(t).or_default().push(n),
+                        NodeType::Consumption => {
+                            N_tC.entry(t).or_default().push(n);
+                            N_tP.entry(t).or_insert(Vec::new());
+                        }
+                        NodeType::Production => {
+                            N_tP.entry(t).or_default().push(n);
+                            N_tC.entry(t).or_insert(Vec::new());
+                        }
                     }
 
                     T_n[n].push(t);
