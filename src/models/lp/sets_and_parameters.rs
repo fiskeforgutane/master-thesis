@@ -27,6 +27,9 @@ pub struct ProductIndex(usize);
 #[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
 pub struct VisitIndex(usize);
 
+#[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
+pub struct TimeIndex(usize);
+
 #[allow(non_snake_case)]
 pub struct Sets {
     /// Set of products
