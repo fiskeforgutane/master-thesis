@@ -1,5 +1,6 @@
 use grb::{Expr, Model, Result, Var, VarType};
-use std::{collections::HashMap, ops::Range};
+use std::hash::Hash;
+use std::{collections::HashMap, fmt::Debug, ops::Range};
 
 pub trait AddVars {
     type Out;
@@ -309,8 +310,33 @@ impl ConvertVars for Var {
     }
 }
 
+pub fn better_vars<K>(
+    indices: Vec<K>,
+    model: &mut Model,
+    vtype: VarType,
+    bounds: &Range<f64>,
+    name: &str,
+) -> Result<HashMap<K, Var>>
+where
+    K: Eq + Hash + Debug,
+{
+    let mut res = HashMap::new();
+    for idx in indices {
+        let var = model.add_var(
+            &format!("{:?}_{:?}", name, idx),
+            vtype,
+            0.0,
+            bounds.start,
+            bounds.end,
+            std::iter::empty(),
+        )?;
+        res.insert(idx, var);
+    }
+    Ok(res)
+}
+
 /// Create variables over the given indices
-pub fn vars(
+pub fn vars3(
     indices: Vec<(VisitIndex, ProductIndex)>,
     model: &mut Model,
     vtype: VarType,
