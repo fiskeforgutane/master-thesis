@@ -156,6 +156,9 @@ impl QuantityLp {
         QuantityLp::load_constraints(&mut model, problem, &l, &w, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
 
+        let obj = w.iter().flatten().flatten().grb_sum();
+        model.set_objective(obj, grb::ModelSense::Minimize)?;
+
         Ok(QuantityLp {
             model,
             vars: Variables { w, x, s, l },
