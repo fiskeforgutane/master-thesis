@@ -183,8 +183,9 @@ impl<'a> Parameters<'a> {
             .enumerate()
             .map(|(n, times)| {
                 let time = times.first().cloned().unwrap_or(TimeIndex::from(0));
-                let inventory = problem.nodes()[n].inventory_without_deliveries(*time);
-                (0..p).map(|i| inventory[i]).collect()
+                (0..p)
+                    .map(|i| problem.nodes()[n].inventory_without_deliveries(i)[*time])
+                    .collect()
             })
             .collect();
         let S_min = sets
