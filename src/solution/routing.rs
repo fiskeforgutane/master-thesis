@@ -175,10 +175,12 @@ impl RoutingSolution {
     }
 
     fn quantities(&self) -> Ref<'_, QuantityLp> {
-        // If the LP hasn't been solved for the curren state, we'll do so
+        // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
         if !cache.solved.get() {
-            cache.quantity.borrow_mut().solve().expect("solve failed");
+            let mut lp = self.cache.quantity.borrow_mut();
+            lp.configure(self).expect("configure failed");
+            lp.solve().expect("solve failed");
             self.cache.solved.set(true);
         }
 
@@ -262,6 +264,7 @@ impl DerefMut for RoutingSolutionMut<'_> {
 impl Drop for RoutingSolutionMut<'_> {
     fn drop(&mut self) {
         self.0.invalidate_caches();
+
         let timesteps = self.0.problem.timesteps();
 
         // Check that the visit times are correct
