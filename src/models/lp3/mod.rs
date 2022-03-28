@@ -156,6 +156,8 @@ impl QuantityLp {
 
     pub fn new(problem: &Problem) -> grb::Result<Self> {
         let mut model = Model::new(&format!("quantities"))?;
+        model.set_param(grb::param::OutputFlag, 0)?;
+
         let t = problem.timesteps();
         let n = problem.nodes().len();
         let v = problem.vessels().len();
@@ -238,6 +240,16 @@ impl QuantityLp {
         model.set_obj_attr_batch(
             grb::attr::UB,
             Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
+        )?;
+
+        model.set_obj_attr_batch(
+            grb::attr::VType,
+            self.vars.x.iter().flat_map(|xs| {
+                xs.iter().flat_map(|xs| {
+                    xs.iter()
+                        .flat_map(|xs| xs.iter().map(|x| (*x, grb::VarType::SemiCont)))
+                })
+            }),
         )?;
 
         Ok(())
