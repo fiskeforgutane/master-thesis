@@ -6,7 +6,7 @@ use std::{
 use derive_more::Constructor;
 use pyo3::pyclass;
 
-use crate::solution::Delivery;
+use crate::solution::Visit;
 
 /// A point in Euclidean 2d-space.
 pub struct Point(f64, f64);
@@ -142,13 +142,11 @@ impl Problem {
     }
 
     /// Return the `origin` visit of a `vessel`
-    pub fn origin_visit(&self, vessel: VesselIndex) -> Delivery {
+    pub fn origin_visit(&self, vessel: VesselIndex) -> Visit {
         let vessel = &self.vessels[vessel];
-        Delivery {
+        Visit {
             node: vessel.origin(),
-            product: 0,
             time: vessel.available_from(),
-            quantity: 0.0,
         }
     }
 }
