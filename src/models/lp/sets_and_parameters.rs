@@ -16,19 +16,19 @@ pub enum Error {
 }
 
 #[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
-pub struct NodeIndex(usize);
+pub struct NodeIndex(pub usize);
 
 #[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
-pub struct VesselIndex(usize);
+pub struct VesselIndex(pub usize);
 
 #[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
-pub struct ProductIndex(usize);
+pub struct ProductIndex(pub usize);
 
 #[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
-pub struct VisitIndex(usize);
+pub struct VisitIndex(pub usize);
 
 #[derive(Deref, Debug, PartialEq, Eq, PartialOrd, From, Into, Clone, Copy, Hash)]
-pub struct TimeIndex(usize);
+pub struct TimeIndex(pub usize);
 
 #[allow(non_snake_case)]
 pub struct Sets {
