@@ -222,6 +222,24 @@ impl RoutingSolution {
         }
     }
 
+    /// Recycle this solution into a new fresh one with no content.
+    /// This allows us to reuse the inner heap-allocated structures.
+    /// The result is an empty solution that is unlikely to need allocations when pushing visits,
+    /// and which will reuse the quantity LP.
+    pub fn recycle(mut self) -> Self {
+        // We clear any old data. Since caches are invalidated, the new owner of our data
+        // will not be able to see our (now deleted) data or our cached data.
+        for plan in self.mutate().iter_mut() {
+            plan.mutate().clear();
+        }
+
+        Self {
+            problem: self.problem,
+            routes: self.routes,
+            cache: self.cache,
+        }
+    }
+
     fn update_warp(&self) -> usize {
         let mut warp = 0;
         for (v, route) in self.routes.iter().enumerate() {
@@ -271,26 +289,6 @@ impl<'a> RoutingSolutionMut<'a> {
         let two = &mut rest[max - min - 1];
 
         (one, two)
-    }
-}
-
-impl<'a> IntoIterator for &'a RoutingSolutionMut<'a> {
-    type Item = &'a Plan;
-
-    type IntoIter = <&'a [Plan] as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a mut RoutingSolutionMut<'a> {
-    type Item = &'a mut Plan;
-
-    type IntoIter = <&'a mut [Plan] as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter_mut()
     }
 }
 
