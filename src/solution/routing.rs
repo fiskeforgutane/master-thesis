@@ -249,8 +249,9 @@ impl RoutingSolution {
 
                 let needed = self.problem.travel_time(v1.node, v2.node, vessel);
                 let available = v2.time - v1.time;
-
-                warp += std::cmp::max(needed - available, 0);
+                // Note: equivalent to max(needed - available, 0) for signed variables.
+                // we need to use this instead to avoid underflow.
+                warp += needed.max(available) - available;
             }
         }
 
