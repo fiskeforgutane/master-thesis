@@ -1,12 +1,12 @@
 #[macro_use]
 pub mod mutations;
+pub mod chromosome;
 pub mod initialization;
 pub mod parent_selection;
 pub mod penalizers;
 pub mod recombinations;
 pub mod survival_selection;
 pub mod traits;
-pub mod chromosome;
 
 use std::sync::Arc;
 

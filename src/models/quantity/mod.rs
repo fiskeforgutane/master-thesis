@@ -1,10 +1,4 @@
-use std::collections::HashMap;
-
-use grb::{
-    attr, c,
-    expr::{GurobiSum, LinExpr},
-    Model, Var,
-};
+use grb::{c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
 
@@ -36,8 +30,8 @@ pub struct F64Variables {
 }
 
 pub struct QuantityLp {
-    model: Model,
-    vars: Variables,
+    pub model: Model,
+    pub vars: Variables,
     semicont: bool,
 }
 
@@ -93,7 +87,6 @@ impl QuantityLp {
         model: &mut Model,
         problem: &Problem,
         l: &[Vec<Vec<Var>>],
-        w: &[Vec<Vec<Var>>],
         x: &[Vec<Vec<Vec<Var>>>],
         t: usize,
         n: usize,
@@ -173,7 +166,7 @@ impl QuantityLp {
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
         QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, t, n, v, p)?;
-        QuantityLp::load_constraints(&mut model, problem, &l, &w, &x, t, n, v, p)?;
+        QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
 
         let obj = w.iter().flatten().flatten().grb_sum();
@@ -232,7 +225,6 @@ impl QuantityLp {
         // By default: disable `all` variables
         let model = &self.model;
         let problem = solution.problem();
-        let timesteps = problem.timesteps();
 
         // Disable all x(t, n, v, p) variables
         model.set_obj_attr_batch(
