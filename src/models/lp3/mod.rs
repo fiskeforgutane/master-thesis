@@ -149,8 +149,8 @@ impl QuantityLp {
 
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
-            NodeType::Consumption => 1.0,
-            NodeType::Production => -1.0,
+            NodeType::Consumption => -1.0,
+            NodeType::Production => 1.0,
         }
     }
 
