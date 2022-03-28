@@ -5,15 +5,8 @@ pub mod quants;
 pub mod route_pool;
 pub mod solution;
 
-use models::lp::model::LpResult;
-use models::lp::model::LpSolver;
-use models::lp::sets_and_parameters::Parameters;
-use models::lp::sets_and_parameters::Sets;
-use models::lp2;
-use models::lp2::model::LpResult2;
-use models::lp2::model::LpSolver2;
-use models::lp3::F64Variables;
-use models::lp3::QuantityLp;
+use models::quantity::F64Variables;
+use models::quantity::QuantityLp;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -308,20 +301,6 @@ impl Visit {
 }
 
 #[pyfunction]
-fn solve_quantities_old(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<LpResult> {
-    let solution = RoutingSolution::new(Arc::new(problem), routes);
-    let parameters = Parameters::new(&solution);
-    LpSolver::solve(&parameters.sets, &parameters).map_err(pyerr)
-}
-
-#[pyfunction]
-fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<LpResult2> {
-    let solution = RoutingSolution::new(Arc::new(problem), routes);
-    let parameters = lp2::sets_and_parameters::Parameters::new(&solution);
-    LpSolver2::solve(&parameters.sets, &parameters).map_err(pyerr)
-}
-
-#[pyfunction]
 fn initial_quantities(problem: &Problem, product: usize) -> HashMap<usize, f64> {
     Quantities::quantities(problem, product)
 }
@@ -332,7 +311,7 @@ fn initial_orders(problem: &Problem) -> PyResult<Vec<Order>> {
 }
 
 #[pyfunction]
-fn solve_quantities_lp(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F64Variables> {
+fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F64Variables> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     lp.configure(&solution).map_err(pyerr)?;
@@ -341,7 +320,7 @@ fn solve_quantities_lp(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F6
 }
 
 #[pyfunction]
-fn solve_multiple(
+fn solve_multiple_quantities(
     problem: Problem,
     solutions: Vec<Vec<Vec<Visit>>>,
 ) -> PyResult<Vec<F64Variables>> {
@@ -372,9 +351,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
-    m.add_function(wrap_pyfunction!(solve_quantities_old, m)?)?;
-    m.add_function(wrap_pyfunction!(solve_quantities_lp, m)?)?;
-    m.add_function(wrap_pyfunction!(solve_multiple, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
@@ -384,13 +361,13 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
-    m.add_class::<LpResult>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
 
     Ok(())
 }
 
+#[allow(unused_macros)]
 macro_rules! impl_repr {
     ($type:ident) => {
         #[pymethods]
@@ -405,5 +382,3 @@ macro_rules! impl_repr {
         }
     };
 }
-
-impl_repr!(LpResult);
