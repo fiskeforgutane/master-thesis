@@ -81,24 +81,6 @@ impl LpSolver2 {
             "w_plus",
         )?;
 
-        /* let indices = iproduct!(N_P.iter().cloned(), P.iter().cloned()).collect();
-        let w_end_plus = better_vars(
-            indices,
-            &mut model,
-            VarType::Continuous,
-            &(0.0..f64::INFINITY),
-            "w_end_plus",
-        )?;
-
-        let indices = iproduct!(N_C.iter().cloned(), P.iter().cloned()).collect();
-        let w_end_minus = better_vars(
-            indices,
-            &mut model,
-            VarType::Continuous,
-            &(0.0..f64::INFINITY),
-            "w_end_minus",
-        )?; */
-
         // ******************** ADD CONSTRAINTS ********************
 
         // INVENTORY CONSTRAINTS
@@ -182,39 +164,6 @@ impl LpSolver2 {
                 &format!("load_rate_bound_{:?}_{:?}_{:?}_{:?}", t, n, v, p),
                 c!(lhs <= rhs),
             )?;
-
-            /*  // bound from node inventory
-            let rhs = match parameters.I[n] as isize {
-                //prodution
-                1 => *s.get(&(t, n, p)).unwrap() - *parameters.S_min.get(&(n, p, t)).unwrap(),
-                // consumption
-                -1 => *parameters.S_max.get(&(n, p, t)).unwrap() - *s.get(&(t, n, p)).unwrap(),
-                _ => unreachable!(),
-            };
-            model.add_constr(
-                &format!("load_bound_inv_{:?}_{:?}_{:?}_{:?}", t, n, v, p),
-                c!(lhs <= rhs),
-            )?;
-
-            // bound from vessel load and capacity
-            let rhs = match parameters.I[n] as isize {
-                //prodution
-                1 => {
-                    parameters.Q[v]
-                        - P.iter()
-                            .cloned()
-                            .map(|p| *l.get(&(t, v, p)).unwrap())
-                            .grb_sum()
-                }
-                // consumption
-                -1 => *l.get(&(t, v, p)).unwrap() + 0.0,
-                _ => unreachable!(),
-            };
-
-            model.add_constr(
-                &format!("load_bound_load_{:?}_{:?}_{:?}_{:?}", t, n, v, p),
-                c!(lhs <= rhs),
-            )?; */
         }
 
         // VESSE LOAD CONSTRAINTS
@@ -242,6 +191,10 @@ impl LpSolver2 {
         for (v, t) in iproduct!(V.iter().cloned(), T.iter().cloned()) {
             let lhs = P.iter().map(|p| l[*t][*v][**p]).grb_sum();
             let rhs = parameters.Q[v];
+            model.add_constr(
+                &format!("vessel_load_bound_{:?}_{:?}", v, t),
+                c!(lhs <= rhs),
+            )?;
         }
 
         // SET OBJECTIVE
