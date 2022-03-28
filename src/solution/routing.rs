@@ -7,7 +7,7 @@ use std::{ops::Deref, sync::Arc};
 use pyo3::pyclass;
 
 use crate::models::quantity::{QuantityLp, Variables};
-use crate::problem::{Problem, Quantity, VesselIndex};
+use crate::problem::{Cost, Problem, Quantity, VesselIndex};
 use crate::solution::Visit;
 
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
@@ -85,6 +85,8 @@ pub struct Cache {
     solved: Cell<bool>,
     /// The total inventory violations (excess/shortage)
     violation: Cell<Option<Quantity>>,
+    /// The total cost of the solution.
+    cost: Cell<Option<Cost>>,
 }
 
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
@@ -120,6 +122,7 @@ impl Clone for RoutingSolution {
                 ),
                 solved: Cell::new(false),
                 violation: Cell::new(None),
+                cost: Cell::new(None),
             },
         }
     }
@@ -145,6 +148,7 @@ impl RoutingSolution {
             quantity: RefCell::new(QuantityLp::new(&problem).unwrap()),
             solved: Cell::new(false),
             violation: Cell::new(None),
+            cost: Cell::new(None),
         };
 
         Self {
@@ -156,6 +160,18 @@ impl RoutingSolution {
 
     pub fn problem(&self) -> &Problem {
         &self.problem
+    }
+
+    /// Loop over each plan in order, and include the origin visit of the vessel as the first visit
+    pub fn iter_with_origin(&self) -> impl Iterator<Item = impl Iterator<Item = Visit> + '_> + '_ {
+        self.iter().enumerate().map(|(v, plan)| {
+            let vessel = &self.problem.vessels()[v];
+            let node = vessel.origin();
+            let time = vessel.available_from();
+            let first = std::iter::once(Visit { node, time });
+
+            first.chain(plan.iter().cloned())
+        })
     }
 
     /// Retrieve the amount of time warp in this solution. Time warp occurs when two visits at different nodes are
@@ -264,6 +280,7 @@ impl RoutingSolution {
         self.cache.warp.set(None);
         self.cache.solved.set(false);
         self.cache.violation.set(None);
+        self.cache.cost.set(None);
     }
 }
 
