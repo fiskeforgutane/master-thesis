@@ -162,6 +162,15 @@ impl RoutingSolution {
         &self.problem
     }
 
+    /// An artificial "terminal visit" for a plan at the same node as the last actual visit at the timestep
+    /// just after the end of the planning horizon
+    pub fn artificial_end(&self, vessel: VesselIndex) -> Option<Visit> {
+        self[vessel].last().map(|v| Visit {
+            node: v.node,
+            time: self.problem().timesteps(),
+        })
+    }
+
     /// Loop over each plan in order, and include the origin visit of the vessel as the first visit
     pub fn iter_with_origin(&self) -> impl Iterator<Item = impl Iterator<Item = Visit> + '_> + '_ {
         self.iter().enumerate().map(|(v, plan)| {
