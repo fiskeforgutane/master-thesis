@@ -374,6 +374,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities_old, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities_lp, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_multiple, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
