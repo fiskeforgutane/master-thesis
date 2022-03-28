@@ -174,6 +174,25 @@ impl RoutingSolution {
         })
     }
 
+    /// Loop over each plan in order, including the origin visit at the start, and an artificial terminal
+    /// visit at the very end.
+    pub fn iter_with_terminals(
+        &self,
+    ) -> impl Iterator<Item = impl Iterator<Item = Visit> + '_> + '_ {
+        self.iter().enumerate().map(|(v, plan)| {
+            let vessel = &self.problem.vessels()[v];
+            let node = vessel.origin();
+            let time = vessel.available_from();
+            let first = std::iter::once(Visit { node, time });
+            let end = plan.last().map(|v| Visit {
+                node: v.node,
+                time: self.problem.timesteps(),
+            });
+
+            first.chain(plan.iter().cloned()).chain(end)
+        })
+    }
+
     /// Retrieve the amount of time warp in this solution. Time warp occurs when two visits at different nodes are
     /// too close apart in time, such that it is impossible to go from one of them to the other in time.
     pub fn warp(&self) -> usize {

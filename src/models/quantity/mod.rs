@@ -183,23 +183,15 @@ impl QuantityLp {
         solution: &'s RoutingSolution,
     ) -> impl Iterator<Item = (TimeIndex, NodeIndex, VesselIndex, ProductIndex)> + 's {
         let problem = solution.problem();
-        let timesteps = problem.timesteps();
         let p = problem.products();
 
-        solution.iter().enumerate().flat_map(move |(v, plan)| {
-            let vessel = &problem.vessels()[v];
-            // An artifical "last node" at the same node as the last visit
-            // just after then end of the planning period.
-            let last = plan.last().map(|v| Visit {
-                node: v.node,
-                time: timesteps,
-            });
+        solution
+            .iter_with_terminals()
+            .enumerate()
+            .flat_map(move |(v, plan)| {
+                let vessel = &problem.vessels()[v];
 
-            plan.iter()
-                .cloned()
-                .chain(last)
-                .tuple_windows()
-                .flat_map(move |(v1, v2)| {
+                plan.tuple_windows().flat_map(move |(v1, v2)| {
                     // We must determine when we need to leave `v1.node` in order to make it to `v2.node` in time.
                     // Some additional arithmetic parkour is done to avoid underflow cases (damn usizes).
                     let travel_time = problem.travel_time(v1.node, v2.node, vessel);
@@ -212,7 +204,7 @@ impl QuantityLp {
                     (v1.time..departure_time.min(v1.time + max_loading_time))
                         .flat_map(move |t| (0..p).map(move |p| (t, v1.node, v, p)))
                 })
-        })
+            })
     }
 
     // set variable type for x-variable
