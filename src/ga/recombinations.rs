@@ -43,13 +43,13 @@ impl Recombination for PIX {
 
         let mut routes = left_vessels
             .iter()
-            .map(|i| left.routes()[*i].visits())
+            .map(|i| left[*i].to_vec())
             .collect::<Vec<Vec<Visit>>>();
 
         routes.append(
             &mut right_vessels
                 .iter()
-                .map(|i| right.routes()[*i].visits())
+                .map(|i| right[*i].to_vec())
                 .collect::<Vec<Vec<Visit>>>(),
         );
 
@@ -78,17 +78,8 @@ impl PIX {
         let routes = vessel_indices
             .iter()
             .map(|i| {
-                let split_point = rng.gen_range(
-                    0..min(
-                        left.routes()[*i].visits().len(),
-                        right.routes()[*i].visits().len(),
-                    ),
-                );
-                [
-                    &left.routes()[*i].visits()[..split_point],
-                    &right.routes()[*i].visits()[split_point..],
-                ]
-                .concat()
+                let split_point = rng.gen_range(0..min(left[*i].len(), right[*i].len()));
+                [&left[*i][..split_point], &right[*i][split_point..]].concat()
             })
             .collect();
 

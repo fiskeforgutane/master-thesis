@@ -28,10 +28,6 @@ impl Plan {
     pub fn mutate(&mut self) -> PlanMut<'_> {
         PlanMut(self)
     }
-
-    pub fn visits(&self) -> Vec<Visit> {
-        self.sorted.clone()
-    }
 }
 
 impl Deref for Plan {
@@ -160,10 +156,6 @@ impl RoutingSolution {
 
     pub fn problem(&self) -> &Problem {
         &self.problem
-    }
-
-    pub fn routes(&self) -> &Vec<Plan> {
-        &self.routes
     }
 
     /// Retrieve the amount of time warp in this solution. Time warp occurs when two visits at different nodes are
