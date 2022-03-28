@@ -357,3 +357,42 @@ impl Mutation for IntraSwap {
         v2.node = n1;
     }
 }
+
+pub struct TwoOpt {
+    rand: ThreadRng,
+}
+
+impl Mutation for TwoOpt {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // get random plan where a swap should be performed
+        let v = self.rand.gen_range(0..problem.vessels().len());
+        let mut mutator = solution.mutate();
+        let plan = &mut mutator[v].mutate();
+
+        // select two random visits to swap
+        let v1 = self.rand.gen_range(0..plan.len() - 1);
+        let v2 = self.rand.gen_range(0..plan.len());
+
+        // if v1 and v2 are equal, we don't do anything
+        if v1 == v2 {
+            return;
+        }
+
+        // switch the order of nodes visited in the inclusive range [v1..v2]
+        for i in v1..v2 {
+            let k = v2 - i;
+            // break when we are at the midpoint
+            if k <= i {
+                break;
+            }
+            // swap
+            // get the visits
+            let (v1, v2) = plan.get_pair_mut(v1, v2);
+            let n1 = v1.node;
+
+            // perform the swap
+            v1.node = v2.node;
+            v2.node = n1;
+        }
+    }
+}
