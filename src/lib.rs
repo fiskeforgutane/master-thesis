@@ -1,10 +1,12 @@
 pub mod destroy_and_repair;
+pub mod ga;
 pub mod models;
 pub mod problem;
 pub mod quants;
 pub mod route_pool;
 pub mod solution;
 
+use ga::chromosome::Chromosome;
 use models::quantity::F64Variables;
 use models::quantity::QuantityLp;
 use problem::Compartment;
@@ -243,6 +245,17 @@ impl Compartment {
     }
 }
 
+#[pymethods]
+impl Chromosome {
+    pub fn __str__(&self) -> String {
+        format!("{:#?}", self)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
 fn pyerr<D: Debug>(err: D) -> PyErr {
     PyErr::new::<PyValueError, _>(format!("{:?}", err))
 }
@@ -298,6 +311,11 @@ impl Visit {
     pub fn __repr__(&self) -> String {
         self.__str__()
     }
+}
+
+#[pyfunction]
+fn chromosome(problem: &Problem) -> PyResult<Chromosome> {
+    Chromosome::new(problem).map_err(pyerr)
 }
 
 #[pyfunction]
@@ -361,6 +379,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
+    m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
 

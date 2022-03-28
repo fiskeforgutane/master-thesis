@@ -1,9 +1,10 @@
 use std::cell::Cell;
+use std::ops::DerefMut;
 use std::{ops::Deref, sync::Arc};
 
 use pyo3::pyclass;
 
-use crate::problem::Problem;
+use crate::problem::{Problem, VesselIndex};
 use crate::solution::Visit;
 
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
@@ -17,8 +18,16 @@ pub struct Plan {
 
 impl Plan {
     fn new(mut raw: Vec<Visit>) -> Self {
-        raw.sort_by_key(|v| v.time);
+        raw.sort_unstable_by_key(|visit| visit.time);
         Self { sorted: raw }
+    }
+
+    pub fn mutate(&mut self) -> PlanMut<'_> {
+        PlanMut(self)
+    }
+
+    pub fn visits(&self) -> Vec<Visit> {
+        self.sorted.clone()
     }
 }
 
@@ -38,6 +47,30 @@ impl<'s> IntoIterator for &'s Plan {
     fn into_iter(self) -> Self::IntoIter {
         let slice: &[Visit] = self;
         slice.iter()
+    }
+}
+
+/// A mutable reference to a plan that enforces that enforces that
+/// invariants are upheld after this goes out of scope.
+pub struct PlanMut<'a>(&'a mut Plan);
+
+impl Deref for PlanMut<'_> {
+    type Target = Vec<Visit>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0.sorted
+    }
+}
+
+impl DerefMut for PlanMut<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0.sorted
+    }
+}
+
+impl Drop for PlanMut<'_> {
+    fn drop(&mut self) {
+        self.0.sorted.sort_unstable_by_key(|visit| visit.time);
     }
 }
 
@@ -82,6 +115,18 @@ impl RoutingSolution {
         &self.problem
     }
 
+    pub fn routes(&self) -> &Vec<Plan> {
+        &self.routes
+    }
+
+    pub fn warp(&self) -> usize {
+        self.warp.get().unwrap_or_else(|| self.update_warp())
+    }
+
+    pub fn mutate(&mut self) -> RoutingSolutionMut<'_> {
+        RoutingSolutionMut(self)
+    }
+
     fn update_warp(&self) -> usize {
         let mut warp = 0;
         for (v, route) in self.routes.iter().enumerate() {
@@ -100,7 +145,52 @@ impl RoutingSolution {
         warp
     }
 
-    pub fn warp(&self) -> usize {
-        self.warp.get().unwrap_or_else(|| self.update_warp())
+    fn invalidate_caches(&self) {
+        self.warp.set(None);
+    }
+}
+
+pub struct RoutingSolutionMut<'a>(&'a mut RoutingSolution);
+
+impl<'a> RoutingSolutionMut<'a> {
+    /// Get mutable references for two separate vessels.
+    pub fn get_pair_mut(&mut self, v1: VesselIndex, v2: VesselIndex) -> (&mut Plan, &mut Plan) {
+        assert!(v1 != v2);
+        let min = v1.min(v2);
+        let max = v2.max(v1);
+
+        let (one, rest) = self[min..].split_first_mut().unwrap();
+        let two = &mut rest[max - min - 1];
+
+        (one, two)
+    }
+}
+
+impl Deref for RoutingSolutionMut<'_> {
+    type Target = [Plan];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0.routes
+    }
+}
+
+impl DerefMut for RoutingSolutionMut<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0.routes
+    }
+}
+
+impl Drop for RoutingSolutionMut<'_> {
+    fn drop(&mut self) {
+        self.0.invalidate_caches();
+        let timesteps = self.0.problem.timesteps();
+
+        // Check that the visit times are correct
+        for plan in &self.0.routes {
+            assert!(match plan.last() {
+                Some(visit) => visit.time < timesteps,
+                None => true,
+            });
+        }
     }
 }
