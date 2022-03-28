@@ -34,6 +34,7 @@ impl Recombination for PIX {
 
         let n1 = rng.gen_range(1..=indices.len());
         let n2 = rng.gen_range(1..=indices.len());
+        // Defined the three ranges where we will apply: [unchanged, swapped, crossover]
         let (start, end) = (min(n1, n2), max(n1, n2));
 
         // Shuffle the indices
