@@ -12,6 +12,8 @@ use models::lp::sets_and_parameters::Sets;
 use models::lp2;
 use models::lp2::model::LpResult2;
 use models::lp2::model::LpSolver2;
+use models::lp3::F64Variables;
+use models::lp3::QuantityLp;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -329,6 +331,15 @@ fn initial_orders(problem: &Problem) -> PyResult<Vec<Order>> {
     quants::initial_orders(&problem).map_err(pyerr)
 }
 
+#[pyfunction]
+fn solve_quantities_lp(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F64Variables> {
+    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    lp.configure(&solution).map_err(pyerr)?;
+    let res = lp.solve_python().map_err(pyerr)?;
+    Ok(res)
+}
+
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
@@ -344,6 +355,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities_old, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_quantities_lp, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
@@ -355,6 +367,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Order>()?;
     m.add_class::<LpResult>()?;
     m.add_class::<Visit>()?;
+    m.add_class::<F64Variables>()?;
 
     Ok(())
 }

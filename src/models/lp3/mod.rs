@@ -1,9 +1,10 @@
 use grb::{
-    c,
+    attr, c,
     expr::{GurobiSum, LinExpr},
     Model, Var,
 };
 use itertools::{iproduct, Itertools};
+use pyo3::pyclass;
 
 use crate::{
     models::utils::AddVars,
@@ -11,11 +12,25 @@ use crate::{
     solution::{routing::RoutingSolution, Visit},
 };
 
+use super::utils::ConvertVars;
+
 pub struct Variables {
     pub w: Vec<Vec<Vec<Var>>>,
     pub x: Vec<Vec<Vec<Vec<Var>>>>,
     pub s: Vec<Vec<Vec<Var>>>,
     pub l: Vec<Vec<Vec<Var>>>,
+}
+
+#[pyclass]
+pub struct F64Variables {
+    #[pyo3(get)]
+    pub w: Vec<Vec<Vec<f64>>>,
+    #[pyo3(get)]
+    pub x: Vec<Vec<Vec<Vec<f64>>>>,
+    #[pyo3(get)]
+    pub s: Vec<Vec<Vec<f64>>>,
+    #[pyo3(get)]
+    pub l: Vec<Vec<Vec<f64>>>,
 }
 
 pub struct QuantityLp {
@@ -224,5 +239,26 @@ impl QuantityLp {
         )?;
 
         Ok(())
+    }
+
+    /// Solves the model for the current configuration. Returns the variables
+    /// Should also include dual variables for the upper bounds on x, but this is not implemented yet
+    pub fn solve(&mut self) -> grb::Result<&Variables> {
+        self.model.optimize()?;
+
+        Ok(&self.vars)
+    }
+
+    /// Solves the model for the current configuration. Returns the variables converted to `F64Variables` exposed to python.
+    /// Should also include dual variables for the upper bounds on `x`, but this is not implemented yet
+    pub fn solve_python(&mut self) -> grb::Result<F64Variables> {
+        self.model.optimize()?;
+
+        let w = self.vars.w.convert(&self.model)?;
+        let x = self.vars.x.convert(&self.model)?;
+        let s = self.vars.s.convert(&self.model)?;
+        let l = self.vars.l.convert(&self.model)?;
+
+        Ok(F64Variables { w, x, s, l })
     }
 }
