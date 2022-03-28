@@ -25,6 +25,7 @@ pub struct Variables {
 
 #[pyclass]
 pub struct F64Variables {
+    #[pyo3(get)]
     pub w: Vec<Vec<Vec<f64>>>,
     #[pyo3(get)]
     pub x: Vec<Vec<Vec<Vec<f64>>>>,
