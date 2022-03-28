@@ -1,5 +1,7 @@
+use grb::prelude::*;
 use grb::{Expr, Model, Result, Var, VarType};
-use std::ops::Range;
+use std::hash::Hash;
+use std::{collections::HashMap, fmt::Debug, ops::Range};
 
 pub trait AddVars {
     type Out;
@@ -222,7 +224,6 @@ impl AddVars for (usize, usize, usize, usize, usize) {
     }
 }
 
-use grb::prelude::*;
 #[allow(non_snake_case)]
 pub trait NObjectives {
     /// Adds a new objective to the model
@@ -305,4 +306,29 @@ impl ConvertVars for Var {
     fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
         model.get_obj_attr(attr::X, self)
     }
+}
+
+pub fn better_vars<K>(
+    indices: Vec<K>,
+    model: &mut Model,
+    vtype: VarType,
+    bounds: &Range<f64>,
+    name: &str,
+) -> Result<HashMap<K, Var>>
+where
+    K: Eq + Hash + Debug,
+{
+    let mut res = HashMap::new();
+    for idx in indices {
+        let var = model.add_var(
+            &format!("{:?}_{:?}", name, idx),
+            vtype,
+            0.0,
+            bounds.start,
+            bounds.end,
+            std::iter::empty(),
+        )?;
+        res.insert(idx, var);
+    }
+    Ok(res)
 }

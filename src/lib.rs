@@ -7,6 +7,8 @@ pub mod route_pool;
 pub mod solution;
 
 use ga::chromosome::Chromosome;
+use models::quantity::F64Variables;
+use models::quantity::QuantityLp;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -28,6 +30,9 @@ use solution::Visit;
 use solution::{Delivery, Evaluation};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
+
+use crate::solution::routing::RoutingSolution;
 
 #[pyfunction]
 pub fn test_logging() {
@@ -301,6 +306,24 @@ impl Inventory {
     }
 }
 
+#[pymethods]
+impl Visit {
+    #[new]
+    /// Construct a new visit without checkout its validity.
+    /// Prefer to use `Visit::new` unless you have ensured that `node` and `time` are within bounds.
+    pub fn new_py(node: usize, time: usize) -> Visit {
+        Visit::new_unchecked(node, time)
+    }
+
+    pub fn __str__(&self) -> String {
+        format!("Visit(n = {}, t = {})", self.node, self.time)
+    }
+
+    pub fn __repr__(&self) -> String {
+        self.__str__()
+    }
+}
+
 #[pyfunction]
 fn chromosome(problem: &Problem) -> PyResult<Chromosome> {
     Chromosome::new(problem).map_err(pyerr)
@@ -316,6 +339,33 @@ fn initial_orders(problem: &Problem) -> PyResult<Vec<Order>> {
     quants::initial_orders(&problem).map_err(pyerr)
 }
 
+#[pyfunction]
+fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F64Variables> {
+    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    lp.configure(&solution).map_err(pyerr)?;
+    let res = lp.solve_python().map_err(pyerr)?;
+    Ok(res)
+}
+
+#[pyfunction]
+fn solve_multiple_quantities(
+    problem: Problem,
+    solutions: Vec<Vec<Vec<Visit>>>,
+) -> PyResult<Vec<F64Variables>> {
+    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+
+    let mut results = Vec::new();
+    let arc = Arc::new(problem);
+    for routes in solutions {
+        let solution = RoutingSolution::new(arc.clone(), routes);
+        lp.configure(&solution).map_err(pyerr)?;
+        results.push(lp.solve_python().map_err(pyerr)?);
+    }
+
+    Ok(results)
+}
+
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
@@ -329,6 +379,8 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(test_logging, m)?)?;
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
@@ -338,17 +390,29 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
+<<<<<<< HEAD
     m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
+=======
+    m.add_class::<Visit>()?;
+    m.add_class::<F64Variables>()?;
+>>>>>>> master
 
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
+#[allow(unused_macros)]
+macro_rules! impl_repr {
+    ($type:ident) => {
+        #[pymethods]
+        impl $type {
+            pub fn __str__(&self) -> String {
+                format!("{:#?}", self)
+            }
+
+            pub fn __repr__(&self) -> String {
+                self.__str__()
+            }
+        }
+    };
 }

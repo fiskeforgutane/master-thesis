@@ -387,6 +387,12 @@ impl Vessel {
     pub fn compartments(&self) -> &[Compartment] {
         &self.compartments
     }
+
+    /// The total capacity if all compartments are allocated to a the same product type
+    pub fn capacity(&self) -> Quantity {
+        self.compartments.iter().map(|c| c.0).sum()
+    }
+
     /// The cruising speed of this vessel, in distance units per time step
     pub fn speed(&self) -> f64 {
         self.speed
@@ -568,8 +574,8 @@ impl Node {
     /// If the node is a conumption node, the result will be a negative number, and positive in the case of production ondes
     pub fn inventory_change(&self, from: TimeIndex, to: TimeIndex, product: ProductIndex) -> f64 {
         self.inventory_without_deliveries(product)[to]
-            - (self.inventory_without_deliveries(product)[from]
-                - self.inventory_changes()[from][product]) // subtract the inventory produced or consumed in the from-period
+            - self.inventory_without_deliveries(product)[from]
+            + self.inventory_changes()[from][product] // subtract the inventory produced or consumed in the from-period
     }
 
     /// The revenue associated with a unit sale at a farm
