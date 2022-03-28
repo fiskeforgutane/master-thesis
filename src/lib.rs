@@ -246,17 +246,6 @@ impl Compartment {
 }
 
 #[pymethods]
-impl Visit {
-    pub fn __str__(&self) -> String {
-        format!("{:#?}", self)
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.__str__()
-    }
-}
-
-#[pymethods]
 impl Chromosome {
     pub fn __str__(&self) -> String {
         format!("{:#?}", self)
@@ -390,13 +379,9 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
-<<<<<<< HEAD
     m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
-=======
-    m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
->>>>>>> master
 
     Ok(())
 }
