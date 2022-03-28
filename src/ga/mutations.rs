@@ -7,6 +7,7 @@ use crate::{
     ga::Mutation,
     problem::{Problem, VesselIndex},
     solution::{routing::RoutingSolution, Visit},
+    utils::GetPairMut,
 };
 
 pub fn choose_proportional_by_key<'a, I, T, F, R>(it: I, f: F, mut rng: R) -> T
@@ -324,5 +325,35 @@ impl Mutation for Bounce {
                 }
             }
         }
+    }
+}
+
+pub struct IntraSwap {
+    rand: ThreadRng,
+}
+
+impl Mutation for IntraSwap {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // get random plan where a swap should be performed
+        let v = self.rand.gen_range(0..problem.vessels().len());
+        let mut mutator = solution.mutate();
+        let plan = &mut mutator[v].mutate();
+
+        // select two random visits to swap
+        let v1 = self.rand.gen_range(0..plan.len());
+        let v2 = self.rand.gen_range(0..plan.len());
+
+        // if v1 and v2 are equal, we don't do anything
+        if v1 == v2 {
+            return;
+        }
+
+        // get the visits
+        let (v1, v2) = plan.get_pair_mut(v1, v2);
+        let n1 = v1.node;
+
+        // perform the swap
+        v1.node = v2.node;
+        v2.node = n1;
     }
 }

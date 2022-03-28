@@ -5,6 +5,7 @@ pub mod problem;
 pub mod quants;
 pub mod route_pool;
 pub mod solution;
+pub mod utils;
 
 use ga::chromosome::Chromosome;
 use models::quantity::F64Variables;
