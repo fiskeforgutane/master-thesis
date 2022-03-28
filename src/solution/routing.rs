@@ -1,10 +1,13 @@
-use std::cell::Cell;
+use std::borrow::{Borrow, BorrowMut};
+use std::cell::{Cell, Ref, RefCell};
+use std::fmt::Debug;
 use std::ops::DerefMut;
 use std::{ops::Deref, sync::Arc};
 
 use pyo3::pyclass;
 
-use crate::problem::{Problem, VesselIndex};
+use crate::models::quantity::{QuantityLp, Variables};
+use crate::problem::{Problem, Quantity, VesselIndex};
 use crate::solution::Visit;
 
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
@@ -74,19 +77,56 @@ impl Drop for PlanMut<'_> {
     }
 }
 
+/// A cache for use within `RoutingSolution`
+pub struct Cache {
+    /// The amount of time warp in this plan i.e. the sum of the number of time periods we would need to "missing timesteps"
+    /// between visits where it is physically impossible to travel between two nodes (only considering travel time; not loading time)
+    warp: Cell<Option<usize>>,
+    /// The quantity LP associated with this plan. This is the thing that
+    /// will determine (optimal) quantities given the current set of routes.
+    quantity: RefCell<QuantityLp>,
+    /// Whether the LP model has been solved for the current solution
+    solved: Cell<bool>,
+    /// The total inventory violations (excess/shortage)
+    violation: Cell<Option<Quantity>>,
+}
+
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
 /// It does not quarantee feasibility in any manner, it is possible to write a routing solution that e.g. requires a vessel to be present at two different nodes
 /// at the exact same time. Avoiding this is usually the responsibility of whoever creates the solution (e.g. the GA)
-#[pyclass]
-#[derive(Debug, Clone)]
 pub struct RoutingSolution {
     /// The problem this routing solution `belongs` to.
     problem: Arc<Problem>,
     /// The routes of each vessel.
     routes: Vec<Plan>,
-    /// The amount of time warp in this plan i.e. the sum of the number of time periods we would need to "missing timesteps"
-    /// between visits where it is physically impossible to travel between two nodes (only considering travel time; not loading time)
-    warp: Cell<Option<usize>>,
+    /// Cache for the evaluation of the solution
+    cache: Cache,
+}
+
+impl Debug for RoutingSolution {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RoutingSolution")
+            .field("problem", &self.problem)
+            .field("routes", &self.routes)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Clone for RoutingSolution {
+    fn clone(&self) -> Self {
+        Self {
+            problem: self.problem.clone(),
+            routes: self.routes.clone(),
+            cache: Cache {
+                warp: self.cache.warp.clone(),
+                quantity: RefCell::new(
+                    QuantityLp::new(self.problem()).expect("cloning failed for routing solution"),
+                ),
+                solved: Cell::new(false),
+                violation: Cell::new(None),
+            },
+        }
+    }
 }
 
 impl Deref for RoutingSolution {
@@ -104,10 +144,17 @@ impl RoutingSolution {
             panic!("#r = {} != V = {}", routes.len(), problem.vessels().len());
         }
 
+        let cache = Cache {
+            warp: Cell::default(),
+            quantity: RefCell::new(QuantityLp::new(&problem).unwrap()),
+            solved: Cell::new(false),
+            violation: Cell::new(None),
+        };
+
         Self {
             problem,
             routes: routes.into_iter().map(|route| Plan::new(route)).collect(),
-            warp: Cell::default(),
+            cache,
         }
     }
 
@@ -120,11 +167,41 @@ impl RoutingSolution {
     }
 
     pub fn warp(&self) -> usize {
-        self.warp.get().unwrap_or_else(|| self.update_warp())
+        self.cache.warp.get().unwrap_or_else(|| self.update_warp())
     }
 
     pub fn mutate(&mut self) -> RoutingSolutionMut<'_> {
         RoutingSolutionMut(self)
+    }
+
+    fn quantities(&self) -> Ref<'_, QuantityLp> {
+        // If the LP hasn't been solved for the curren state, we'll do so
+        let cache = &self.cache;
+        if !cache.solved.get() {
+            cache.quantity.borrow_mut().solve().expect("solve failed");
+            self.cache.solved.set(true);
+        }
+
+        cache.quantity.borrow()
+    }
+
+    pub fn variables(&self) -> Ref<'_, Variables> {
+        Ref::map(self.quantities(), |lp| &lp.vars)
+    }
+
+    /// The total inventory violation (excess + shortage) for the entire planning period
+    pub fn violation(&self) -> Quantity {
+        let cache = &self.cache;
+
+        match cache.violation.get() {
+            Some(violation) => violation,
+            // Solve the LP (if needed) and retrieve the objective function value.
+            None => {
+                let obj = self.quantities().model.get_attr(grb::attr::ObjVal).unwrap();
+                cache.violation.set(Some(obj));
+                obj
+            }
+        }
     }
 
     fn update_warp(&self) -> usize {
@@ -141,12 +218,14 @@ impl RoutingSolution {
             }
         }
 
-        self.warp.set(Some(warp));
+        self.cache.warp.set(Some(warp));
         warp
     }
 
     fn invalidate_caches(&self) {
-        self.warp.set(None);
+        self.cache.warp.set(None);
+        self.cache.solved.set(false);
+        self.cache.violation.set(None);
     }
 }
 
