@@ -5,7 +5,10 @@ use std::{
     sync::Arc,
 };
 
-use crate::solution::{routing::Plan, Visit};
+use crate::{
+    problem::{IndexCount, Vessel},
+    solution::{routing::Plan, Visit},
+};
 
 use super::{Problem, Recombination, RoutingSolution};
 
@@ -25,11 +28,7 @@ impl Recombination for PIX {
         //     2. The vessels from which the routes will be used directly from the second parent
         //     3. The remaining vessels that will be mixed from the two parents
 
-        let mut vessel_indices = problem
-            .vessels()
-            .iter()
-            .map(|v| v.index())
-            .collect::<Vec<usize>>();
+        let mut vessel_indices = problem.indices::<Vessel>().collect::<Vec<usize>>();
 
         let mut rng = rand::thread_rng();
 

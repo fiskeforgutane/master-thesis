@@ -69,6 +69,22 @@ impl Problem {
         self.distances[from][to]
     }
 
+    /// The number of elements of the given kind
+    pub fn count<T>(&self) -> usize
+    where
+        Self: IndexCount<T>,
+    {
+        self.index_count()
+    }
+
+    /// The indices of the given kind
+    pub fn indices<T>(&self) -> Range<usize>
+    where
+        Self: IndexCount<T>,
+    {
+        0..self.count::<T>()
+    }
+
     /*
     /// The time required for `vessel` to travel from `from` to `to`.
     pub fn travel_time(&self, from: NodeIndex, to: NodeIndex, vessel: VesselIndex) -> TimeIndex {
@@ -122,16 +138,6 @@ impl Problem {
         let distance = self.distance(from, to);
         let speed = vessel.speed();
         (distance / speed).ceil() as usize
-    }
-
-    /// Retrieve the number of vessels available
-    pub fn vessel_count(&self) -> usize {
-        self.vessels.len()
-    }
-
-    /// Retrieve the number of nodes in the problem
-    pub fn node_count(&self) -> usize {
-        self.nodes().len()
     }
 
     /// The cost for a vessel to move from `from` to `to`
@@ -825,31 +831,31 @@ impl<'a> Sum<&'a FixedInventory> for Inventory {
     }
 }
 
-pub trait Indices<T> {
-    fn indices(&self) -> Range<usize>;
+pub trait IndexCount<T> {
+    fn index_count(&self) -> usize;
 }
 
-impl Indices<Node> for Problem {
-    fn indices(&self) -> Range<usize> {
-        0..self.nodes.len()
+impl IndexCount<Node> for Problem {
+    fn index_count(&self) -> usize {
+        self.nodes.len()
     }
 }
 
-impl Indices<Vessel> for Problem {
-    fn indices(&self) -> Range<usize> {
-        0..self.vessels.len()
+impl IndexCount<Vessel> for Problem {
+    fn index_count(&self) -> usize {
+        self.vessels.len()
     }
 }
 
-impl Indices<Product> for Problem {
-    fn indices(&self) -> Range<usize> {
-        0..self.products
+impl IndexCount<Product> for Problem {
+    fn index_count(&self) -> usize {
+        self.products
     }
 }
 
-impl Indices<Timestep> for Problem {
-    fn indices(&self) -> Range<usize> {
-        0..self.timesteps
+impl IndexCount<Timestep> for Problem {
+    fn index_count(&self) -> usize {
+        self.timesteps
     }
 }
 
