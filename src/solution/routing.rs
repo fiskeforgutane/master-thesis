@@ -25,6 +25,10 @@ impl Plan {
     pub fn mutate(&mut self) -> PlanMut<'_> {
         PlanMut(self)
     }
+
+    pub fn visits(&self) -> Vec<Visit> {
+        self.sorted.clone()
+    }
 }
 
 impl Deref for Plan {
@@ -109,6 +113,10 @@ impl RoutingSolution {
 
     pub fn problem(&self) -> &Problem {
         &self.problem
+    }
+
+    pub fn routes(&self) -> &Vec<Plan> {
+        &self.routes
     }
 
     pub fn warp(&self) -> usize {
