@@ -256,6 +256,16 @@ impl RoutingSolution {
     }
 }
 
+impl<'a> IntoIterator for &'a RoutingSolution {
+    type Item = &'a Plan;
+
+    type IntoIter = <&'a [Plan] as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 pub struct RoutingSolutionMut<'a>(&'a mut RoutingSolution);
 
 impl<'a> RoutingSolutionMut<'a> {
@@ -269,6 +279,26 @@ impl<'a> RoutingSolutionMut<'a> {
         let two = &mut rest[max - min - 1];
 
         (one, two)
+    }
+}
+
+impl<'a> IntoIterator for &'a RoutingSolutionMut<'a> {
+    type Item = &'a Plan;
+
+    type IntoIter = <&'a [Plan] as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut RoutingSolutionMut<'a> {
+    type Item = &'a mut Plan;
+
+    type IntoIter = <&'a mut [Plan] as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 
