@@ -211,14 +211,17 @@ impl RedCost {
         let mut plan = mutator[v].mutate();
 
         for i in visit_indices {
-            let visit = &mut plan[i];
             // move visit one back or one forward with a 50/50 probability
             if rand.gen::<f64>() < 0.5 {
+                let visit = &mut plan[i];
                 // move back, if possible
                 visit.time = 0.max(visit.time - 1);
             } else {
-                // move forward
-                visit.time = (problem.timesteps() - 1).min(visit.time + 1);
+                // move next forward, if possible
+                let visit = &mut plan.get_mut(i + 1);
+                if let Some(visit) = visit {
+                    visit.time = (problem.timesteps() - 1).min(visit.time + 1);
+                }
             }
         }
     }
