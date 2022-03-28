@@ -38,6 +38,7 @@ pub struct F64Variables {
 pub struct QuantityLp {
     model: Model,
     vars: Variables,
+    semicont: bool,
 }
 
 impl QuantityLp {
@@ -179,6 +180,7 @@ impl QuantityLp {
         Ok(QuantityLp {
             model,
             vars: Variables { w, x, s, l },
+            semicont: false,
         })
     }
 
@@ -218,6 +220,11 @@ impl QuantityLp {
         })
     }
 
+    // set variable type for x-variable
+    pub fn set_semicont(&mut self, semicont: bool) {
+        self.semicont = semicont;
+    }
+
     /// Set up the model to be ready to solve quantities for `solution`.
     pub fn configure(&mut self, solution: &RoutingSolution) -> grb::Result<()> {
         // By default: disable `all` variables
@@ -232,6 +239,28 @@ impl QuantityLp {
                 xs.iter()
                     .flat_map(|xs| xs.iter().flat_map(|xs| xs.iter().map(|x| (*x, 0.0))))
             }),
+        )?;
+
+        let lower = |n: usize| match self.semicont {
+            true => problem.nodes()[n].min_unloading_amount(),
+            false => 0.0,
+        };
+
+        let vtype = match self.semicont {
+            true => grb::VarType::SemiCont,
+            false => grb::VarType::Continuous,
+        };
+
+        // set variable type
+        model.set_obj_attr_batch(
+            grb::attr::VType,
+            Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
+        )?;
+
+        // set lower bound
+        model.set_obj_attr_batch(
+            grb::attr::LB,
+            Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], lower(n))),
         )?;
 
         // Re-enable the relevant x(t, n, v, p) variables
