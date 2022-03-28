@@ -152,6 +152,20 @@ impl RoutingSolution {
 
 pub struct RoutingSolutionMut<'a>(&'a mut RoutingSolution);
 
+impl<'a> RoutingSolutionMut<'a> {
+    /// Get mutable references for two separate vessels.
+    pub fn get_pair_mut(&mut self, v1: VesselIndex, v2: VesselIndex) -> (&mut Plan, &mut Plan) {
+        assert!(v1 != v2);
+        let min = v1.min(v2);
+        let max = v2.max(v1);
+
+        let (one, rest) = self[min..].split_first_mut().unwrap();
+        let two = &mut rest[max - min - 1];
+
+        (one, two)
+    }
+}
+
 impl Deref for RoutingSolutionMut<'_> {
     type Target = [Plan];
 
