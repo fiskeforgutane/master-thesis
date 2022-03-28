@@ -207,7 +207,7 @@ impl RoutingSolution {
 
     /// Retrieve a reference to the quantity assignment LP.
     /// The model is re-solved if needed.
-    fn quantities(&self) -> Ref<'_, QuantityLp> {
+    pub fn quantities(&self) -> Ref<'_, QuantityLp> {
         // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
         if !cache.solved.get() {
