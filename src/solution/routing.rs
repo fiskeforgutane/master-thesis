@@ -166,14 +166,20 @@ impl RoutingSolution {
         &self.routes
     }
 
+    /// Retrieve the amount of time warp in this solution. Time warp occurs when two visits at different nodes are
+    /// too close apart in time, such that it is impossible to go from one of them to the other in time.
     pub fn warp(&self) -> usize {
         self.cache.warp.get().unwrap_or_else(|| self.update_warp())
     }
 
+    /// Access a mutator for this RoutingSolution. This ensures that any caches are always updated
+    /// as needed, but no more.
     pub fn mutate(&mut self) -> RoutingSolutionMut<'_> {
         RoutingSolutionMut(self)
     }
 
+    /// Retrieve a reference to the quantity assignment LP.
+    /// The model is re-solved if needed.
     fn quantities(&self) -> Ref<'_, QuantityLp> {
         // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
@@ -187,6 +193,24 @@ impl RoutingSolution {
         cache.quantity.borrow()
     }
 
+    /// Force an exact solution for the quantities delivered.
+    /// This will use semicont variables for the amount delivered, turning the quantity
+    /// assignment from an LP to a MILP. This can take a considerable amount of time to solve
+    pub fn exact(&mut self) {
+        // This will trigger a (possibly) different quantity assignment, so
+        // we will need to invalidate the caches.
+        self.invalidate_caches();
+
+        let old = self.cache.quantity.borrow().semicont;
+        // Set the QuantityLp to use semicont for the x variables
+        self.cache.quantity.get_mut().semicont = true;
+        // Force evaluation (i.e. solve MILP)
+        let _ = self.quantities();
+        // Restore the old preference w.r.t semicont or not
+        self.cache.quantity.get_mut().semicont = old;
+    }
+
+    /// Retrieve a reference to the variables of the quantity assignment LP.
     pub fn variables(&self) -> Ref<'_, Variables> {
         Ref::map(self.quantities(), |lp| &lp.vars)
     }
@@ -224,6 +248,7 @@ impl RoutingSolution {
         warp
     }
 
+    /// Invalidate all the cached values on this object (objective function values, etc.)
     fn invalidate_caches(&self) {
         self.cache.warp.set(None);
         self.cache.solved.set(false);

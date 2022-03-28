@@ -32,7 +32,7 @@ pub struct F64Variables {
 pub struct QuantityLp {
     pub model: Model,
     pub vars: Variables,
-    semicont: bool,
+    pub semicont: bool,
 }
 
 impl QuantityLp {
