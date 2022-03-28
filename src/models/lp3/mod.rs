@@ -81,7 +81,7 @@ impl QuantityLp {
             let i = Self::multiplier(node.r#type());
             let external = (0..v).map(|v| x[t - 1][n][v][p]).grb_sum();
             let internal = node.inventory_changes()[t - 1][p];
-            let constr = c!(s[t][n][p] == s[t - 1][n][p] + internal + i * external);
+            let constr = c!(s[t][n][p] == s[t - 1][n][p] + internal - i * external);
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
 
