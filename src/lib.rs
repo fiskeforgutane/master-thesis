@@ -340,6 +340,24 @@ fn solve_quantities_lp(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F6
     Ok(res)
 }
 
+#[pyfunction]
+fn solve_multiple(
+    problem: Problem,
+    solutions: Vec<Vec<Vec<Visit>>>,
+) -> PyResult<Vec<F64Variables>> {
+    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+
+    let mut results = Vec::new();
+
+    for routes in solutions {
+        let solution = RoutingSolution::new(Arc::new(problem), routes);
+        lp.configure(&solution).map_err(pyerr)?;
+        results.push(lp.solve_python().map_err(pyerr)?);
+    }
+
+    Ok(results)
+}
+
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
