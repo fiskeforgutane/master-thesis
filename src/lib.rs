@@ -348,9 +348,9 @@ fn solve_multiple(
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
 
     let mut results = Vec::new();
-
+    let arc = Arc::new(problem);
     for routes in solutions {
-        let solution = RoutingSolution::new(Arc::new(problem), routes);
+        let solution = RoutingSolution::new(arc.clone(), routes);
         lp.configure(&solution).map_err(pyerr)?;
         results.push(lp.solve_python().map_err(pyerr)?);
     }
