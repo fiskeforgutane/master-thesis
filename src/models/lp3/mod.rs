@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use grb::{
     attr, c,
     expr::{GurobiSum, LinExpr},
@@ -24,13 +26,69 @@ pub struct Variables {
 #[pyclass]
 pub struct F64Variables {
     #[pyo3(get)]
-    pub w: Vec<Vec<Vec<f64>>>,
+    pub w: HashMap<(usize, usize, usize), f64>,
     #[pyo3(get)]
-    pub x: Vec<Vec<Vec<Vec<f64>>>>,
+    pub x: HashMap<(usize, usize, usize, usize), f64>,
     #[pyo3(get)]
-    pub s: Vec<Vec<Vec<f64>>>,
+    pub s: HashMap<(usize, usize, usize), f64>,
     #[pyo3(get)]
-    pub l: Vec<Vec<Vec<f64>>>,
+    pub l: HashMap<(usize, usize, usize), f64>,
+}
+
+impl F64Variables {
+    pub fn new(vars: &Variables, model: &Model) -> grb::Result<F64Variables> {
+        let inds = |w: &Vec<Vec<Vec<Var>>>| {
+            w.iter()
+                .enumerate()
+                .flat_map(|(t, h)| {
+                    h.iter()
+                        .enumerate()
+                        .flat_map(move |(n, e)| e.iter().enumerate().map(move |(p, var)| (t, n, p)))
+                })
+                .collect()
+        };
+        let inds_4 = |w: &Vec<Vec<Vec<Vec<Var>>>>| {
+            w.iter()
+                .enumerate()
+                .flat_map(|(t, h)| {
+                    h.iter().enumerate().flat_map(move |(n, e)| {
+                        e.iter().enumerate().flat_map(move |(v, r)| {
+                            r.iter().enumerate().map(move |(p, _)| (t, n, v, p))
+                        })
+                    })
+                })
+                .collect()
+        };
+        let indices: Vec<(usize, usize, usize)> = inds(&vars.w);
+        let mut w = HashMap::new();
+        for ind in indices {
+            let value = model.get_obj_attr(attr::X, &vars.w[ind.0][ind.1][ind.2])?;
+            w.insert(ind, value);
+        }
+
+        let indices: Vec<(usize, usize, usize)> = inds(&vars.l);
+        let mut l = HashMap::new();
+        for ind in indices {
+            let value = model.get_obj_attr(attr::X, &vars.w[ind.0][ind.1][ind.2])?;
+            l.insert(ind, value);
+        }
+
+        let indices: Vec<(usize, usize, usize)> = inds(&vars.s);
+        let mut s = HashMap::new();
+        for ind in indices {
+            let value = model.get_obj_attr(attr::X, &vars.w[ind.0][ind.1][ind.2])?;
+            s.insert(ind, value);
+        }
+
+        let indices: Vec<(usize, usize, usize, usize)> = inds_4(&vars.x);
+        let mut x = HashMap::new();
+        for ind in indices {
+            let value = model.get_obj_attr(attr::X, &vars.w[ind.0][ind.1][ind.2])?;
+            x.insert(ind, value);
+        }
+
+        Ok(F64Variables { w, x, s, l })
+    }
 }
 
 pub struct QuantityLp {
@@ -253,12 +311,7 @@ impl QuantityLp {
     /// Should also include dual variables for the upper bounds on `x`, but this is not implemented yet
     pub fn solve_python(&mut self) -> grb::Result<F64Variables> {
         self.model.optimize()?;
-
-        let w = self.vars.w.convert(&self.model)?;
-        let x = self.vars.x.convert(&self.model)?;
-        let s = self.vars.s.convert(&self.model)?;
-        let l = self.vars.l.convert(&self.model)?;
-
-        Ok(F64Variables { w, x, s, l })
+        let v = F64Variables::new(&self.vars, &self.model)?;
+        Ok(v)
     }
 }
