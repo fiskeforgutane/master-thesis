@@ -174,8 +174,8 @@ impl RoutingSolution {
         })
     }
 
-    /// Loop over each plan in order, including the origin visit at the start, and an artificial terminal
-    /// visit at the very end.
+    /// Loop over each plan in order, including the origin visit at the start,
+    /// and an artificial terminal visit at the very end.
     pub fn iter_with_terminals(
         &self,
     ) -> impl Iterator<Item = impl Iterator<Item = Visit> + '_> + '_ {
