@@ -15,6 +15,7 @@ use ga::mutations::RedCost;
 use ga::mutations::Twerk;
 use ga::mutations::TwoOpt;
 use ga::mutations::{BounceMode, RedCostMode};
+use ga::GeneticAlgorithm;
 use ga::Mutation;
 use ga::Nop;
 use ga::Stochastic;
@@ -370,7 +371,19 @@ fn solve_multiple_quantities(
 #[pyclass]
 #[derive(Clone)]
 pub struct PyMut {
-    inner: Arc<Mutex<dyn Mutation + Send>>,
+    inner: Arc<Mutex<dyn ga::Mutation + Send>>,
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct PyRecombination {
+    inner: Arc<Mutex<dyn ga::Recombination + Send>>,
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct PyParentSelection {
+    inner: Arc<Mutex<dyn ga::ParentSelection + Send>>,
 }
 
 impl Mutation for PyMut {
