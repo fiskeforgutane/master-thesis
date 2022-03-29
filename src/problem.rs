@@ -1,6 +1,6 @@
 use std::{
     iter::Sum,
-    ops::{AddAssign, Deref, Index, IndexMut},
+    ops::{AddAssign, Deref, Index, IndexMut, Range},
 };
 
 use derive_more::Constructor;
@@ -67,6 +67,22 @@ impl Problem {
     /// The distance between two nodes
     pub fn distance(&self, from: NodeIndex, to: NodeIndex) -> Distance {
         self.distances[from][to]
+    }
+
+    /// The number of elements of the given kind
+    pub fn count<T>(&self) -> usize
+    where
+        Self: IndexCount<T>,
+    {
+        self.index_count()
+    }
+
+    /// The indices of the given kind
+    pub fn indices<T>(&self) -> Range<usize>
+    where
+        Self: IndexCount<T>,
+    {
+        0..self.count::<T>()
     }
 
     /*
@@ -814,3 +830,37 @@ impl<'a> Sum<&'a FixedInventory> for Inventory {
         sum
     }
 }
+
+pub trait IndexCount<T> {
+    fn index_count(&self) -> usize;
+}
+
+impl IndexCount<Node> for Problem {
+    fn index_count(&self) -> usize {
+        self.nodes.len()
+    }
+}
+
+impl IndexCount<Vessel> for Problem {
+    fn index_count(&self) -> usize {
+        self.vessels.len()
+    }
+}
+
+impl IndexCount<Product> for Problem {
+    fn index_count(&self) -> usize {
+        self.products
+    }
+}
+
+impl IndexCount<Timestep> for Problem {
+    fn index_count(&self) -> usize {
+        self.timesteps
+    }
+}
+
+/// Marker trait for using `Problem::indices::<Product>()` for product indices
+pub enum Product {}
+
+/// Marker trait for using `Problem::indices::<Timestep>()`
+pub enum Timestep {}
