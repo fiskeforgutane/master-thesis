@@ -8,7 +8,13 @@ pub mod solution;
 pub mod utils;
 
 use ga::chromosome::Chromosome;
+use ga::mutations::Bounce;
+use ga::mutations::InterSwap;
+use ga::mutations::IntraSwap;
+use ga::mutations::RedCost;
 use ga::mutations::Twerk;
+use ga::mutations::TwoOpt;
+use ga::mutations::{BounceMode, RedCostMode};
 use ga::Mutation;
 use ga::Nop;
 use ga::Stochastic;
@@ -377,6 +383,46 @@ impl Mutation for PyMut {
 fn twerk() -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(Twerk::everybody())),
+    }
+}
+
+#[pyfunction]
+fn red_cost(mode: RedCostMode, max_visits: usize) -> PyMut {
+    match mode {
+        RedCostMode::Mutate => PyMut {
+            inner: Arc::new(Mutex::new(RedCost::red_cost_mutation(max_visits))),
+        },
+        RedCostMode::LocalSerach => PyMut {
+            inner: Arc::new(Mutex::new(RedCost::red_cost_local_search(max_visits))),
+        },
+    }
+}
+
+#[pyfunction]
+fn bounce(passes: usize, mode: BounceMode) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(Bounce::new(passes, mode))),
+    }
+}
+
+#[pyfunction]
+fn intra_swap() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(IntraSwap {})),
+    }
+}
+
+#[pyfunction]
+fn two_opt() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(TwoOpt {})),
+    }
+}
+
+#[pyfunction]
+fn inter_swap() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(InterSwap {})),
     }
 }
 
