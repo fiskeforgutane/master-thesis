@@ -361,16 +361,6 @@ fn solve_multiple_quantities(
 }
 
 #[pyclass]
-#[derive(Clone, Copy)]
-pub enum MutationType {
-    Twerk,
-    Bounce,
-    RedCost,
-    RandomAdd,
-    RandomRemove,
-}
-
-#[pyclass]
 #[derive(Clone)]
 pub struct PyMut {
     inner: Arc<Mutex<dyn Mutation + Send>>,
