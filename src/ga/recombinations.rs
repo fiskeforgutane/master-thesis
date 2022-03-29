@@ -28,60 +28,38 @@ impl Recombination for PIX {
         //     2. The vessels from which the routes will be used directly from the second parent
         //     3. The remaining vessels that will be mixed from the two parents
 
-        let mut vessel_indices = problem.indices::<Vessel>().collect::<Vec<usize>>();
-
+        let mut indices = problem.indices::<Vessel>().collect::<Vec<usize>>();
         let mut rng = rand::thread_rng();
 
-        let n_1 = rng.gen_range(1..=vessel_indices.len());
-        let n_2 = rng.gen_range(1..=vessel_indices.len());
-        vessel_indices.shuffle(&mut rng);
+        let n1 = rng.gen_range(1..=indices.len());
+        let n2 = rng.gen_range(1..=indices.len());
+        // Defined the three ranges where we will apply: [unchanged, swapped, crossover]
+        let (start, end) = (min(n1, n2), max(n1, n2));
 
-        let left_vessels = &vessel_indices[..min(n_1, n_2)];
-        let right_vessels = &vessel_indices[min(n_1, n_2)..max(n_1, n_2)];
-        let mixed_vessels = &vessel_indices[max(n_1, n_2)..];
+        // Shuffle the indices
+        indices.shuffle(&mut rng);
 
-        let mut routes = left_vessels
-            .iter()
-            .map(|i| left[*i].to_vec())
-            .collect::<Vec<Vec<Visit>>>();
+        // Note: vessels corresponding to indices[..start] are left as-is.
+        // The plans that will be taken from the right parent
+        let right_vessels = &indices[start..end];
+        // The plans that we will apply one-point crossover to
+        let mixed_vessels = &indices[end..];
 
-        routes.append(
-            &mut right_vessels
-                .iter()
-                .map(|i| right[*i].to_vec())
-                .collect::<Vec<Vec<Visit>>>(),
-        );
+        let mut left = left.mutate();
+        let mut right = right.mutate();
 
-        routes.append(&mut self.mixed(left, right, &mixed_vessels));
+        // Swap over the `right` vessels in their entirety
+        for &v in right_vessels {
+            std::mem::swap(&mut left[v], &mut right[v]);
+        }
 
-        // let child = RoutingSolution::new(Arc::new(*problem), routes);
-    }
+        // To a one-point crossover for the `mixed` vessels
+        for &v in mixed_vessels {
+            let split = rng.gen_range(0..min(left[v].len(), right[v].len()));
+            let mut l = left[v].mutate();
+            let mut r = right[v].mutate();
 
-    fn with_probability(self, p: f64) -> super::Stochastic<Self>
-    where
-        Self: Sized,
-    {
-        super::Stochastic::new(p, self)
-    }
-}
-
-impl PIX {
-    fn mixed(
-        &mut self,
-        left: &mut RoutingSolution,
-        right: &mut RoutingSolution,
-        vessel_indices: &[usize],
-    ) -> Vec<Vec<Visit>> {
-        let mut rng = rand::thread_rng();
-
-        let routes = vessel_indices
-            .iter()
-            .map(|i| {
-                let split_point = rng.gen_range(0..min(left[*i].len(), right[*i].len()));
-                [&left[*i][..split_point], &right[*i][split_point..]].concat()
-            })
-            .collect();
-
-        routes
+            l[..split].swap_with_slice(&mut r[..split])
+        }
     }
 }

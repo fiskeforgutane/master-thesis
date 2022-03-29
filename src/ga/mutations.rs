@@ -1,4 +1,5 @@
-use itertools::Itertools;
+use grb::attr;
+
 use log::warn;
 use rand::prelude::*;
 
@@ -6,6 +7,7 @@ use crate::{
     ga::Mutation,
     problem::{Node, Problem, Timestep, Vessel, VesselIndex},
     solution::{routing::RoutingSolution, Visit},
+    utils::GetPairMut,
 };
 
 pub fn choose_proportional_by_key<'a, I, T, F, R>(it: I, f: F, mut rng: R) -> T
@@ -158,6 +160,126 @@ impl Mutation for Twerk {
     }
 }
 
+pub enum RedCostMode {
+    /// Performs only one iteration where it updates the upper bounds of a random subset of visits
+    /// that look promising to expand
+    Mutate,
+    /// Several iterations where it iteratively seeks to improve the soution by expanding visits
+    LocalSerach,
+}
+
+/// This mutation exploits the dual solution of the quantities LP to direct the search towards a hopefulle better solution.
+pub struct RedCost {
+    mode: RedCostMode,
+    max_visits: usize,
+}
+
+impl RedCost {
+    /// Returns a RedCost with mode set to mutation
+    pub fn red_cost_mutation(max_visits: usize) -> Self {
+        let mode = RedCostMode::Mutate;
+
+        RedCost { mode, max_visits }
+    }
+    /// Returns a RedCost with mode set to local search
+    pub fn red_cost_local_search(max_visits: usize) -> Self {
+        let mode = RedCostMode::LocalSerach;
+
+        RedCost { mode, max_visits }
+    }
+
+    /// Returns an iterator with all the x-variable indices that can have the upper bound increased
+    pub fn mutable_indices<'a>(
+        v: usize,
+        solution: &'a RoutingSolution,
+    ) -> impl Iterator<Item = (usize, usize, usize)> + 'a {
+        let problem = solution.problem();
+
+        solution[v].windows(2).map(move |visits| {
+            let (curr, next) = (visits[0], visits[1]);
+            let (_, t2) = (curr.time, next.time);
+
+            // vessel must leave at the beginning of this time period, i.e. this time period can be opened for laoding/unloading if next is pushed
+            let must_leave =
+                t2.max(t2 - problem.travel_time(curr.node, next.node, &problem.vessels()[v]));
+            (must_leave, curr.node, v)
+        })
+    }
+
+    /// Returns the visit indices for the given vessel that should be mutated
+    fn get_visit_indices(
+        n_visits: usize,
+        vessel: usize,
+        problem: &Problem,
+        solution: &RoutingSolution,
+    ) -> Vec<usize> {
+        let quant_lp = solution.quantities();
+        let vars = solution.variables();
+        let model = &quant_lp.model;
+
+        // the visits indeccorresponding to the ones with high reduced cost
+        let mut visit_indices: Vec<usize> = (0..n_visits).collect();
+        // the reduced costs
+        let mut reduced_costs = vec![f64::NEG_INFINITY; n_visits];
+
+        for (visit_idx, (t, n, v)) in Self::mutable_indices(vessel, solution).enumerate() {
+            // sum the reduced cost over all products
+            let reduced = (0..problem.products())
+                .map(|p| model.get_obj_attr(attr::RC, &vars.x[t][n][v][p]).unwrap())
+                .sum::<f64>();
+
+            // get the index of the lowest reduced cost found so far
+            let index = reduced_costs
+                .iter()
+                .enumerate()
+                .min_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                .map(|x| x.0)
+                .unwrap();
+
+            // if the new reduced cost is larger than the lowest found so far that has been kept, keep the new instead
+            if reduced_costs[index] < reduced {
+                reduced_costs[index] = reduced;
+                visit_indices[index] = visit_idx;
+            }
+        }
+        visit_indices
+    }
+
+    pub fn iterate(
+        max_visits: usize,
+        rand: &mut ThreadRng,
+        problem: &Problem,
+        solution: &mut RoutingSolution,
+    ) {
+        // select random vessel to search for a index where the visit can be extended
+        let v = rand.gen_range(0..problem.vessels().len());
+        // number of visits to alter
+        let n_visits = max_visits.min(rand.gen_range(0..solution[v].len()));
+
+        // indices of visits to alter
+        let visit_indices = Self::get_visit_indices(n_visits, v, problem, solution);
+
+        // get a mutator
+        let mutator = &mut solution.mutate();
+        let mut plan = mutator[v].mutate();
+
+        for i in visit_indices {
+            // move visit one back or one forward with a 50/50 probability
+            if rand.gen::<f64>() < 0.5 {
+                let visit = &mut plan[i];
+                // move back, if possible
+                visit.time = 0.max(visit.time - 1);
+            } else {
+                // move next forward, if possible
+                let visit = &mut plan.get_mut(i + 1);
+                if let Some(visit) = visit {
+                    visit.time = (problem.timesteps() - 1).min(visit.time + 1);
+                }
+            }
+        }
+    }
+}
+
 /// How to apply the Bounce
 pub enum BounceMode {
     All,
@@ -226,6 +348,16 @@ impl Bounce {
     }
 }
 
+impl Mutation for RedCost {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        let rand = &mut rand::thread_rng();
+        match self.mode {
+            RedCostMode::Mutate => Self::iterate(self.max_visits, rand, problem, solution),
+            RedCostMode::LocalSerach => todo!(),
+        }
+    }
+}
+
 impl Mutation for Bounce {
     fn apply(
         &mut self,
@@ -249,5 +381,104 @@ impl Mutation for Bounce {
                 }
             }
         }
+    }
+}
+
+pub struct IntraSwap {
+    rand: ThreadRng,
+}
+
+impl Mutation for IntraSwap {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // get random plan where a swap should be performed
+        let v = self.rand.gen_range(0..problem.vessels().len());
+        let mut mutator = solution.mutate();
+        let plan = &mut mutator[v].mutate();
+
+        // select two random visits to swap
+        let v1 = self.rand.gen_range(0..plan.len());
+        let v2 = self.rand.gen_range(0..plan.len());
+
+        // if v1 and v2 are equal, we don't do anything
+        if v1 == v2 {
+            return;
+        }
+
+        // get the visits
+        let (v1, v2) = plan.get_pair_mut(v1, v2);
+        let n1 = v1.node;
+
+        // perform the swap
+        v1.node = v2.node;
+        v2.node = n1;
+    }
+}
+
+pub struct TwoOpt {
+    rand: ThreadRng,
+}
+
+impl Mutation for TwoOpt {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // get random plan where a swap should be performed
+        let v = self.rand.gen_range(0..problem.vessels().len());
+        let mut mutator = solution.mutate();
+        let plan = &mut mutator[v].mutate();
+
+        // select two random visits to swap
+        let v1 = self.rand.gen_range(0..plan.len() - 1);
+        let v2 = self.rand.gen_range(0..plan.len());
+
+        // if v1 and v2 are equal, we don't do anything
+        if v1 == v2 {
+            return;
+        }
+
+        // switch the order of nodes visited in the inclusive range [v1..v2]
+        for i in v1..v2 {
+            let k = v2 - (v1 - i);
+            // break when we are at the midpoint
+            if k <= i {
+                break;
+            }
+            // swap
+            // get the visits
+            let (v1, v2) = plan.get_pair_mut(v1, v2);
+            let n1 = v1.node;
+
+            // perform the swap
+            v1.node = v2.node;
+            v2.node = n1;
+        }
+    }
+}
+
+// swaps one random visit from one route with a visit from another route
+pub struct InterSwap {
+    rand: ThreadRng,
+}
+
+impl Mutation for InterSwap {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+        // select two random vessels participate in the swap
+        let vessel1 = self.rand.gen_range(0..solution.len());
+        let vessel2 = self.rand.gen_range(0..solution.len());
+
+        if vessel1 == vessel2 {
+            return;
+        }
+
+        // select a random visit from each vessel
+        let v1 = self.rand.gen_range(0..solution[vessel1].len());
+        let v2 = self.rand.gen_range(0..solution[vessel2].len());
+
+        let mutator = &mut solution.mutate();
+
+        // perform the swap
+        let (p1, p2) = &mut mutator.get_pair_mut(v1, v2);
+        let visit1 = &mut p1.mutate()[v1];
+        let visit2 = &mut p2.mutate()[v2];
+
+        std::mem::swap(visit1, visit2);
     }
 }
