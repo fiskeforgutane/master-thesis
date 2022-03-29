@@ -413,6 +413,8 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(twerk, m)?)?;
+    m.add_function(wrap_pyfunction!(chain, m)?)?;
+    m.add_function(wrap_pyfunction!(stochastic, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
@@ -425,6 +427,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
+    m.add_class::<PyMut>()?;
 
     Ok(())
 }
