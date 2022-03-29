@@ -383,7 +383,7 @@ impl Mutation for TwoOpt {
 
         // switch the order of nodes visited in the inclusive range [v1..v2]
         for i in v1..v2 {
-            let k = v2 - i;
+            let k = v2 - (v1 - i);
             // break when we are at the midpoint
             if k <= i {
                 break;
@@ -406,7 +406,7 @@ pub struct InterSwap {
 }
 
 impl Mutation for InterSwap {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
         // select two random vessels participate in the swap
         let vessel1 = self.rand.gen_range(0..solution.len());
         let vessel2 = self.rand.gen_range(0..solution.len());
