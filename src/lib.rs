@@ -7,6 +7,10 @@ pub mod route_pool;
 pub mod solution;
 
 use ga::chromosome::Chromosome;
+use ga::mutations::Twerk;
+use ga::Mutation;
+use ga::Nop;
+use ga::Stochastic;
 use models::quantity::F64Variables;
 use models::quantity::QuantityLp;
 use problem::Compartment;
@@ -31,6 +35,7 @@ use solution::{Delivery, Evaluation};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::solution::routing::RoutingSolution;
 
@@ -355,6 +360,53 @@ fn solve_multiple_quantities(
     Ok(results)
 }
 
+#[pyclass]
+#[derive(Clone, Copy)]
+pub enum MutationType {
+    Twerk,
+    Bounce,
+    RedCost,
+    RandomAdd,
+    RandomRemove,
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct PyMut {
+    inner: Arc<Mutex<dyn Mutation + Send>>,
+}
+
+impl Mutation for PyMut {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        self.inner.lock().unwrap().apply(problem, solution)
+    }
+}
+
+#[pyfunction]
+fn twerk() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(Twerk::everybody())),
+    }
+}
+
+#[pyfunction]
+fn stochastic(probability: f64, mutation: PyMut) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(Stochastic::new(probability, mutation))),
+    }
+}
+
+#[pyfunction]
+fn chain(mutations: Vec<PyMut>) -> PyMut {
+    let nop = || PyMut {
+        inner: Arc::new(Mutex::new(Nop)),
+    };
+
+    mutations.into_iter().fold(nop(), |acc, x| PyMut {
+        inner: Arc::new(Mutex::new(chain!(acc, x))),
+    })
+}
+
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
@@ -370,6 +422,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(twerk, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
