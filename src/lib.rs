@@ -371,6 +371,26 @@ fn get_visit_times(
 }
 
 #[pyfunction]
+fn solve_multiple_quantities_cont(
+    problem: Problem,
+    solutions: Vec<Vec<Vec<Visit>>>,
+    delay: f64,
+) -> PyResult<Vec<Option<quantity_cont::F64VariablesCont>>> {
+    let mut quants_lp = QuantityLpCont::new(delay).map_err(pyerr)?;
+    let mut results = Vec::new();
+    let arc = Arc::new(problem);
+    for routes in solutions {
+        let solution = RoutingSolution::new(arc.clone(), routes);
+        let res = quants_lp.py_solve(&solution);
+        match res {
+            Ok(x) => results.push(Some(x)),
+            Err(_) => results.push(None),
+        }
+    }
+    Ok(results)
+}
+
+#[pyfunction]
 fn solve_multiple_quantities(
     problem: Problem,
     solutions: Vec<Vec<Vec<Visit>>>,
@@ -444,6 +464,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(chain, m)?)?;
     m.add_function(wrap_pyfunction!(stochastic, m)?)?;
     m.add_function(wrap_pyfunction!(solve_cont_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_multiple_quantities_cont, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
