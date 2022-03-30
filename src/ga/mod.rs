@@ -99,7 +99,7 @@ where
 
     /// The objective function that the GA attempts to minimize. It consists of a solutions `cost` plus a penalty term given by the instance's `penalizer`,
     /// typically by putting some cost on any violations of number of vehicles, duration or load.
-    pub fn objective_fn(&self, _solution: &RoutingSolution) -> f64 {
+    pub fn fitness(&self, _solution: &RoutingSolution) -> f64 {
         todo!()
     }
 
@@ -109,7 +109,7 @@ where
         let mut best_z = std::f64::INFINITY;
 
         for solution in &self.population {
-            let z = self.objective_fn(solution);
+            let z = self.fitness(solution);
             if z < best_z {
                 best = solution;
                 best_z = z;
