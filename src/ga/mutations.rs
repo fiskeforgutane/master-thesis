@@ -488,13 +488,6 @@ impl Mutation for BestSwap {
         // Set the correct time for the selected node
         plan[v1].time = new_time;
     }
-
-    fn with_probability(self, p: f64) -> super::Stochastic<Self>
-    where
-        Self: Sized,
-    {
-        super::Stochastic::new(p, self)
-    }
 }
 
 impl BestSwap {
