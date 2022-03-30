@@ -152,8 +152,9 @@ impl QuantityLpCont {
 
     pub fn py_solve(&mut self, solution: &RoutingSolution) -> grb::Result<F64VariablesCont> {
         self.configure(solution)?;
-        self.model.write("cont-lp.lp")?;
+
         self.model.optimize()?;
+        self.model.write("cont-lp.lp")?;
 
         let x = self.vars.x.convert(&self.model)?;
         let l = self.vars.l.convert(&self.model)?;
@@ -263,7 +264,7 @@ impl QuantityLpCont {
 
         let l = (0..problem.nodes().len())
             .map(|i| {
-                let m = *M.get(&i).unwrap() + 1;
+                let m = *M.get(&i).unwrap();
                 (m, P).cont(model, &format!("l_{i}"))
             })
             .collect::<grb::Result<Vec<Vec<Vec<Var>>>>>()?;
