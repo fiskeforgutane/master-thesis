@@ -430,6 +430,11 @@ impl QuantityLpCont {
         T: f64,
     ) -> grb::Result<()> {
         for (i, p) in iproduct!(0..N, 0..P) {
+            // check that the node is actually visited
+            if M.get(&i).unwrap() == &0 {
+                continue;
+            }
+
             let kind = problem.nodes()[i].r#type();
 
             for m in 0..*M.get(&i).unwrap() {
@@ -466,6 +471,7 @@ impl QuantityLpCont {
             }
 
             // end shortage
+
             // last vist + 1 to indicate the artificial visit at the end
             let m = *M.get(&i).unwrap();
 
