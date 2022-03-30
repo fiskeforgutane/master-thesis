@@ -1,5 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::{Cell, Ref, RefCell};
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use std::{ops::Deref, sync::Arc};
@@ -13,10 +14,24 @@ use crate::solution::Visit;
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
 /// There are no restrictions on the ordering of the visits.
 #[pyclass]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Plan {
     /// The set of visits sorted by ascending time
     sorted: Vec<Visit>,
+}
+
+/// We implement `Clone` manually to override `clone_from`.
+impl Clone for Plan {
+    fn clone(&self) -> Self {
+        Self {
+            sorted: self.sorted.clone(),
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.sorted.clear();
+        self.sorted.extend_from_slice(&source.sorted);
+    }
 }
 
 impl Plan {
@@ -125,6 +140,33 @@ impl Clone for RoutingSolution {
                 cost: Cell::new(None),
             },
         }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        // In "all" cases, we expect `self.routes.len()` to equal `source.routes.len()`
+        for (one, two) in self.routes.iter_mut().zip(&source.routes) {
+            one.clone_from(two);
+        }
+
+        // However: we should still handle the case where the lengths are different from each other
+        let l = self.routes.len();
+        let r = source.routes.len();
+        match l.cmp(&r) {
+            Ordering::Less => self.routes.extend_from_slice(&source.routes[l..]),
+            Ordering::Equal => (),
+            Ordering::Greater => self.routes.truncate(r),
+        }
+
+        // Copy over the problem
+        self.problem = source.problem.clone();
+
+        // Invalidate the caches, and then pass over any data that would still be valid to use for the clone,
+        // which is basically everything except the LP itself
+        self.invalidate_caches();
+        self.cache.warp = source.cache.warp.clone();
+        self.cache.solved = Cell::new(false);
+        self.cache.violation = source.cache.violation.clone();
+        self.cache.cost = source.cache.cost.clone();
     }
 }
 
