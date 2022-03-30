@@ -1,3 +1,5 @@
+use std::{ops::Deref, cmp::{min, max}};
+
 use grb::attr;
 
 use log::warn;
@@ -6,7 +8,10 @@ use rand::prelude::*;
 use crate::{
     ga::Mutation,
     problem::{Problem, VesselIndex},
-    solution::{routing::RoutingSolution, Visit},
+    solution::{
+        routing::{Plan, RoutingSolution, PlanMut},
+        Visit,
+    },
     utils::GetPairMut,
 };
 
@@ -427,5 +432,99 @@ impl Mutation for InterSwap {
         let visit2 = &mut p2.mutate()[v2];
 
         std::mem::swap(visit1, visit2);
+    }
+}
+
+/// Takes the node associated with the highest cost in a random route and reinserts it at the best
+/// position in the same route.
+pub struct BestSwap {
+    rand: ThreadRng,
+}
+
+impl Mutation for BestSwap {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // Select a random vessel
+        let vessel = self.rand.gen_range(0..solution.len());
+
+        let mut mutator = solution.mutate();
+        let plan = &mut mutator[vessel].mutate();
+
+        // Finds the index in the route of the most expensive node
+        let v1 = (1..(plan.len()-1))
+            .max_by(|a, b| {
+                self.decreased_distance(*a, plan, problem)
+                    .partial_cmp(&self.decreased_distance(*b, plan, problem))
+                    .unwrap()
+            })
+            .unwrap();
+
+        // Finds the cheapest position to insert the most expensive node
+        let v2 = (1..(plan.len()-1))
+            .min_by(|a, b| {
+                self.increased_distance(plan[v1].node, *a, problem, plan)
+                    .partial_cmp(&self.increased_distance(
+                        plan[v1].node,
+                        *b,
+                        problem,
+                        plan,
+                    ))
+                    .unwrap()
+            })
+            .unwrap();
+        
+        // The new visit time for the selected node
+        let new_time = plan[v2].time;
+        
+        // Move all visits between the new and the old position in time
+        for node_index in v1..v2 {
+            if v1 > v2 {
+                plan[node_index].time = plan[node_index-1].time;
+            }
+            else {
+                plan[node_index].time = plan[node_index+1].time;
+            }
+        }
+
+        // Set the correct time for the selected node
+        plan[v1].time = new_time;
+    }
+
+    fn with_probability(self, p: f64) -> super::Stochastic<Self>
+    where
+        Self: Sized,
+    {
+        super::Stochastic::new(p, self)
+    }
+}
+
+impl BestSwap {
+    /// Calculates the distance removed from the plan if a visit is removed
+    fn decreased_distance(&self, visit: usize, vessel_plan: &mut PlanMut, problem: &Problem) -> f64 {
+        let r = vessel_plan
+            .deref()
+            .iter()
+            .map(|v| v.node)
+            .collect::<Vec<usize>>();
+
+        problem.distance(r[visit - 1], r[visit]) + problem.distance(r[visit], r[visit + 1])
+            - problem.distance(r[visit - 1], r[visit + 1])
+    }
+
+    /// Calculates the increased distance by inserting a node at a particular position
+    fn increased_distance(
+        &self,
+        node_index: usize,
+        position: usize,
+        problem: &Problem,
+        vessel_plan: &mut PlanMut,
+    ) -> f64 {
+        let r: Vec<usize> = vessel_plan
+            .deref()
+            .iter()
+            .map(|v| v.node)
+            .collect::<Vec<usize>>();
+
+        problem.distance(r[position - 1], node_index) + problem.distance(node_index, r[position])
+            - problem.distance(r[position - 1], r[position])
     }
 }
