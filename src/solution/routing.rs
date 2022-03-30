@@ -87,6 +87,8 @@ pub struct Cache {
     violation: Cell<Option<Quantity>>,
     /// The total cost of the solution.
     cost: Cell<Option<Cost>>,
+    /// The total revenue of the solution.
+    revenue: Cell<Option<Cost>>,
 }
 
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
@@ -123,6 +125,7 @@ impl Clone for RoutingSolution {
                 solved: Cell::new(false),
                 violation: Cell::new(None),
                 cost: Cell::new(None),
+                revenue: Cell::new(None),
             },
         }
     }
@@ -149,6 +152,7 @@ impl RoutingSolution {
             solved: Cell::new(false),
             violation: Cell::new(None),
             cost: Cell::new(None),
+            revenue: Cell::new(None),
         };
 
         Self {
