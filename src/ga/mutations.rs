@@ -7,7 +7,7 @@ use rand::prelude::*;
 
 use crate::{
     ga::Mutation,
-    problem::{Problem, VesselIndex},
+    problem::{Node, Problem, Timestep, Vessel, VesselIndex},
     solution::{
         routing::{Plan, RoutingSolution, PlanMut},
         Visit,
@@ -35,6 +35,59 @@ where
     }
 
     unreachable!()
+}
+
+pub struct AddRandom {
+    rng: rand::rngs::StdRng,
+}
+
+impl AddRandom {
+    pub fn new() -> AddRandom {
+        AddRandom {
+            rng: rand::rngs::StdRng::from_entropy(),
+        }
+    }
+}
+
+impl Mutation for AddRandom {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // Note: there always be at least one vessel in a `Problem`, and
+        // 0..=x is always non-empty when x is an unsigned type
+        let v = problem.indices::<Vessel>().choose(&mut self.rng).unwrap();
+        let node = problem.indices::<Node>().choose(&mut self.rng).unwrap();
+        let time = problem.indices::<Timestep>().choose(&mut self.rng).unwrap();
+
+        let mut solution = solution.mutate();
+        let mut plan = solution[v].mutate();
+        plan.push(Visit { node, time });
+    }
+}
+
+pub struct RemoveRandom {
+    rng: rand::rngs::StdRng,
+}
+
+impl RemoveRandom {
+    pub fn new() -> Self {
+        Self {
+            rng: rand::rngs::StdRng::from_entropy(),
+        }
+    }
+}
+
+impl Mutation for RemoveRandom {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // Note: there always be at least one vessel in a `Problem`, and
+        // 0..=x is always non-empty when x is an unsigned type
+        let v = problem.indices::<Vessel>().choose(&mut self.rng).unwrap();
+
+        match (0..solution[v].len()).choose(&mut self.rng) {
+            Some(x) => {
+                solution.mutate()[v].mutate().remove(x);
+            }
+            None => (),
+        }
+    }
 }
 
 // How we're going to perform the twerking.

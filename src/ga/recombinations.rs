@@ -29,7 +29,6 @@ impl Recombination for PIX {
         //     3. The remaining vessels that will be mixed from the two parents
 
         let mut indices = problem.indices::<Vessel>().collect::<Vec<usize>>();
-
         let mut rng = rand::thread_rng();
 
         let n1 = rng.gen_range(1..=indices.len());
