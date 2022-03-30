@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::ops::DerefMut;
 use std::{ops::Deref, sync::Arc};
 
+use itertools::Itertools;
 use pyo3::pyclass;
 
 use crate::models::quantity::{QuantityLp, Variables};
@@ -266,6 +267,36 @@ impl RoutingSolution {
                 let obj = self.quantities().model.get_attr(grb::attr::ObjVal).unwrap();
                 cache.violation.set(Some(obj));
                 obj
+            }
+        }
+    }
+
+    /// Retrieve the total revenue for the amount delivered by in the solution
+    pub fn revenue(&self) -> Cost {
+        let cache = &self.cache;
+
+        match cache.revenue.get() {
+            Some(revenue) => revenue,
+            None => {
+                // We need to retrieve the solution variables, and loop over the ones
+                // that are non-zero to determine the revenue
+                let lp = self.quantities();
+                let nodes = self.problem().nodes();
+                let variables = lp
+                    .model
+                    .get_obj_attr_batch(
+                        grb::attr::X,
+                        QuantityLp::active(self).map(|(t, n, v, p)| lp.vars[t][n][v][p]),
+                    )
+                    .expect("retrieving variable values failed");
+
+                let revenue = QuantityLp::active(self)
+                    .zip_eq(&variables)
+                    .map(|((t, n, v, p), quantity)| nodes[n].revenue() * quantity)
+                    .sum();
+
+                cache.revenue.set(Some(revenue));
+                revenue
             }
         }
     }
