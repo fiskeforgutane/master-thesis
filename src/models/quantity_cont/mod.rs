@@ -400,7 +400,7 @@ impl QuantityLpCont {
 
                 model.add_constr(
                     &format!("time_{v}_{i}_{m}_{j}_{n}"),
-                    c!(t[j][m] == t[i][m] + visit_time + sail_time + delay),
+                    c!(t[j][n] == t[i][m] + visit_time + sail_time + delay),
                 )?;
             }
 
