@@ -489,6 +489,18 @@ pub struct TimeSetter {
     quants_lp: QuantityLpCont,
 }
 
+impl TimeSetter {
+    /// Create a TimeSetter mutation
+    ///
+    /// ## Arguments
+    ///
+    /// * `delay` - The mandatory delay that is added between visits for a vessel. A nonzero value will hopefully make the output from the continuous model fit a discrete time representation better.
+    pub fn new(delay: f64) -> grb::Result<TimeSetter> {
+        let quants_lp = QuantityLpCont::new(delay)?;
+        Ok(TimeSetter { quants_lp })
+    }
+}
+
 impl Mutation for TimeSetter {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
         // solve the lp and retrieve the new time periods
