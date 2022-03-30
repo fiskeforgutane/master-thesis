@@ -15,7 +15,7 @@ pub use traits::*;
 use crate::{problem::Problem, solution::routing::RoutingSolution};
 
 /// A general implementation of a genetic algorithm.
-pub struct GeneticAlgorithm<PS, R, M, S, P> {
+pub struct GeneticAlgorithm<PS, R, M, S, P, F> {
     /// The Multi-Depot Vehicle Routing Problem specification
     pub problem: Arc<Problem>,
     /// The current population of solution candidates
@@ -40,15 +40,18 @@ pub struct GeneticAlgorithm<PS, R, M, S, P> {
     pub selection: S,
     /// Penalty for violations of the objective function
     pub penalizer: P,
+    /// The fitness function of the genetic algorithm
+    pub fitness: F,
 }
 
-impl<PS, R, M, S, P> GeneticAlgorithm<PS, R, M, S, P>
+impl<PS, R, M, S, P, F> GeneticAlgorithm<PS, R, M, S, P, F>
 where
     PS: ParentSelection,
     R: Recombination,
     M: Mutation,
     S: SurvivalSelection,
     P: Penalty,
+    F: Fitness,
 {
     /// Constructs a new GeneticAlgorithm with the given configuration.
     pub fn new<I>(
@@ -61,6 +64,7 @@ where
         mutation: M,
         selection: S,
         penalizer: P,
+        fitness: F,
     ) -> Self
     where
         I: initialization::Initialization<Out = RoutingSolution>,
@@ -81,12 +85,14 @@ where
         assert!(population
             .iter()
             .all(|x| std::ptr::eq(x.problem(), &*problem)));
+        // It doesn't matter what solution we use for `child_population` and `next_population`
+        let dummy = population.first().unwrap().clone();
 
         GeneticAlgorithm {
             problem,
             population,
-            child_population: Vec::new(),
-            next_population: Vec::new(),
+            child_population: vec![dummy.clone(); child_count],
+            next_population: vec![dummy; population_size],
             population_size,
             child_count,
             parent_selection,
@@ -94,13 +100,8 @@ where
             mutation,
             selection,
             penalizer,
+            fitness,
         }
-    }
-
-    /// The objective function that the GA attempts to minimize. It consists of a solutions `cost` plus a penalty term given by the instance's `penalizer`,
-    /// typically by putting some cost on any violations of number of vehicles, duration or load.
-    pub fn fitness(&self, _solution: &RoutingSolution) -> f64 {
-        todo!()
     }
 
     /// Returns the individual in the population with the minimal objective function.
@@ -109,7 +110,7 @@ where
         let mut best_z = std::f64::INFINITY;
 
         for solution in &self.population {
-            let z = self.fitness(solution);
+            let z = self.fitness.of(&self.problem, solution);
             if z < best_z {
                 best = solution;
                 best_z = z;
@@ -121,29 +122,27 @@ where
 
     pub fn epoch(&mut self) {
         let problem = &self.problem;
+        let fitness = &self.fitness;
         let population = &mut self.population;
-        let penalizer = &self.penalizer;
         let children = &mut self.child_population;
         let next = &mut self.next_population;
+        // This could potentially be reused, but I don't think it's worth it.
         let mut parents = Vec::with_capacity(self.child_count);
-        let z = |x: &RoutingSolution| {
-            let _penalty = penalizer.penalty(problem, x);
-            todo!()
-        };
-
-        children.clear();
-        next.clear();
 
         // Initialize the parent selection with the current population
-        self.parent_selection
-            .init(population.iter().map(z).collect());
+        self.parent_selection.init(
+            population
+                .iter()
+                .map(|x| self.fitness.of(problem, x))
+                .collect(),
+        );
 
+        assert!(self.child_count == children.len());
         // Sample `child_count` parents from the parent selection strategy, which will be the base for offsprings
-        while children.len() < self.child_count {
-            let p = self.parent_selection.sample();
-            let p = &population[p];
+        for i in 0..self.child_count {
+            let p = &population[self.parent_selection.sample()];
             parents.push(p);
-            children.push(p.clone());
+            children[i].clone_from(p);
         }
 
         // Recombine the children, which are currently direct copies of the parents.
@@ -157,9 +156,10 @@ where
         }
 
         // After having generated the parents and children, we will select the new population based on it
+        // TODO: actually use feasibility of problem (currently just set to `true`).
         self.selection.select_survivors(
             self.population_size,
-            |_: &RoutingSolution| todo!(),
+            |x: &RoutingSolution| (fitness.of(problem, x), true),
             population,
             &parents,
             children,

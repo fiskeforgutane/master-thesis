@@ -50,6 +50,10 @@ pub trait Penalty {
     fn penalty(&self, problem: &Problem, solution: &RoutingSolution) -> f64;
 }
 
+pub trait Fitness {
+    fn of(&self, problem: &Problem, solution: &RoutingSolution) -> f64;
+}
+
 // Some actual implemtations
 
 /// Applies both mutations
