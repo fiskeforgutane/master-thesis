@@ -283,7 +283,7 @@ impl QuantityLpCont {
         // initial inventory
         for (i, p) in iproduct!(0..N, 0..P) {
             // if the node do not have any visits, move on
-            if M.get(&i).unwrap() == 0 {
+            if M.get(&i).unwrap() == &0 {
                 continue;
             }
             let rate = problem.nodes()[i].inventory_changes()[0][p];
