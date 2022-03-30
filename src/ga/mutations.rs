@@ -476,12 +476,12 @@ impl Mutation for BestSwap {
         let new_time = plan[v2].time;
         
         // Move all visits between the new and the old position in time
-        for node_index in v1..v2 {
-            if v1 > v2 {
-                plan[node_index].time = plan[node_index-1].time;
+        for node_index in v2..v1 {
+            if v2 > v1 {
+                plan[node_index].time = plan[node_index+1].time;
             }
             else {
-                plan[node_index].time = plan[node_index+1].time;
+                plan[node_index].time = plan[node_index-1].time;
             }
         }
 
