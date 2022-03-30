@@ -574,3 +574,23 @@ impl BestSwap {
             - problem.distance(r[position - 1], r[position])
     }
 }
+
+pub struct VesselSwap {
+    rand: ThreadRng,
+}
+
+impl Mutation for VesselSwap {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // Select two random vessels for swapping
+        let vessel1 = self.rand.gen_range(0..solution.len());
+        let mut vessel2 = self.rand.gen_range(0..solution.len());
+
+        // Ensure that the two vessels are not the same
+        while vessel1 == vessel2 {
+            vessel2 = self.rand.gen_range(0..solution.len());
+        }
+
+        let mut mutator = solution.mutate();
+        mutator.swap(vessel1, vessel2);
+    }
+}
