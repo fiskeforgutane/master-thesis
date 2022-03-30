@@ -159,7 +159,7 @@ where
         // TODO: actually use feasibility of problem (currently just set to `true`).
         self.selection.select_survivors(
             self.population_size,
-            |x: &RoutingSolution| (fitness.of(problem, x), true),
+            |x: &RoutingSolution| fitness.of(problem, x),
             population,
             &parents,
             children,

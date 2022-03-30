@@ -3,6 +3,7 @@ use rand::prelude::*;
 use std::cell::Cell;
 
 use crate::solution::routing::RoutingSolution;
+use crate::utils;
 
 use super::traits::SurvivalSelection;
 use super::{parent_selection, ParentSelection};
@@ -19,7 +20,7 @@ impl SurvivalSelection for Greedy {
         children: &[RoutingSolution],
         out: &mut Vec<RoutingSolution>,
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let mut combined = Vec::new();
 
@@ -31,7 +32,7 @@ impl SurvivalSelection for Greedy {
             combined.push(c);
         }
 
-        combined.sort_by_cached_key(|&x| FloatOrd(objective_fn(x).0));
+        combined.sort_by_cached_key(|&x| FloatOrd(objective_fn(x)));
 
         out.extend(combined.into_iter().cloned().take(count));
     }
@@ -54,14 +55,14 @@ where
         children: &[RoutingSolution],
         out: &mut Vec<RoutingSolution>,
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let mut proportionate = parent_selection::Proportionate::with_fn(&self.0);
         proportionate.init(
             population
                 .iter()
                 .chain(children)
-                .map(|x| objective_fn(x).0)
+                .map(|x| objective_fn(x))
                 .collect(),
         );
 
@@ -92,7 +93,7 @@ where
         children: &[RoutingSolution],
         out: &mut Vec<RoutingSolution>,
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let elite_count = self.0;
         let mut elites = Vec::new();
@@ -104,7 +105,8 @@ where
                 .enumerate()
                 .filter(|(i, _)| !elites.contains(i))
                 .min_by_key(|(_, x)| {
-                    let (cost, feasible) = objective_fn(x);
+                    let cost = objective_fn(x);
+                    let feasible = x.warp() == 0 && x.violation() <= utils::EPSILON;
                     (!feasible, FloatOrd(cost))
                 })
                 .unwrap();
@@ -139,7 +141,7 @@ where
         children: &[RoutingSolution],
         out: &mut Vec<RoutingSolution>,
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let elite_count = self.0;
         let mut elites = Vec::new();
@@ -150,7 +152,7 @@ where
                 .chain(children)
                 .enumerate()
                 .filter(|(i, _)| !elites.contains(i))
-                .min_by_key(|(_, x)| FloatOrd(objective_fn(x).0))
+                .min_by_key(|(_, x)| FloatOrd(objective_fn(x)))
                 .unwrap();
 
             elites.push(elite.0);
@@ -190,7 +192,7 @@ impl SurvivalSelection for Generational {
         children: &[RoutingSolution],
         out: &mut Vec<RoutingSolution>,
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let rng = self.rng.get_mut();
         out.extend(children.choose_multiple(rng, count).cloned())

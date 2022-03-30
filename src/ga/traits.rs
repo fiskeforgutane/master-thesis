@@ -43,7 +43,7 @@ pub trait SurvivalSelection {
         children: &[RoutingSolution],
         out: &mut Vec<RoutingSolution>,
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool);
+        F: Fn(&RoutingSolution) -> f64;
 }
 
 pub trait Penalty {
