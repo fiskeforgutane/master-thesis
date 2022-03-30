@@ -8,7 +8,7 @@ use itertools::Itertools;
 use pyo3::pyclass;
 
 use crate::models::quantity::{QuantityLp, Variables};
-use crate::problem::{Cost, Problem, Quantity, VesselIndex};
+use crate::problem::{Cost, Inventory, Problem, Product, Quantity, VesselIndex};
 use crate::solution::Visit;
 
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
@@ -271,6 +271,47 @@ impl RoutingSolution {
         }
     }
 
+    /// Retrieves the total cost for the deliveries done by the solution.
+    /// Note: if there are several consecutive `Visit`s to the same node, we will only incur
+    /// a port fee on the first visit.
+    pub fn cost(&self) -> Cost {
+        if let Some(cost) = self.cache.cost.get() {
+            return cost;
+        }
+
+        let problem = self.problem();
+        let lp = self.quantities();
+        let load = &lp.vars.l;
+        let p = problem.count::<Product>();
+        let mut inventory = Inventory::zeroed(p).unwrap();
+        let cost = self
+            .iter_with_origin()
+            .enumerate()
+            .map(|(v, plan)| {
+                plan.tuple_windows()
+                    .map(|(v1, v2)| {
+                        // NOTE: the time might be an off-by-one error
+                        // NOTE2: might consider batching this Gurobi call.
+                        let t = v2.time;
+                        for p in 0..p {
+                            inventory[p] =
+                                lp.model.get_obj_attr(grb::attr::X, &load[t][v][p]).unwrap();
+                        }
+
+                        let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
+                        let port_fee = problem.nodes()[v2.node].port_fee();
+
+                        travel + port_fee
+                    })
+                    .sum::<f64>()
+            })
+            .sum::<f64>();
+
+        self.cache.cost.set(Some(cost));
+
+        cost
+    }
+
     /// Retrieve the total revenue for the amount delivered by in the solution
     pub fn revenue(&self) -> Cost {
         let cache = &self.cache;
@@ -281,18 +322,19 @@ impl RoutingSolution {
                 // We need to retrieve the solution variables, and loop over the ones
                 // that are non-zero to determine the revenue
                 let lp = self.quantities();
+                let x = &lp.vars.x;
                 let nodes = self.problem().nodes();
                 let variables = lp
                     .model
                     .get_obj_attr_batch(
                         grb::attr::X,
-                        QuantityLp::active(self).map(|(t, n, v, p)| lp.vars[t][n][v][p]),
+                        QuantityLp::active(self).map(|(t, n, v, p)| x[t][n][v][p]),
                     )
                     .expect("retrieving variable values failed");
 
                 let revenue = QuantityLp::active(self)
                     .zip_eq(&variables)
-                    .map(|((t, n, v, p), quantity)| nodes[n].revenue() * quantity)
+                    .map(|((_, n, _, _), quantity)| nodes[n].revenue() * quantity)
                     .sum();
 
                 cache.revenue.set(Some(revenue));
