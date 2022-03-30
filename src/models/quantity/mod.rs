@@ -179,7 +179,7 @@ impl QuantityLp {
         })
     }
 
-    fn active<'s>(
+    pub fn active<'s>(
         solution: &'s RoutingSolution,
     ) -> impl Iterator<Item = (TimeIndex, NodeIndex, VesselIndex, ProductIndex)> + 's {
         let problem = solution.problem();
