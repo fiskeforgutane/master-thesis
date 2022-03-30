@@ -174,11 +174,8 @@ impl QuantityLpCont {
         Ok(&self.vars)
     }
 
-    pub fn get_visit_times(
-        &mut self,
-        solution: &RoutingSolution,
-        problem: &Problem,
-    ) -> grb::Result<Vec<Vec<usize>>> {
+    pub fn get_visit_times(&mut self, solution: &RoutingSolution) -> grb::Result<Vec<Vec<usize>>> {
+        let problem = solution.problem();
         let variables = self.solve(solution)?;
         let t: Vec<Vec<Var>> = variables.t.iter().cloned().collect();
 
@@ -355,7 +352,7 @@ impl QuantityLpCont {
                 let (j, n) = win[1];
                 let next_kind = problem.nodes()[j].r#type();
                 model.add_constr(
-                    &format!("load_{}_{}", n, p),
+                    &format!("load_{}_{}_i:{}_m:{}_j:{}_n_{}", n, p, i, m, j, n),
                     c!(l[i][m][p] == l[j][n][p] - Self::multiplier(next_kind) * x[j][n][p]),
                 )?;
             }

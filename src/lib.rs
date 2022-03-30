@@ -360,6 +360,17 @@ fn solve_cont_quantities(
 }
 
 #[pyfunction]
+fn get_visit_times(
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+    delay: f64,
+) -> PyResult<Vec<Vec<usize>>> {
+    let mut quants = QuantityLpCont::new(delay).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    quants.get_visit_times(&solution).map_err(pyerr)
+}
+
+#[pyfunction]
 fn solve_multiple_quantities(
     problem: Problem,
     solutions: Vec<Vec<Vec<Visit>>>,
