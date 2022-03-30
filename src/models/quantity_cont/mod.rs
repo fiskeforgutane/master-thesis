@@ -152,6 +152,7 @@ impl QuantityLpCont {
 
     pub fn py_solve(&mut self, solution: &RoutingSolution) -> grb::Result<F64VariablesCont> {
         self.configure(solution)?;
+        self.model.write("cont-lp.lp")?;
         self.model.optimize()?;
 
         let x = self.vars.x.convert(&self.model)?;
@@ -478,9 +479,15 @@ impl QuantityLpCont {
             // change rate
             let change_rate = problem.nodes()[i].inventory_changes()[0][p];
 
-            let lhs = s[i][m - 1][p] - Self::multiplier(kind) * x[i][m - 1][p]
-                + change_rate * (T - t[i][m - 1])
-                + w[i][m][p];
+            let lhs = if m == 0 {
+                let change = change_rate * T;
+                let initial = problem.nodes()[i].initial_inventory()[p];
+                initial + Self::multiplier(kind) * change - Self::multiplier(kind) * w[i][m][p]
+            } else {
+                s[i][m - 1][p] - Self::multiplier(kind) * x[i][m - 1][p]
+                    + Self::multiplier(kind) * change_rate * (T - t[i][m - 1])
+                    - Self::multiplier(kind) * w[i][m][p]
+            };
 
             match kind {
                 NodeType::Consumption => {
