@@ -288,7 +288,7 @@ impl QuantityLpCont {
             if M.get(&i).unwrap() == &0 {
                 continue;
             }
-            let rate = problem.nodes()[i].inventory_changes()[0][p];
+            let rate = f64::abs(problem.nodes()[i].inventory_changes()[0][p]);
             let kind = problem.nodes()[i].r#type();
             let initial = problem.nodes()[i].initial_inventory()[p];
             // amount produced or consumed before the first visit
@@ -440,7 +440,7 @@ impl QuantityLpCont {
             let m = *M.get(&i).unwrap();
 
             // change rate
-            let change_rate = problem.nodes()[i].inventory_changes()[0][p];
+            let change_rate = f64::abs(problem.nodes()[i].inventory_changes()[0][p]);
 
             let lhs = if m == 0 {
                 let change = change_rate * T;
