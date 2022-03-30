@@ -103,7 +103,13 @@ impl QuantityLpCont {
         // clear model of current variables and constraints
         Self::clear_model(&mut self.model)?;
 
-        let M = solution.iter().flatten().map(|visit| visit.node).counts();
+        let mut M = solution.iter().flatten().map(|visit| visit.node).counts();
+        // go through all nodes and add a entry with value 0 if the node isnt visited
+        (0..problem.nodes().len()).for_each(|i| {
+            if !M.contains_key(&i) {
+                M.insert(i, 0);
+            }
+        });
 
         // update the paths according to the given solution
         let paths = Self::paths(solution, problem, &M);
