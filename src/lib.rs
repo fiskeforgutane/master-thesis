@@ -14,6 +14,9 @@ use ga::Nop;
 use ga::Stochastic;
 use models::quantity::F64Variables;
 use models::quantity::QuantityLp;
+use models::quantity_cont;
+use models::quantity_cont::F64VariablesCont;
+use models::quantity_cont::QuantityLpCont;
 use problem::Compartment;
 use problem::Cost;
 use problem::Distance;
@@ -346,6 +349,17 @@ fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F64Va
 }
 
 #[pyfunction]
+fn solve_cont_quantities(
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+    delay: f64,
+) -> PyResult<quantity_cont::F64VariablesCont> {
+    let mut quants = QuantityLpCont::new(delay).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    quants.py_solve(&solution).map_err(pyerr)
+}
+
+#[pyfunction]
 fn solve_multiple_quantities(
     problem: Problem,
     solutions: Vec<Vec<Vec<Visit>>>,
@@ -418,6 +432,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(twerk, m)?)?;
     m.add_function(wrap_pyfunction!(chain, m)?)?;
     m.add_function(wrap_pyfunction!(stochastic, m)?)?;
+    m.add_function(wrap_pyfunction!(solve_cont_quantities, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
@@ -430,6 +445,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
+    m.add_class::<F64VariablesCont>()?;
     m.add_class::<PyMut>()?;
 
     Ok(())

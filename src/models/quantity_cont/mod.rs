@@ -23,7 +23,7 @@ pub struct Variables {
 }
 
 #[pyclass]
-pub struct F64Variables {
+pub struct F64VariablesCont {
     #[pyo3(get)]
     pub w: Vec<Vec<Vec<f64>>>,
     #[pyo3(get)]
@@ -40,26 +40,44 @@ pub struct QuantityLpCont {
     pub model: Model,
     pub vars: Variables,
     /// map from a vessel index and a visit index for that vessel to the visits associated node index
-    pub paths: HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>>,
+    //pub paths: HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>>,
     pub delay: f64,
+    //pub problem: Arc<Problem>,
 }
 
 #[allow(non_snake_case)]
 impl QuantityLpCont {
-    /// Configure the model such that it is ready to solve for the given solution
-    /// This can perhaps be done quicker if we update only relevant variables and constraints when changes are made to the solution
-    pub fn configure(&mut self, solution: &RoutingSolution, problem: &Problem) -> grb::Result<()> {
-        // clear model of current variables and constraints
-        Self::clear_model(&mut self.model)?;
+    pub fn new(delay: f64) -> grb::Result<QuantityLpCont> {
+        let model = Model::new(&format!("cont quant model"))?;
+        let vars = Variables {
+            w: Vec::new(),
+            x: Vec::new(),
+            s: Vec::new(),
+            l: Vec::new(),
+            t: Vec::new(),
+        };
+        //let paths = HashMap::new();
 
-        let M = solution.iter().flatten().map(|visit| visit.node).counts();
+        Ok(QuantityLpCont {
+            model,
+            vars,
+            //paths,
+            delay,
+            //problem,
+        })
+    }
+
+    pub fn paths(
+        solution: &RoutingSolution,
+        problem: &Problem,
+        M: &HashMap<usize, usize>,
+    ) -> HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>> {
         // helper to hold the number of visits assigned a vessel
         let mut _b = (0..problem.nodes().len())
             .map(|n| *M.get(&n).unwrap())
             .collect::<Vec<_>>();
 
-        // update the paths according to the given solution
-        self.paths = solution
+        solution
             .iter()
             .enumerate()
             .map(|(vessel, plan)| {
@@ -75,8 +93,20 @@ impl QuantityLpCont {
                         .collect(),
                 )
             })
-            .collect();
+            .collect()
+    }
 
+    /// Configure the model such that it is ready to solve for the given solution
+    /// This can perhaps be done quicker if we update only relevant variables and constraints when changes are made to the solution
+    pub fn configure(&mut self, solution: &RoutingSolution) -> grb::Result<()> {
+        let problem = solution.problem();
+        // clear model of current variables and constraints
+        Self::clear_model(&mut self.model)?;
+
+        let M = solution.iter().flatten().map(|visit| visit.node).counts();
+
+        // update the paths according to the given solution
+        let paths = Self::paths(solution, problem, &M);
         // set new variables
         self.vars = Self::create_vars(&mut self.model, problem, &M)?;
 
@@ -93,11 +123,11 @@ impl QuantityLpCont {
 
         // add constraints
         Self::inventory_constraints(&mut self.model, problem, &s, &x, &t, N, P, &M)?;
-        Self::load_constraints(&mut self.model, problem, &self.paths, &l, &x, V, P)?;
+        Self::load_constraints(&mut self.model, problem, &paths, &l, &x, V, P)?;
         Self::time_constraints(
             &mut self.model,
             problem,
-            &self.paths,
+            &paths,
             self.delay,
             &x,
             &t,
@@ -114,12 +144,8 @@ impl QuantityLpCont {
         Ok(())
     }
 
-    pub fn py_solve(
-        &mut self,
-        solution: &RoutingSolution,
-        problem: &Problem,
-    ) -> grb::Result<F64Variables> {
-        self.configure(solution, problem)?;
+    pub fn py_solve(&mut self, solution: &RoutingSolution) -> grb::Result<F64VariablesCont> {
+        self.configure(solution)?;
         self.model.optimize()?;
 
         let x = self.vars.x.convert(&self.model)?;
@@ -128,16 +154,12 @@ impl QuantityLpCont {
         let t = self.vars.t.convert(&self.model)?;
         let s = self.vars.s.convert(&self.model)?;
 
-        Ok(F64Variables { w, x, s, l, t })
+        Ok(F64VariablesCont { w, x, s, l, t })
     }
 
     /// Solves the model for the given solution
-    pub fn solve(
-        &mut self,
-        solution: &RoutingSolution,
-        problem: &Problem,
-    ) -> grb::Result<&Variables> {
-        self.configure(solution, problem)?;
+    pub fn solve(&mut self, solution: &RoutingSolution) -> grb::Result<&Variables> {
+        self.configure(solution)?;
 
         self.model.optimize()?;
 
@@ -149,7 +171,7 @@ impl QuantityLpCont {
         solution: &RoutingSolution,
         problem: &Problem,
     ) -> grb::Result<Vec<Vec<usize>>> {
-        let variables = self.solve(solution, problem)?;
+        let variables = self.solve(solution)?;
         let t: Vec<Vec<Var>> = variables.t.iter().cloned().collect();
 
         // counter for every node
