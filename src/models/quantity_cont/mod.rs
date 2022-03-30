@@ -251,7 +251,7 @@ impl QuantityLpCont {
         let w = (0..problem.nodes().len())
             .map(|i| {
                 let m = *M.get(&i).unwrap() + 1;
-                (m, P).cont(model, &format!("s_{i}"))
+                (m, P).cont(model, &format!("w_{i}"))
             })
             .collect::<grb::Result<Vec<Vec<Vec<Var>>>>>()?;
 
@@ -432,13 +432,44 @@ impl QuantityLpCont {
         T: f64,
     ) -> grb::Result<()> {
         for (i, p) in iproduct!(0..N, 0..P) {
+            let kind = problem.nodes()[i].r#type();
+
+            // end shortage
+
+            // last vist + 1 to indicate the artificial visit at the end
+            let m = *M.get(&i).unwrap();
+
+            // change rate
+            let change_rate = problem.nodes()[i].inventory_changes()[0][p];
+
+            let lhs = if m == 0 {
+                let change = change_rate * T;
+                let initial = problem.nodes()[i].initial_inventory()[p];
+                initial + Self::multiplier(kind) * change - Self::multiplier(kind) * w[i][m][p]
+            } else {
+                s[i][m - 1][p] - Self::multiplier(kind) * x[i][m - 1][p]
+                    + Self::multiplier(kind) * change_rate * (T - t[i][m - 1])
+                    - Self::multiplier(kind) * w[i][m][p]
+            };
+
+            match kind {
+                NodeType::Consumption => {
+                    model.add_constr(&format!("end_shortage_{i}_{m}_{p}"), c!(lhs >= 0.0))?;
+                }
+                NodeType::Production => {
+                    model.add_constr(
+                        &format!("end_overflow_{i}_{m}_{p}"),
+                        c!(lhs <= problem.nodes()[i].capacity()[p]),
+                    )?;
+                }
+            }
+
             // check that the node is actually visited
-            if M.get(&i).unwrap() == &0 {
+            if m == 0 {
                 continue;
             }
 
-            let kind = problem.nodes()[i].r#type();
-
+            // set shortage for every visit
             for m in 0..*M.get(&i).unwrap() {
                 match kind {
                     // set hard limit on upper bound and allow shortage
@@ -469,36 +500,6 @@ impl QuantityLpCont {
                             c!(lhs <= problem.nodes()[i].capacity()[p]),
                         )?;
                     }
-                }
-            }
-
-            // end shortage
-
-            // last vist + 1 to indicate the artificial visit at the end
-            let m = *M.get(&i).unwrap();
-
-            // change rate
-            let change_rate = problem.nodes()[i].inventory_changes()[0][p];
-
-            let lhs = if m == 0 {
-                let change = change_rate * T;
-                let initial = problem.nodes()[i].initial_inventory()[p];
-                initial + Self::multiplier(kind) * change - Self::multiplier(kind) * w[i][m][p]
-            } else {
-                s[i][m - 1][p] - Self::multiplier(kind) * x[i][m - 1][p]
-                    + Self::multiplier(kind) * change_rate * (T - t[i][m - 1])
-                    - Self::multiplier(kind) * w[i][m][p]
-            };
-
-            match kind {
-                NodeType::Consumption => {
-                    model.add_constr(&format!("end_shortage_{i}_{m}_{p}"), c!(lhs >= 0.0))?;
-                }
-                NodeType::Production => {
-                    model.add_constr(
-                        &format!("end_overflow_{i}_{m}_{p}"),
-                        c!(lhs <= problem.nodes()[i].capacity()[p]),
-                    )?;
                 }
             }
         }
