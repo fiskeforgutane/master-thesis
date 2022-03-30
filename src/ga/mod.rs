@@ -65,12 +65,22 @@ where
     where
         I: initialization::Initialization<Out = RoutingSolution>,
     {
-        assert!(population_size > 0);
-        assert!(child_count >= population_size);
-
         let population = (0..population_size)
             .map(|_| initialization.new(&problem))
-            .collect();
+            .collect::<Vec<_>>();
+
+        // We need a strictly positive population size for this to make sense
+        assert!(population_size > 0);
+        // We also need to generate `at least` as many children as there are parents, since we'll swapping the populations
+        assert!(child_count >= population_size);
+        // Check validity that each initial individual has the correct number of vehicles
+        assert!(population
+            .iter()
+            .all(|x| x.len() == problem.vessels().len()));
+        // Check that all individuals point to the exact same `problem`
+        assert!(population
+            .iter()
+            .all(|x| std::ptr::eq(x.problem(), &*problem)));
 
         GeneticAlgorithm {
             problem,
