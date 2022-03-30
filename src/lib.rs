@@ -465,6 +465,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(stochastic, m)?)?;
     m.add_function(wrap_pyfunction!(solve_cont_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities_cont, m)?)?;
+    m.add_function(wrap_pyfunction!(get_visit_times, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
