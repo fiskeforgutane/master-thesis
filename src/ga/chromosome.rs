@@ -3,12 +3,12 @@ use rand::{
     prelude::{IteratorRandom, SliceRandom},
     Rng,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     problem::Problem,
     quants::{self, Order},
-    solution::Visit,
+    solution::{routing::RoutingSolution, Visit},
 };
 
 use super::initialization::Initialization;
@@ -25,8 +25,19 @@ pub struct Init;
 impl Initialization for Init {
     type Out = Chromosome;
 
-    fn new(&self, problem: &Problem) -> Self::Out {
-        Chromosome::new(problem).unwrap()
+    fn new(&self, problem: Arc<Problem>) -> Self::Out {
+        Chromosome::new(&problem).unwrap()
+    }
+}
+
+pub struct InitRoutingSolution;
+
+impl Initialization for InitRoutingSolution {
+    type Out = RoutingSolution;
+
+    fn new(&self, problem: Arc<Problem>) -> Self::Out {
+        let routes = Chromosome::new(&problem).unwrap().chromosome;
+        RoutingSolution::new(problem, routes)
     }
 }
 

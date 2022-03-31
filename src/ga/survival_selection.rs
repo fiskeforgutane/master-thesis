@@ -1,4 +1,5 @@
 use float_ord::FloatOrd;
+use pyo3::pyclass;
 use rand::prelude::*;
 use std::cell::Cell;
 
@@ -8,6 +9,7 @@ use crate::utils;
 use super::traits::SurvivalSelection;
 use super::{parent_selection, ParentSelection};
 
+#[pyclass]
 pub struct Greedy;
 
 impl SurvivalSelection for Greedy {
@@ -31,6 +33,7 @@ impl SurvivalSelection for Greedy {
     }
 }
 
+#[derive(Clone)]
 pub struct Proportionate<F>(pub F)
 where
     F: Fn(f64) -> f64;
@@ -115,6 +118,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct Elite<S>(pub usize, pub S);
 
 impl<S> SurvivalSelection for Elite<S>

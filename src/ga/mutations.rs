@@ -1,6 +1,7 @@
 use grb::attr;
 
 use log::warn;
+use pyo3::pyclass;
 use rand::prelude::*;
 
 use crate::{
@@ -160,6 +161,8 @@ impl Mutation for Twerk {
     }
 }
 
+#[pyclass]
+#[derive(Clone)]
 pub enum RedCostMode {
     /// Performs only one iteration where it updates the upper bounds of a random subset of visits
     /// that look promising to expand
@@ -281,6 +284,8 @@ impl RedCost {
 }
 
 /// How to apply the Bounce
+#[pyclass]
+#[derive(Clone)]
 pub enum BounceMode {
     All,
     Random,
@@ -384,20 +389,19 @@ impl Mutation for Bounce {
     }
 }
 
-pub struct IntraSwap {
-    rand: ThreadRng,
-}
+pub struct IntraSwap;
 
 impl Mutation for IntraSwap {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        let mut rand = rand::thread_rng();
         // get random plan where a swap should be performed
-        let v = self.rand.gen_range(0..problem.vessels().len());
+        let v = rand.gen_range(0..problem.vessels().len());
         let mut mutator = solution.mutate();
         let plan = &mut mutator[v].mutate();
 
         // select two random visits to swap
-        let v1 = self.rand.gen_range(0..plan.len());
-        let v2 = self.rand.gen_range(0..plan.len());
+        let v1 = rand.gen_range(0..plan.len());
+        let v2 = rand.gen_range(0..plan.len());
 
         // if v1 and v2 are equal, we don't do anything
         if v1 == v2 {
@@ -414,20 +418,19 @@ impl Mutation for IntraSwap {
     }
 }
 
-pub struct TwoOpt {
-    rand: ThreadRng,
-}
+pub struct TwoOpt;
 
 impl Mutation for TwoOpt {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        let mut rand = rand::thread_rng();
         // get random plan where a swap should be performed
-        let v = self.rand.gen_range(0..problem.vessels().len());
+        let v = rand.gen_range(0..problem.vessels().len());
         let mut mutator = solution.mutate();
         let plan = &mut mutator[v].mutate();
 
         // select two random visits to swap
-        let v1 = self.rand.gen_range(0..plan.len() - 1);
-        let v2 = self.rand.gen_range(0..plan.len());
+        let v1 = rand.gen_range(0..plan.len() - 1);
+        let v2 = rand.gen_range(0..plan.len());
 
         // if v1 and v2 are equal, we don't do anything
         if v1 == v2 {
@@ -454,23 +457,22 @@ impl Mutation for TwoOpt {
 }
 
 // swaps one random visit from one route with a visit from another route
-pub struct InterSwap {
-    rand: ThreadRng,
-}
+pub struct InterSwap;
 
 impl Mutation for InterSwap {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+        let mut rand = rand::thread_rng();
         // select two random vessels participate in the swap
-        let vessel1 = self.rand.gen_range(0..solution.len());
-        let vessel2 = self.rand.gen_range(0..solution.len());
+        let vessel1 = rand.gen_range(0..solution.len());
+        let vessel2 = rand.gen_range(0..solution.len());
 
         if vessel1 == vessel2 {
             return;
         }
 
         // select a random visit from each vessel
-        let v1 = self.rand.gen_range(0..solution[vessel1].len());
-        let v2 = self.rand.gen_range(0..solution[vessel2].len());
+        let v1 = rand.gen_range(0..solution[vessel1].len());
+        let v2 = rand.gen_range(0..solution[vessel2].len());
 
         let mutator = &mut solution.mutate();
 

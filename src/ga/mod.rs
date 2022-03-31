@@ -16,7 +16,7 @@ pub use traits::*;
 use crate::{problem::Problem, solution::routing::RoutingSolution};
 
 /// A general implementation of a genetic algorithm.
-pub struct GeneticAlgorithm<PS, R, M, S, P, F> {
+pub struct GeneticAlgorithm<PS, R, M, S, F> {
     /// The Multi-Depot Vehicle Routing Problem specification
     pub problem: Arc<Problem>,
     /// The current population of solution candidates
@@ -39,19 +39,16 @@ pub struct GeneticAlgorithm<PS, R, M, S, P, F> {
     pub mutation: M,
     /// Select the next population based on the parents and children
     pub selection: S,
-    /// Penalty for violations of the objective function
-    pub penalizer: P,
     /// The fitness function of the genetic algorithm
     pub fitness: F,
 }
 
-impl<PS, R, M, S, P, F> GeneticAlgorithm<PS, R, M, S, P, F>
+impl<PS, R, M, S, F> GeneticAlgorithm<PS, R, M, S, F>
 where
     PS: ParentSelection,
     R: Recombination,
     M: Mutation,
     S: SurvivalSelection,
-    P: Penalty,
     F: Fitness,
 {
     /// Constructs a new GeneticAlgorithm with the given configuration.
@@ -64,14 +61,13 @@ where
         recombination: R,
         mutation: M,
         selection: S,
-        penalizer: P,
         fitness: F,
     ) -> Self
     where
         I: initialization::Initialization<Out = RoutingSolution>,
     {
         let population = (0..population_size)
-            .map(|_| initialization.new(&problem))
+            .map(|_| initialization.new(problem.clone()))
             .collect::<Vec<_>>();
 
         // We need a strictly positive population size for this to make sense
@@ -100,7 +96,6 @@ where
             recombination,
             mutation,
             selection,
-            penalizer,
             fitness,
         }
     }
