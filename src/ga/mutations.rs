@@ -527,7 +527,12 @@ impl TwoOpt {
             for swap_first in start + 1..end - 2 {
                 for swap_last in (swap_first + 2)..end {
                     let change = Self::evaluate(plan, swap_first, swap_last, problem);
-                    trace!("checking: {:?}, {:?}", swap_first, swap_last);
+                    trace!(
+                        "checking: {:?}, {:?}, change is {:?}",
+                        swap_first,
+                        swap_last,
+                        change
+                    );
                     if change < 1.0 {
                         found_none = false;
                         trace!(
