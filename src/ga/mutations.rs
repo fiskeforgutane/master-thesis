@@ -671,7 +671,7 @@ impl Mutation for InterSwap {
         let mutator = &mut solution.mutate();
 
         // perform the swap
-        let (p1, p2) = &mut mutator.get_pair_mut(v1, v2);
+        let (p1, p2) = &mut mutator.get_pair_mut(vessel1, vessel2);
         let visit1 = &mut p1.mutate()[v1];
         let visit2 = &mut p2.mutate()[v2];
 
