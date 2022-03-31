@@ -250,7 +250,7 @@ impl RedCost {
                 t,
                 n,
                 v,
-                model.get_obj_attr(attr::X, &vars[t][n][v][p])
+                model.get_obj_attr(attr::X, &vars.x[t][n][v][0])
             );
             // sum the reduced cost over all products
             let reduced = (0..problem.products())
