@@ -13,7 +13,7 @@ use crate::python::*;
 use ga::chromosome::Chromosome;
 use models::quantity::F64Variables;
 use problem::{Compartment, Node, NodeType, Problem, Vessel};
-use pyo3::prelude::*;
+use pyo3::{prelude::*, wrap_pymodule};
 use pyo3_log::Logger;
 use quants::Order;
 use solution::{Delivery, Evaluation, Visit};
@@ -28,6 +28,26 @@ pub fn test_logging() {
     log::info!("Is trace enabled: {}", log::log_enabled!(log::Level::Trace));
 }
 
+/// A submodule for the GA
+#[pymodule]
+fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(twerk, m)?)?;
+    m.add_function(wrap_pyfunction!(chain, m)?)?;
+    m.add_function(wrap_pyfunction!(stochastic, m)?)?;
+    m.add_function(wrap_pyfunction!(pix, m)?)?;
+    m.add_function(wrap_pyfunction!(proportionate, m)?)?;
+    m.add_function(wrap_pyfunction!(tournament, m)?)?;
+    m.add_function(wrap_pyfunction!(greedy, m)?)?;
+    m.add_function(wrap_pyfunction!(elite, m)?)?;
+
+    m.add_class::<PyMut>()?;
+    m.add_class::<PyRecombination>()?;
+    m.add_class::<PyParentSelection>()?;
+    m.add_class::<PyElite>()?;
+
+    Ok(())
+}
+
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
@@ -38,19 +58,13 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
         .install()
         .expect("A logger has already been installed:(");
 
+    m.add_wrapped(wrap_pymodule!(ga))?;
+
     m.add_function(wrap_pyfunction!(test_logging, m)?)?;
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
-    m.add_function(wrap_pyfunction!(twerk, m)?)?;
-    m.add_function(wrap_pyfunction!(chain, m)?)?;
-    m.add_function(wrap_pyfunction!(stochastic, m)?)?;
-    m.add_function(wrap_pyfunction!(pix, m)?)?;
-    m.add_function(wrap_pyfunction!(proportionate, m)?)?;
-    m.add_function(wrap_pyfunction!(tournament, m)?)?;
-    m.add_function(wrap_pyfunction!(greedy, m)?)?;
-    m.add_function(wrap_pyfunction!(elite, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
@@ -63,10 +77,6 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
-    m.add_class::<PyMut>()?;
-    m.add_class::<PyRecombination>()?;
-    m.add_class::<PyParentSelection>()?;
-    m.add_class::<PyElite>()?;
 
     Ok(())
 }
