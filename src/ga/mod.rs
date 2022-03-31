@@ -1,6 +1,7 @@
 #[macro_use]
 pub mod mutations;
 pub mod chromosome;
+pub mod fitness;
 pub mod initialization;
 pub mod parent_selection;
 pub mod penalizers;
@@ -15,7 +16,7 @@ pub use traits::*;
 use crate::{problem::Problem, solution::routing::RoutingSolution};
 
 /// A general implementation of a genetic algorithm.
-pub struct GeneticAlgorithm<PS, R, M, S, P> {
+pub struct GeneticAlgorithm<PS, R, M, S, P, F> {
     /// The Multi-Depot Vehicle Routing Problem specification
     pub problem: Arc<Problem>,
     /// The current population of solution candidates
@@ -40,15 +41,18 @@ pub struct GeneticAlgorithm<PS, R, M, S, P> {
     pub selection: S,
     /// Penalty for violations of the objective function
     pub penalizer: P,
+    /// The fitness function of the genetic algorithm
+    pub fitness: F,
 }
 
-impl<PS, R, M, S, P> GeneticAlgorithm<PS, R, M, S, P>
+impl<PS, R, M, S, P, F> GeneticAlgorithm<PS, R, M, S, P, F>
 where
     PS: ParentSelection,
     R: Recombination,
     M: Mutation,
     S: SurvivalSelection,
     P: Penalty,
+    F: Fitness,
 {
     /// Constructs a new GeneticAlgorithm with the given configuration.
     pub fn new<I>(
@@ -61,22 +65,35 @@ where
         mutation: M,
         selection: S,
         penalizer: P,
+        fitness: F,
     ) -> Self
     where
         I: initialization::Initialization<Out = RoutingSolution>,
     {
-        assert!(population_size > 0);
-        assert!(child_count >= population_size);
-
         let population = (0..population_size)
             .map(|_| initialization.new(&problem))
-            .collect();
+            .collect::<Vec<_>>();
+
+        // We need a strictly positive population size for this to make sense
+        assert!(population_size > 0);
+        // We also need to generate `at least` as many children as there are parents, since we'll swapping the populations
+        assert!(child_count >= population_size);
+        // Check validity that each initial individual has the correct number of vehicles
+        assert!(population
+            .iter()
+            .all(|x| x.len() == problem.vessels().len()));
+        // Check that all individuals point to the exact same `problem`
+        assert!(population
+            .iter()
+            .all(|x| std::ptr::eq(x.problem(), &*problem)));
+        // It doesn't matter what solution we use for `child_population` and `next_population`
+        let dummy = population.first().unwrap().clone();
 
         GeneticAlgorithm {
             problem,
             population,
-            child_population: Vec::new(),
-            next_population: Vec::new(),
+            child_population: vec![dummy.clone(); child_count],
+            next_population: vec![dummy; population_size],
             population_size,
             child_count,
             parent_selection,
@@ -84,13 +101,8 @@ where
             mutation,
             selection,
             penalizer,
+            fitness,
         }
-    }
-
-    /// The objective function that the GA attempts to minimize. It consists of a solutions `cost` plus a penalty term given by the instance's `penalizer`,
-    /// typically by putting some cost on any violations of number of vehicles, duration or load.
-    pub fn objective_fn(&self, _solution: &RoutingSolution) -> f64 {
-        todo!()
     }
 
     /// Returns the individual in the population with the minimal objective function.
@@ -99,7 +111,7 @@ where
         let mut best_z = std::f64::INFINITY;
 
         for solution in &self.population {
-            let z = self.objective_fn(solution);
+            let z = self.fitness.of(&self.problem, solution);
             if z < best_z {
                 best = solution;
                 best_z = z;
@@ -111,29 +123,27 @@ where
 
     pub fn epoch(&mut self) {
         let problem = &self.problem;
+        let fitness = &self.fitness;
         let population = &mut self.population;
-        let penalizer = &self.penalizer;
         let children = &mut self.child_population;
         let next = &mut self.next_population;
+        // This could potentially be reused, but I don't think it's worth it.
         let mut parents = Vec::with_capacity(self.child_count);
-        let z = |x: &RoutingSolution| {
-            let _penalty = penalizer.penalty(problem, x);
-            todo!()
-        };
-
-        children.clear();
-        next.clear();
 
         // Initialize the parent selection with the current population
-        self.parent_selection
-            .init(population.iter().map(z).collect());
+        self.parent_selection.init(
+            population
+                .iter()
+                .map(|x| self.fitness.of(problem, x))
+                .collect(),
+        );
 
+        assert!(self.child_count == children.len());
         // Sample `child_count` parents from the parent selection strategy, which will be the base for offsprings
-        while children.len() < self.child_count {
-            let p = self.parent_selection.sample();
-            let p = &population[p];
+        for i in 0..self.child_count {
+            let p = &population[self.parent_selection.sample()];
             parents.push(p);
-            children.push(p.clone());
+            children[i].clone_from(p);
         }
 
         // Recombine the children, which are currently direct copies of the parents.
@@ -147,9 +157,10 @@ where
         }
 
         // After having generated the parents and children, we will select the new population based on it
+        assert!(self.population_size == next.len());
+        // TODO: actually use feasibility of problem (currently just set to `true`).
         self.selection.select_survivors(
-            self.population_size,
-            |_: &RoutingSolution| todo!(),
+            |x: &RoutingSolution| fitness.of(problem, x),
             population,
             &parents,
             children,
@@ -159,65 +170,4 @@ where
         // And then we'll switch to the new generation
         std::mem::swap(population, next);
     }
-
-    /* /// Returns a tuple `(best, best_feasible)` containing the current best solution w.r.t the objective function and the best feasible solution (if any)
-    pub fn best<'a>(
-        &'a self,
-    ) -> (
-        (&'a RoutingSolution, f64, f64, Vec<Violation>),
-        Option<(&'a RoutingSolution, f64, f64)>,
-    ) {
-        let mut best = &self.population[0];
-        let mut best_z = std::f64::INFINITY;
-        let mut best_bc = std::f64::INFINITY;
-        let mut best_v = Vec::new();
-
-        let mut feasible = None;
-        let mut feasible_z = None;
-        let mut feasible_bc = None;
-
-        for solution in &self.population {
-            let (base_cost, violations) = self.problem.relaxed_cost(solution);
-            let penalty = self
-                .penalizer
-                .penalty(&self.problem, &violations, solution, base_cost);
-            let z = base_cost + penalty;
-
-            if violations.is_empty() && base_cost < feasible_z.unwrap_or(std::f64::INFINITY) {
-                feasible = Some(solution);
-                feasible_z = Some(z);
-                feasible_bc = Some(base_cost);
-            }
-
-            if z < best_z {
-                best = solution;
-                best_z = z;
-                best_bc = base_cost;
-                best_v = violations;
-            }
-        }
-
-        (
-            (best, best_z, best_bc, best_v),
-            match (feasible, feasible_z, feasible_bc) {
-                (Some(a), Some(b), Some(c)) => Some((a, b, c)),
-                _ => None,
-            },
-        )
-    } */
 }
-
-/*
-Possible mutation operators:
-- Rebase tour (move tour from one depot to another)
-- Rebase vertex (move vertex from one position to another, possibly in another route)
-- Swap vertex (can be handled more efficiently than rebasing vertex)
-- Remove a tour from a depot
-- Add a tour to a depot using some heuristic
-- Do an LS (e.g. 2-opt) on a route, a set of routes, or a route's depot.
-
-Possible crossover operators:
--
-- Keep edges in common for both parents, recombine others somehow
--
-*/

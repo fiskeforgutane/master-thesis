@@ -3,6 +3,7 @@ use rand::prelude::*;
 use std::cell::Cell;
 
 use crate::solution::routing::RoutingSolution;
+use crate::utils;
 
 use super::traits::SurvivalSelection;
 use super::{parent_selection, ParentSelection};
@@ -12,28 +13,21 @@ pub struct Greedy;
 impl SurvivalSelection for Greedy {
     fn select_survivors<F>(
         &mut self,
-        count: usize,
         objective_fn: F,
         population: &[RoutingSolution],
         _parents: &[&RoutingSolution],
         children: &[RoutingSolution],
-        out: &mut Vec<RoutingSolution>,
+        out: &mut [RoutingSolution],
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
-        let mut combined = Vec::new();
+        let mut combined = population.iter().chain(children).collect::<Vec<_>>();
 
-        for p in population {
-            combined.push(p);
+        combined.sort_by_cached_key(|&x| FloatOrd(objective_fn(x)));
+
+        for (out, source) in out.iter_mut().zip(&combined) {
+            out.clone_from(source);
         }
-
-        for c in children {
-            combined.push(c);
-        }
-
-        combined.sort_by_cached_key(|&x| FloatOrd(objective_fn(x).0));
-
-        out.extend(combined.into_iter().cloned().take(count));
     }
 }
 
@@ -47,32 +41,30 @@ where
 {
     fn select_survivors<F>(
         &mut self,
-        count: usize,
         objective_fn: F,
         population: &[RoutingSolution],
         _parents: &[&RoutingSolution],
         children: &[RoutingSolution],
-        out: &mut Vec<RoutingSolution>,
+        out: &mut [RoutingSolution],
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let mut proportionate = parent_selection::Proportionate::with_fn(&self.0);
         proportionate.init(
             population
                 .iter()
                 .chain(children)
-                .map(|x| objective_fn(x).0)
+                .map(|x| objective_fn(x))
                 .collect(),
         );
 
-        while out.len() < count {
+        for out in out.iter_mut() {
             let i = proportionate.sample();
+            let source = population
+                .get(i)
+                .unwrap_or_else(|| &children[i - population.len()]);
 
-            out.push(if i >= population.len() {
-                children[i - population.len()].clone()
-            } else {
-                population[i].clone()
-            });
+            out.clone_from(source);
         }
     }
 }
@@ -85,41 +77,40 @@ where
 {
     fn select_survivors<F>(
         &mut self,
-        count: usize,
         objective_fn: F,
         population: &[RoutingSolution],
         parents: &[&RoutingSolution],
         children: &[RoutingSolution],
-        out: &mut Vec<RoutingSolution>,
+        out: &mut [RoutingSolution],
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let elite_count = self.0;
         let mut elites = Vec::new();
         // We assume `k` to be small, such that the k in O(kn) is negligible
-        for _ in 0..elite_count {
+        for i in 0..elite_count {
             let elite = population
                 .iter()
                 .chain(children)
                 .enumerate()
                 .filter(|(i, _)| !elites.contains(i))
                 .min_by_key(|(_, x)| {
-                    let (cost, feasible) = objective_fn(x);
+                    let cost = objective_fn(x);
+                    let feasible = x.warp() == 0 && x.violation() <= utils::EPSILON;
                     (!feasible, FloatOrd(cost))
                 })
                 .unwrap();
 
             elites.push(elite.0);
-            out.push(elite.1.clone());
+            out[i].clone_from(elite.1);
         }
 
         self.1.select_survivors(
-            count - elite_count,
             objective_fn,
             population,
             parents,
             children,
-            out,
+            &mut out[elite_count..],
         );
     }
 }
@@ -132,38 +123,36 @@ where
 {
     fn select_survivors<F>(
         &mut self,
-        count: usize,
         objective_fn: F,
         population: &[RoutingSolution],
         parents: &[&RoutingSolution],
         children: &[RoutingSolution],
-        out: &mut Vec<RoutingSolution>,
+        out: &mut [RoutingSolution],
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let elite_count = self.0;
         let mut elites = Vec::new();
         // We assume `k` to be small, such that the k in O(kn) is negligible
-        for _ in 0..elite_count {
+        for i in 0..elite_count {
             let elite = population
                 .iter()
                 .chain(children)
                 .enumerate()
                 .filter(|(i, _)| !elites.contains(i))
-                .min_by_key(|(_, x)| FloatOrd(objective_fn(x).0))
+                .min_by_key(|(_, x)| FloatOrd(objective_fn(x)))
                 .unwrap();
 
             elites.push(elite.0);
-            out.push(elite.1.clone());
+            out[i].clone_from(elite.1);
         }
 
         self.1.select_survivors(
-            count - elite_count,
             objective_fn,
             population,
             parents,
             children,
-            out,
+            &mut out[elite_count..],
         );
     }
 }
@@ -183,16 +172,18 @@ impl Generational {
 impl SurvivalSelection for Generational {
     fn select_survivors<F>(
         &mut self,
-        count: usize,
         _: F,
         _: &[RoutingSolution],
         __: &[&RoutingSolution],
         children: &[RoutingSolution],
-        out: &mut Vec<RoutingSolution>,
+        out: &mut [RoutingSolution],
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool),
+        F: Fn(&RoutingSolution) -> f64,
     {
         let rng = self.rng.get_mut();
-        out.extend(children.choose_multiple(rng, count).cloned())
+        let chosen = children.choose_multiple(rng, out.len());
+        for (out, source) in out.iter_mut().zip(chosen) {
+            out.clone_from(source);
+        }
     }
 }
