@@ -7,12 +7,19 @@ use crate::ga::mutations::RedCost;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
 use crate::ga::mutations::{BounceMode, RedCostMode};
+use crate::ga::parent_selection;
 use crate::ga::Chain;
+use crate::ga::ParentSelection;
+use crate::ga::Recombination;
+use crate::ga::SurvivalSelection;
 
 use crate::ga::Mutation;
 use crate::ga::Nop;
 use crate::ga::Stochastic;
 
+use crate::ga::recombinations::PIX;
+use crate::ga::survival_selection;
+use crate::ga::survival_selection::Elite;
 use crate::problem::Problem;
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -20,22 +27,12 @@ use std::sync::Mutex;
 
 use crate::solution::routing::RoutingSolution;
 
+use super::pyerr;
+
 #[pyclass]
 #[derive(Clone)]
 pub struct PyMut {
     inner: Arc<Mutex<dyn ga::Mutation + Send>>,
-}
-
-#[pyclass]
-#[derive(Clone)]
-pub struct PyRecombination {
-    inner: Arc<Mutex<dyn ga::Recombination + Send>>,
-}
-
-#[pyclass]
-#[derive(Clone)]
-pub struct PyParentSelection {
-    inner: Arc<Mutex<dyn ga::ParentSelection + Send>>,
 }
 
 impl Mutation for PyMut {
@@ -107,4 +104,100 @@ pub fn chain(mutations: Vec<PyMut>) -> PyMut {
     mutations.into_iter().fold(nop(), |acc, x| PyMut {
         inner: Arc::new(Mutex::new(Chain(acc, x))),
     })
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct PyRecombination {
+    inner: Arc<Mutex<dyn ga::Recombination + Send>>,
+}
+
+#[pyfunction]
+pub fn pix() -> PyRecombination {
+    PyRecombination {
+        inner: Arc::new(Mutex::new(PIX)),
+    }
+}
+
+impl Recombination for PyRecombination {
+    fn apply(
+        &mut self,
+        problem: &Problem,
+        left: &mut RoutingSolution,
+        right: &mut RoutingSolution,
+    ) {
+        self.inner.lock().unwrap().apply(problem, left, right)
+    }
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct PyParentSelection {
+    inner: Arc<Mutex<dyn ga::ParentSelection + Send>>,
+}
+
+impl ParentSelection for PyParentSelection {
+    fn init(&mut self, fitness_values: Vec<f64>) {
+        self.inner.lock().unwrap().init(fitness_values)
+    }
+
+    fn sample(&mut self) -> usize {
+        self.inner.lock().unwrap().sample()
+    }
+}
+
+/// Select proportionate to 1 / (1 + fitness)
+#[pyfunction]
+pub fn proportionate() -> PyParentSelection {
+    PyParentSelection {
+        inner: Arc::new(Mutex::new(parent_selection::Proportionate::with_fn(|x| {
+            1.0 / (1.0 + x)
+        }))),
+    }
+}
+
+/// Tournament selection
+#[pyfunction]
+pub fn tournament(k: usize) -> Option<PyParentSelection> {
+    Some(PyParentSelection {
+        inner: Arc::new(Mutex::new(parent_selection::Tournament::new(k)?)),
+    })
+}
+
+#[pyfunction]
+pub fn greedy() -> survival_selection::Greedy {
+    survival_selection::Greedy
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct PyElite {
+    inner: Elite<survival_selection::Proportionate<fn(f64) -> f64>>,
+}
+
+fn key(x: f64) -> f64 {
+    1.0 / (1.0 + x)
+}
+
+#[pyfunction]
+pub fn elite(k: usize) -> PyElite {
+    PyElite {
+        inner: Elite(k, survival_selection::Proportionate(key)),
+    }
+}
+
+impl SurvivalSelection for PyElite {
+    fn select_survivors<F>(
+        &mut self,
+        objective_fn: F,
+        population: &[RoutingSolution],
+        parents: &[&RoutingSolution],
+        children: &[RoutingSolution],
+        out: &mut [RoutingSolution],
+    ) where
+        F: Fn(&RoutingSolution) -> f64,
+    {
+        self.inner
+            .select_survivors(objective_fn, population, parents, children, out)
+    }
 }
