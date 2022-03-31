@@ -6,7 +6,7 @@ use std::{
 use grb::attr;
 
 use float_ord::FloatOrd;
-use log::warn;
+use log::{trace, warn};
 use pyo3::pyclass;
 use rand::prelude::*;
 
@@ -518,6 +518,7 @@ impl TwoOpt {
         let mut count = 0;
 
         while count < iterations_without_improvement {
+            trace!("Starting new iteration, count is {:?}", count);
             // bool to say if we found an improving solution above threshold
             let mut found_improving = false;
             // bool to say if we did not find any improving solution at all
@@ -526,10 +527,16 @@ impl TwoOpt {
             for swap_first in start + 1..end - 2 {
                 for swap_last in (swap_first + 2)..end {
                     let change = Self::evaluate(plan, swap_first, swap_last, problem);
+                    trace!("checking: {:?}, {:?}", swap_first, swap_last);
                     if change < 1.0 {
                         found_none = false;
-
-                        if change >= improvement_threshold {
+                        trace!(
+                            "found improving with change: {:?} for swap 1:{:?} 2: {:?}",
+                            change,
+                            swap_first,
+                            swap_last
+                        );
+                        if change <= improvement_threshold {
                             found_improving = true
                         }
                         // move to next solution
@@ -654,22 +661,30 @@ impl DistanceReduction {
         }
     }
 
-    pub fn distance_reduction(&mut self, problem: &Problem, solution: &mut RoutingSolution, vessel_index: usize) {
+    pub fn distance_reduction(
+        &mut self,
+        problem: &Problem,
+        solution: &mut RoutingSolution,
+        vessel_index: usize,
+    ) {
         // Initialize values
         let mut mutator = solution.mutate();
         let plan = &mut mutator[vessel_index].mutate();
         let plan_len = plan.len();
 
         // Holders for the best move (from, to) and the largest reduction in distance
-        let mut best_move: (usize, usize) = (0,0);
+        let mut best_move: (usize, usize) = (0, 0);
         let mut largest_reduction: f64 = std::f64::MIN;
 
         // Have to check all node moves
-        for from in 0..(plan_len-1) {
+        for from in 0..(plan_len - 1) {
             // For each (from, to)-combination we calculate the distance reduction
             let key = |to: &usize| FloatOrd(self.distance_reduction_calc(problem, plan, from, *to));
-            let to = (0..(plan_len-1)).filter(|v| *v != from).max_by_key(key).unwrap();
-            
+            let to = (0..(plan_len - 1))
+                .filter(|v| *v != from)
+                .max_by_key(key)
+                .unwrap();
+
             // If the new distance reduction is higher than the previous max, update the move and the
             // largest reduction
             if self.distance_reduction_calc(problem, plan, from, to) > largest_reduction {
@@ -686,8 +701,7 @@ impl DistanceReduction {
         for node_index in start..end {
             if end > start {
                 plan[node_index].time = plan[node_index + 1].time;
-            }
-            else {
+            } else {
                 plan[node_index].time = plan[node_index - 1].time;
             }
         }
@@ -720,11 +734,11 @@ impl Mutation for DistanceReduction {
                 for vessel_index in 0..solution.len() {
                     self.distance_reduction(problem, solution, vessel_index);
                 }
-            },
+            }
             DistanceReductionMode::Random => {
                 let vessel_index = self.rand.gen_range(0..solution.len());
                 self.distance_reduction(problem, solution, vessel_index);
-            },
+            }
         }
     }
 }
