@@ -339,7 +339,7 @@ impl RedCost {
             if rand.gen::<f64>() < 0.5 {
                 let visit = &mut plan[i];
                 // move back, if possible
-                visit.time = 0.max(visit.time - 1);
+                visit.time = problem.vessels()[v].available_from().max(visit.time - 1);
             } else {
                 // move next forward, if possible
                 let visit = &mut plan.get_mut(i + 1);
