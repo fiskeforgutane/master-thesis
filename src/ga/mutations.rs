@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
 };
 
-use grb::attr;
+use grb::{attr, Status};
 
 use float_ord::FloatOrd;
 use log::{trace, warn};
@@ -230,15 +230,28 @@ impl RedCost {
         let vars = solution.variables();
         let model = &quant_lp.model;
 
+        let status = model.status().expect("Could not retrive tha model status");
+        assert!(matches!(status, Status::Optimal));
+
         // the visits indeccorresponding to the ones with high reduced cost
         let mut visit_indices: Vec<usize> = (0..n_visits).collect();
         // the reduced costs
         let mut reduced_costs = vec![f64::NEG_INFINITY; n_visits];
 
         for (visit_idx, (t, n, v)) in Self::mutable_indices(vessel, solution).enumerate() {
+            trace!(
+                "Trying to retrieve the reduced cost for x_{}_{}_{}",
+                t,
+                n,
+                v
+            );
             // sum the reduced cost over all products
             let reduced = (0..problem.products())
-                .map(|p| model.get_obj_attr(attr::RC, &vars.x[t][n][v][p]).unwrap())
+                .map(|p| {
+                    model
+                        .get_obj_attr(attr::RC, &vars.x[t][n][v][p])
+                        .expect("Failed to retrieve reduced cost")
+                })
                 .sum::<f64>();
 
             // get the index of the lowest reduced cost found so far
