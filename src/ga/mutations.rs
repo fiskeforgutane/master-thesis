@@ -12,7 +12,7 @@ use rand::prelude::*;
 
 use crate::{
     ga::Mutation,
-    problem::{Node, Problem, Timestep, Vessel, VesselIndex},
+    problem::{Node, NodeType, Problem, Timestep, Vessel, VesselIndex},
     solution::{
         routing::{Plan, PlanMut, RoutingSolution},
         Visit,
@@ -450,6 +450,10 @@ impl TwoOpt {
     /// * `v2` - The index of the second visit to swap
     pub fn update(plan: &mut Plan, v1: usize, v2: usize) {
         let plan = &mut plan.mutate();
+
+        // reverse the plan from v1+1 to v2
+        let v1 = v1 + 1;
+
         // if the visit indices are equal, we do not do anything
         if v1 == v2 {
             return;
@@ -480,11 +484,18 @@ impl TwoOpt {
     /// ## Arguments
     ///
     /// * `plan` - The plan that a change should be evaluated
-    /// * `v1` - The index of the first visit, cannot be a visit to a production node
+    /// * `v1` - The index of the first visit
     /// * `v2` - The index of the second visit, cannot be a visit to a production node
     pub fn evaluate(plan: &Plan, v1: usize, v2: usize, problem: &Problem) -> f64 {
         // node indices corresponding to visit v1 and v2
         let (n1, n2) = (plan[v1].node, plan[v2].node);
+
+        // assert that n2 is not a production visit
+        assert!(matches!(
+            problem.nodes()[n2].r#type(),
+            NodeType::Consumption
+        ));
+
         // node indices corresponding to the next visit from v1 and v2
         let (n1next, n2next) = (plan[v1 + 1].node, plan[v2 + 1].node);
         // current distance
@@ -524,7 +535,7 @@ impl TwoOpt {
             // bool to say if we did not find any improving solution at all
             let mut found_none = true;
 
-            for swap_first in start + 1..end - 2 {
+            for swap_first in start..end - 2 {
                 for swap_last in (swap_first + 2)..end {
                     let change = Self::evaluate(plan, swap_first, swap_last, problem);
                     trace!(
