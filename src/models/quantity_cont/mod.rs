@@ -456,7 +456,7 @@ impl QuantityLpCont {
                 let (j, n) = win[1];
 
                 // unloading rate as time per quantity
-                let time_per_quant = problem.nodes()[i].time_per_quantity();
+                let time_per_quant = 1.0 / (problem.nodes()[i].max_loading_amount() as f64);
 
                 // time taken to load/unload at the previous visit
                 let visit_time = time_per_quant * x[i][m][p];

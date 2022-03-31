@@ -479,9 +479,6 @@ pub struct Node {
     /// The maximum amount that can be loaded in a single time step
     max_loading_amount: Quantity,
     #[pyo3(get)]
-    /// The time per quantity loaded or unloaded as a float. Used in continuous models
-    time_per_quantity: f64,
-    #[pyo3(get)]
     /// The fixed fee associated with visiting the port
     port_fee: Cost,
     /// The maximum inventory capacity of the farm
@@ -533,7 +530,6 @@ impl Node {
             port_capacity,
             min_unloading_amount,
             max_loading_amount,
-            time_per_quantity,
             port_fee,
             capacity,
             inventory_changes,
@@ -566,11 +562,6 @@ impl Node {
     /// The maximum amount that can be loaded in a single time step
     pub fn max_loading_amount(&self) -> Quantity {
         self.max_loading_amount
-    }
-
-    /// The time taken to unload or load one unit of quantity
-    pub fn time_per_quantity(&self) -> f64 {
-        self.time_per_quantity
     }
     /// The fixed fee associated with visiting the port
     pub fn port_fee(&self) -> Cost {
