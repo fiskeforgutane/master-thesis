@@ -70,7 +70,7 @@ impl Chromosome {
 
         for order in &initial_orders {
             trace!("Order: {:?}", order);
-            let serve_time = rng.gen_range(order.open()..order.close());
+            let serve_time = rng.gen_range(order.open()..(order.close()+1));
 
             trace!("Serve time: {:?}", serve_time);
 
