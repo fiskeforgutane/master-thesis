@@ -45,7 +45,6 @@ impl Initialization for InitRoutingSolution {
 
 impl Chromosome {
     pub fn new(problem: &Problem) -> Result<Chromosome, Box<dyn std::error::Error>> {
-        trace!("Starting on chromosomes!");
         let initial_orders: Vec<Order> = quants::initial_orders(problem)?;
         let vessels = problem.vessels();
         let mut rng = rand::thread_rng();
@@ -54,25 +53,14 @@ impl Chromosome {
             .take(vessels.len())
             .collect::<Vec<Vec<Visit>>>();
         
-        trace!("Chromosome: {:?}", chromosome);
-
         let mut avail_from = problem
             .vessels()
             .iter()
             .map(|vessel| (vessel.index(), (vessel.origin(), vessel.available_from())))
             .collect::<HashMap<_, _>>();
         
-        trace!("Available from: {:?}", avail_from);
-
-        for node in problem.nodes() {
-            trace!("Node id: {}     Initial inventory: {:?}   Consumption rate: {:?}", node.index(), node.initial_inventory(), node.inventory_changes()[0]);
-        }
-
         for order in &initial_orders {
-            trace!("Order: {:?}", order);
             let serve_time = rng.gen_range(order.open()..(order.close()+1));
-
-            trace!("Serve time: {:?}", serve_time);
 
             let first_choice = vessels
                 .iter()
@@ -83,8 +71,6 @@ impl Chromosome {
                 })
                 .choose(&mut rng);
             
-            trace!("First choice {:?}", first_choice);
-
             let chosen = first_choice.unwrap_or_else(|| vessels.choose(&mut rng).unwrap());
 
             chromosome
@@ -94,9 +80,9 @@ impl Chromosome {
 
             avail_from.insert(chosen.index(), (order.node(), serve_time + 1));
 
-            trace!("Updated chromosome: {:?}", chromosome);
         }
-
+        trace!("Chromosome: {:?}", chromosome);
+        
         Ok(Self { chromosome })
     }
 
