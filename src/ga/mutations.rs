@@ -586,9 +586,9 @@ impl TwoOpt {
         }
     }
 
-    /// Returns the indicies of the production visits in the given plan
+    /// Returns the indicies of the production visits in the given plan, and the last visit, regardless of type
     pub fn production_visits(plan: &Plan, problem: &Problem) -> Vec<usize> {
-        (0..plan.len())
+        let mut indices = (0..plan.len())
             .filter(|i| {
                 let visit = plan[*i];
                 let kind = problem.nodes()[visit.node].r#type();
@@ -597,7 +597,16 @@ impl TwoOpt {
                     crate::problem::NodeType::Production => true,
                 }
             })
-            .collect()
+            .collect::<Vec<_>>();
+        // add the last visit regardless of type, if not included already
+        let last = plan.iter().last();
+        if let Some(last) = last {
+            match problem.nodes()[last.node].r#type() {
+                NodeType::Consumption => indices.push(plan.len() - 1),
+                _ => (),
+            }
+        }
+        indices
     }
 }
 
