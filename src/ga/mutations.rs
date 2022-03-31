@@ -1,7 +1,11 @@
+use std::{
+    cmp::{max, min},
+    ops::Deref,
+};
+
 use grb::attr;
 
 use float_ord::FloatOrd;
-
 use log::warn;
 use pyo3::pyclass;
 use rand::prelude::*;
@@ -624,6 +628,107 @@ impl Mutation for InterSwap {
     }
 }
 
+pub enum DistanceReductionMode {
+    All,
+    Random,
+}
+
+/// A mutation operator that moves the node that leads to the maximum reduction in total travel distance for one vessel
+pub struct DistanceReduction {
+    rand: ThreadRng,
+    mode: DistanceReductionMode,
+}
+
+impl DistanceReduction {
+    pub fn distance_reduction_all(vessel_index: usize) -> DistanceReduction {
+        DistanceReduction {
+            rand: rand::prelude::thread_rng(),
+            mode: DistanceReductionMode::All,
+        }
+    }
+
+    pub fn distance_reduction_random(vessel_index: usize) -> DistanceReduction {
+        DistanceReduction {
+            rand: rand::prelude::thread_rng(),
+            mode: DistanceReductionMode::Random,
+        }
+    }
+
+    pub fn distance_reduction(&mut self, problem: &Problem, solution: &mut RoutingSolution, vessel_index: usize) {
+        // Initialize values
+        let mut mutator = solution.mutate();
+        let plan = &mut mutator[vessel_index].mutate();
+        let plan_len = plan.len();
+
+        // Holders for the best move (from, to) and the largest reduction in distance
+        let mut best_move: (usize, usize) = (0,0);
+        let mut largest_reduction: f64 = std::f64::MIN;
+
+        // Have to check all node moves
+        for from in 0..(plan_len-1) {
+            // For each (from, to)-combination we calculate the distance reduction
+            let key = |to: &usize| FloatOrd(self.distance_reduction_calc(problem, plan, from, *to));
+            let to = (0..(plan_len-1)).filter(|v| *v != from).max_by_key(key).unwrap();
+            
+            // If the new distance reduction is higher than the previous max, update the move and the
+            // largest reduction
+            if self.distance_reduction_calc(problem, plan, from, to) > largest_reduction {
+                best_move = (from, to);
+                largest_reduction = self.distance_reduction_calc(problem, plan, from, to);
+            }
+        }
+
+        let (start, end) = best_move;
+
+        let new_time = plan[end].time;
+
+        // Move all other visits accordingly to the best move
+        for node_index in start..end {
+            if end > start {
+                plan[node_index].time = plan[node_index + 1].time;
+            }
+            else {
+                plan[node_index].time = plan[node_index - 1].time;
+            }
+        }
+
+        plan[start].time = new_time;
+    }
+
+    fn distance_reduction_calc(
+        &self,
+        problem: &Problem,
+        plan: &mut PlanMut,
+        from: usize,
+        to: usize,
+    ) -> f64 {
+        let old_1 = (plan[from].node, plan[from + 1].node);
+        let old_2 = (plan[to].node, plan[to + 1].node);
+        let new_1 = (plan[to].node, plan[from].node);
+        let new_2 = (plan[from].node, plan[to + 1].node);
+
+        problem.distance(old_1.0, old_1.1) + problem.distance(old_2.0, old_2.1)
+            - problem.distance(new_1.0, new_1.1)
+            - problem.distance(new_2.0, new_2.1)
+    }
+}
+
+impl Mutation for DistanceReduction {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        match self.mode {
+            DistanceReductionMode::All => {
+                for vessel_index in 0..solution.len() {
+                    self.distance_reduction(problem, solution, vessel_index);
+                }
+            },
+            DistanceReductionMode::Random => {
+                let vessel_index = self.rand.gen_range(0..solution.len());
+                self.distance_reduction(problem, solution, vessel_index);
+            },
+        }
+    }
+}
+
 /// Takes the node associated with the highest cost in a random route and reinserts it at the best
 /// position in the same route.
 pub struct BestMove {
@@ -711,6 +816,7 @@ impl Mutation for VesselSwap {
         }
 
         let mut mutator = solution.mutate();
+
         mutator.swap(vessel1, vessel2);
     }
 }
