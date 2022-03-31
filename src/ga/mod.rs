@@ -11,6 +11,7 @@ pub mod traits;
 
 use std::sync::Arc;
 
+use log::trace;
 pub use traits::*;
 
 use crate::{problem::Problem, solution::routing::RoutingSolution};
@@ -66,6 +67,7 @@ where
     where
         I: initialization::Initialization<Out = RoutingSolution>,
     {
+        trace!("Initializing population");
         let population = (0..population_size)
             .map(|_| initialization.new(problem.clone()))
             .collect::<Vec<_>>();
@@ -117,6 +119,7 @@ where
     }
 
     pub fn epoch(&mut self) {
+        trace!("Start of epoch");
         let problem = &self.problem;
         let fitness = &self.fitness;
         let population = &mut self.population;
@@ -126,6 +129,7 @@ where
         let mut parents = Vec::with_capacity(self.child_count);
 
         // Initialize the parent selection with the current population
+        trace!("Initializing parent selection");
         self.parent_selection.init(
             population
                 .iter()
@@ -134,6 +138,8 @@ where
         );
 
         assert!(self.child_count == children.len());
+
+        trace!("Selecting parents");
         // Sample `child_count` parents from the parent selection strategy, which will be the base for offsprings
         for i in 0..self.child_count {
             let p = &population[self.parent_selection.sample()];
@@ -143,6 +149,7 @@ where
 
         // Recombine the children, which are currently direct copies of the parents.
         // We then apply a mutation to each of them.
+        trace!("Applying recombination and mutation");
         for w in children.chunks_exact_mut(2) {
             if let [left, right] = w {
                 self.recombination.apply(problem, left, right);
@@ -154,6 +161,7 @@ where
         // After having generated the parents and children, we will select the new population based on it
         assert!(self.population_size == next.len());
         // TODO: actually use feasibility of problem (currently just set to `true`).
+        trace!("Selecting survivors");
         self.selection.select_survivors(
             |x: &RoutingSolution| fitness.of(problem, x),
             population,
@@ -164,5 +172,6 @@ where
 
         // And then we'll switch to the new generation
         std::mem::swap(population, next);
+        trace!("End of epoch");
     }
 }
