@@ -64,6 +64,10 @@ impl Chromosome {
         
         trace!("Available from: {:?}", avail_from);
 
+        for node in problem.nodes() {
+            trace!("Node id: {}     Initial inventory: {}   Consumption rate: {}", node.index(), node.initial_inventory(), node.inventory_changes()[0]);
+        }
+
         for order in &initial_orders {
             trace!("Order: {:?}", order);
             let serve_time = rng.gen_range(order.open()..order.close());
