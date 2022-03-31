@@ -1,12 +1,16 @@
+use pyo3::pyclass;
+
 use crate::{problem::Problem, solution::routing::RoutingSolution};
 
 use super::Fitness;
 
+#[pyclass]
+#[derive(Clone, Copy)]
 pub struct Weighted {
-    warp: f64,
-    violation: f64,
-    revenue: f64,
-    cost: f64,
+    pub warp: f64,
+    pub violation: f64,
+    pub revenue: f64,
+    pub cost: f64,
 }
 
 impl Fitness for Weighted {

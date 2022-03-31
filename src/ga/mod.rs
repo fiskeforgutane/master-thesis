@@ -67,7 +67,7 @@ where
         I: initialization::Initialization<Out = RoutingSolution>,
     {
         let population = (0..population_size)
-            .map(|_| initialization.new(&problem))
+            .map(|_| initialization.new(problem.clone()))
             .collect::<Vec<_>>();
 
         // We need a strictly positive population size for this to make sense

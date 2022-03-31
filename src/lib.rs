@@ -10,7 +10,7 @@ pub mod utils;
 
 use crate::python::ga::*;
 use crate::python::*;
-use ga::chromosome::Chromosome;
+use ga::{chromosome::Chromosome, fitness::Weighted};
 use models::quantity::F64Variables;
 use problem::{Compartment, Node, NodeType, Problem, Vessel};
 use pyo3::{prelude::*, wrap_pymodule};
@@ -44,6 +44,8 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyRecombination>()?;
     m.add_class::<PyParentSelection>()?;
     m.add_class::<PyElite>()?;
+    m.add_class::<Weighted>()?;
+    m.add_class::<PyGA>()?;
 
     Ok(())
 }

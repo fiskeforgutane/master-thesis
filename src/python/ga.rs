@@ -1,5 +1,7 @@
 use crate::ga;
 
+use crate::ga::chromosome::InitRoutingSolution;
+use crate::ga::fitness::Weighted;
 use crate::ga::mutations::Bounce;
 use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
@@ -9,6 +11,7 @@ use crate::ga::mutations::TwoOpt;
 use crate::ga::mutations::{BounceMode, RedCostMode};
 use crate::ga::parent_selection;
 use crate::ga::Chain;
+use crate::ga::GeneticAlgorithm;
 use crate::ga::ParentSelection;
 use crate::ga::Recombination;
 use crate::ga::SurvivalSelection;
@@ -199,5 +202,53 @@ impl SurvivalSelection for PyElite {
     {
         self.inner
             .select_survivors(objective_fn, population, parents, children, out)
+    }
+}
+
+#[pyfunction]
+pub fn weighted(warp: f64, violation: f64, revenue: f64, cost: f64) -> Weighted {
+    Weighted {
+        warp,
+        violation,
+        revenue,
+        cost,
+    }
+}
+
+#[pyclass(name = "GeneticAlgorithm")]
+pub struct PyGA {
+    inner:
+        Arc<Mutex<GeneticAlgorithm<PyParentSelection, PyRecombination, PyMut, PyElite, Weighted>>>,
+}
+
+// Don't do this.
+unsafe impl Send for PyGA {}
+
+#[pymethods]
+impl PyGA {
+    #[new]
+    pub fn new(
+        problem: Problem,
+        population_size: usize,
+        child_count: usize,
+        parent_selection: PyParentSelection,
+        recombination: PyRecombination,
+        mutation: PyMut,
+        selection: PyElite,
+        fitness: Weighted,
+    ) -> Self {
+        PyGA {
+            inner: Arc::new(Mutex::new(GeneticAlgorithm::new(
+                Arc::new(problem),
+                population_size,
+                child_count,
+                InitRoutingSolution,
+                parent_selection,
+                recombination,
+                mutation,
+                selection,
+                fitness,
+            ))),
+        }
     }
 }
