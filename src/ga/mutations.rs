@@ -245,6 +245,13 @@ impl RedCost {
                 n,
                 v
             );
+            trace!(
+                "variable x_{}_{}_{}_0, and its current value: {:?}",
+                t,
+                n,
+                v,
+                model.get_obj_attr(attr::X, &vars[t][n][v][p])
+            );
             // sum the reduced cost over all products
             let reduced = (0..problem.products())
                 .map(|p| {
