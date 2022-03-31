@@ -546,6 +546,7 @@ impl TwoOpt {
                         }
                         // move to next solution
                         Self::update(plan, swap_first, swap_last);
+                        trace!("Plan is now: {:?}", plan)
                     }
                 }
             }
