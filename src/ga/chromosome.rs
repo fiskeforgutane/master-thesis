@@ -1,3 +1,4 @@
+use log::{trace, info};
 use pyo3::pyclass;
 use rand::{
     prelude::{IteratorRandom, SliceRandom},
@@ -36,6 +37,7 @@ impl Initialization for InitRoutingSolution {
     type Out = RoutingSolution;
 
     fn new(&self, problem: Arc<Problem>) -> Self::Out {
+        trace!("Starting new initialization.");
         let routes = Chromosome::new(&problem).unwrap().chromosome;
         RoutingSolution::new(problem, routes)
     }
@@ -50,15 +52,15 @@ impl Chromosome {
         let mut chromosome = std::iter::repeat(vec![])
             .take(vessels.len())
             .collect::<Vec<Vec<Visit>>>();
-
+        
         let mut avail_from = problem
             .vessels()
             .iter()
             .map(|vessel| (vessel.index(), (vessel.origin(), vessel.available_from())))
             .collect::<HashMap<_, _>>();
-
+        
         for order in &initial_orders {
-            let serve_time = rng.gen_range(order.open()..order.close());
+            let serve_time = rng.gen_range(order.open()..(order.close()+1));
 
             let first_choice = vessels
                 .iter()
@@ -68,7 +70,7 @@ impl Chromosome {
                         <= serve_time
                 })
                 .choose(&mut rng);
-
+            
             let chosen = first_choice.unwrap_or_else(|| vessels.choose(&mut rng).unwrap());
 
             chromosome
@@ -77,8 +79,10 @@ impl Chromosome {
                 .push(Visit::new(problem, order.node(), serve_time).unwrap());
 
             avail_from.insert(chosen.index(), (order.node(), serve_time + 1));
-        }
 
+        }
+        trace!("Chromosome: {:?}", chromosome);
+        
         Ok(Self { chromosome })
     }
 
