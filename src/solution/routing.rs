@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::ops::DerefMut;
 use std::{ops::Deref, sync::Arc};
 
-use itertools::Itertools;
+use itertools::{zip, Itertools};
 use pyo3::pyclass;
 
 use crate::models::quantity::{QuantityLp, Variables};
@@ -481,12 +481,19 @@ impl Drop for RoutingSolutionMut<'_> {
 
         let timesteps = self.0.problem.timesteps();
 
+        let a = &self.0.routes.iter().enumerate();
+
         // Check that the visit times are correct
-        for plan in &self.0.routes {
+        for (v, plan) in zip(0..self.0.problem.vessels().len(), &self.0.routes) {
+            let available_from = self.0.problem.vessels()[v].available_from();
             assert!(match plan.last() {
                 Some(visit) => visit.time < timesteps,
                 None => true,
             });
+            assert!(match plan.first() {
+                Some(visit) => visit.time > available_from,
+                None => true,
+            })
         }
     }
 }
