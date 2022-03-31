@@ -150,7 +150,7 @@ impl QuantityLp {
 
     pub fn new(problem: &Problem) -> grb::Result<Self> {
         let mut model = Model::new(&format!("quantities"))?;
-        model.set_param(grb::param::OutputFlag, 0)?;
+        model.set_param(grb::param::OutputFlag, 1)?;
 
         let t = problem.timesteps();
         let n = problem.nodes().len();
