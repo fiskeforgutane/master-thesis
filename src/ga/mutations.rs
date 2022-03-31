@@ -208,14 +208,31 @@ impl RedCost {
     ) -> impl Iterator<Item = (usize, usize, usize)> + 'a {
         let problem = solution.problem();
 
-        solution[v].windows(2).map(move |visits| {
+        solution[v].windows(2).flat_map(move |visits| {
             let (curr, next) = (visits[0], visits[1]);
-            let (_, t2) = (curr.time, next.time);
+            let (t1, t2) = (curr.time as isize, next.time as isize);
 
-            // vessel must leave at the beginning of this time period, i.e. this time period can be opened for laoding/unloading if next is pushed
-            let must_leave =
-                t2.max(t2 - problem.travel_time(curr.node, next.node, &problem.vessels()[v]));
-            (must_leave, curr.node, v)
+            // check that t2 is acutally at least 1. If not, it should be ensured that the second visit must happen no before time period 1
+            assert!(t2 >= 1);
+            // time period before arriving at next
+            let before_next = t2 - 1;
+
+            // time period when the vesse must leave current visit
+            let must_leave = t1.max(
+                t2 - (problem.travel_time(curr.node, next.node, &problem.vessels()[v]) as isize),
+            );
+
+            // double check that before next and must leave are positive
+            assert!(before_next >= 0);
+            assert!(must_leave >= 0);
+
+            // vessel must leave at the beginning of this time period, i.e. this time period can be opened for loading/unloading if next is pushed
+
+            [
+                (must_leave as usize, curr.node, v),
+                (before_next as usize, next.node, v),
+            ]
+            .into_iter()
         })
     }
 
