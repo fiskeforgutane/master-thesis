@@ -4,6 +4,7 @@ use grb::attr;
 
 use log::warn;
 use rand::prelude::*;
+use float_ord::FloatOrd;
 
 use crate::{
     ga::Mutation,
@@ -490,40 +491,26 @@ impl Mutation for InterSwap {
 
 /// Takes the node associated with the highest cost in a random route and reinserts it at the best
 /// position in the same route.
-pub struct BestSwap {
+pub struct BestMove {
     rand: ThreadRng,
 }
 
-impl Mutation for BestSwap {
+impl Mutation for BestMove {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
         // Select a random vessel
         let vessel = self.rand.gen_range(0..solution.len());
 
         let mut mutator = solution.mutate();
         let plan = &mut mutator[vessel].mutate();
+        let plan_len = plan.len();
 
         // Finds the index in the route of the most expensive node
-        let v1 = (1..(plan.len()-1))
-            .max_by(|a, b| {
-                self.decreased_distance(*a, plan, problem)
-                    .partial_cmp(&self.decreased_distance(*b, plan, problem))
-                    .unwrap()
-            })
-            .unwrap();
+        let key1 = |x: &usize| FloatOrd(self.decreased_distance(*x, plan, problem));
+        let v1 = (0..(plan_len - 1)).max_by_key(key1).unwrap();    
 
         // Finds the cheapest position to insert the most expensive node
-        let v2 = (1..(plan.len()-1))
-            .min_by(|a, b| {
-                self.increased_distance(plan[v1].node, *a, problem, plan)
-                    .partial_cmp(&self.increased_distance(
-                        plan[v1].node,
-                        *b,
-                        problem,
-                        plan,
-                    ))
-                    .unwrap()
-            })
-            .unwrap();
+        let key2 = |x: &usize| FloatOrd(self.increased_distance(v1, *x, problem, plan));
+        let v2 = (0..(plan_len-1)).min_by_key(key2).unwrap();
         
         // The new visit time for the selected node
         let new_time = plan[v2].time;
@@ -543,17 +530,15 @@ impl Mutation for BestSwap {
     }
 }
 
-impl BestSwap {
+impl BestMove {
     /// Calculates the distance removed from the plan if a visit is removed
     fn decreased_distance(&self, visit: usize, vessel_plan: &mut PlanMut, problem: &Problem) -> f64 {
-        let r = vessel_plan
-            .deref()
-            .iter()
-            .map(|v| v.node)
-            .collect::<Vec<usize>>();
+        let prev = vessel_plan[visit - 1].node;
+        let cur = vessel_plan[visit].node;
+        let next = vessel_plan[visit + 1].node;
 
-        problem.distance(r[visit - 1], r[visit]) + problem.distance(r[visit], r[visit + 1])
-            - problem.distance(r[visit - 1], r[visit + 1])
+        problem.distance(prev, cur) + problem.distance(cur, next)
+                    - problem.distance(prev, next)
     }
 
     /// Calculates the increased distance by inserting a node at a particular position
@@ -564,14 +549,12 @@ impl BestSwap {
         problem: &Problem,
         vessel_plan: &mut PlanMut,
     ) -> f64 {
-        let r: Vec<usize> = vessel_plan
-            .deref()
-            .iter()
-            .map(|v| v.node)
-            .collect::<Vec<usize>>();
+        let prev = vessel_plan[position - 1].node;
+        let cur = vessel_plan[node_index].node;
+        let next = vessel_plan[position].node;
 
-        problem.distance(r[position - 1], node_index) + problem.distance(node_index, r[position])
-            - problem.distance(r[position - 1], r[position])
+        problem.distance(prev, cur) + problem.distance(cur, next)
+                    - problem.distance(prev, next)
     }
 }
 
@@ -580,7 +563,7 @@ pub struct VesselSwap {
 }
 
 impl Mutation for VesselSwap {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
         // Select two random vessels for swapping
         let vessel1 = self.rand.gen_range(0..solution.len());
         let mut vessel2 = self.rand.gen_range(0..solution.len());
