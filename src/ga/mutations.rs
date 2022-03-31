@@ -667,19 +667,11 @@ impl Mutation for InterSwap {
         // select a random visit from each vessel
         let v1 = rand.gen_range(0..solution[vessel1].len());
         let v2 = rand.gen_range(0..solution[vessel2].len());
-        trace!("Vessels: 1: {}, 2: {}", vessel1, vessel2);
-        trace!("visits: 1: {}, 2: {}", v1, v2);
-        trace!(
-            "Length of plans: 1: {}, 2: {}",
-            solution[vessel1].len(),
-            solution[vessel2].len()
-        );
 
         let mutator = &mut solution.mutate();
 
         // perform the swap
         let (p1, p2) = &mut mutator.get_pair_mut(vessel1, vessel2);
-        trace!("Length of mut plans: 1: {}, 2: {}", p1.len(), p2.len());
         let visit1 = &mut p1.mutate()[v1];
         let visit2 = &mut p2.mutate()[v2];
 
