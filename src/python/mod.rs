@@ -1,17 +1,6 @@
 pub mod ga;
 
 use crate::ga::chromosome::Chromosome;
-use crate::ga::mutations::Bounce;
-use crate::ga::mutations::InterSwap;
-use crate::ga::mutations::IntraSwap;
-use crate::ga::mutations::RedCost;
-use crate::ga::mutations::Twerk;
-use crate::ga::mutations::TwoOpt;
-use crate::ga::mutations::{BounceMode, RedCostMode};
-use crate::ga::GeneticAlgorithm;
-use crate::ga::Mutation;
-use crate::ga::Nop;
-use crate::ga::Stochastic;
 use crate::models::quantity::F64Variables;
 use crate::models::quantity::QuantityLp;
 use crate::problem::Compartment;
@@ -33,12 +22,9 @@ use crate::solution::Visit;
 use crate::solution::{Delivery, Evaluation};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3_log;
-use pyo3_log::Logger;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use crate::solution::routing::RoutingSolution;
 
