@@ -525,7 +525,10 @@ impl TwoOpt {
         improvement_threshold: f64,
         iterations_without_improvement: usize,
     ) {
-        // check that the voyage consists of at least
+        // check that the voyage consists of at least four visits, including start and end
+        if end - start < 3 {
+            return;
+        }
         // count of number of iterations with improvemen less than threshold
         let mut count = 0;
 
