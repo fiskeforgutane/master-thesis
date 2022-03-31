@@ -3,6 +3,7 @@ use grb::attr;
 use float_ord::FloatOrd;
 
 use log::warn;
+use pyo3::pyclass;
 use rand::prelude::*;
 
 use crate::{
@@ -428,14 +429,12 @@ pub enum TwoOptMode {
 }
 
 pub struct TwoOpt {
-    rand: ThreadRng,
     mode: TwoOptMode,
 }
 
 impl TwoOpt {
     pub fn new(mode: TwoOptMode) -> TwoOpt {
-        let rand = rand::thread_rng();
-        TwoOpt { rand, mode }
+        TwoOpt { mode }
     }
 
     /// Performs a two-opt swap in the given route for the given visit indices
@@ -580,13 +579,14 @@ impl Mutation for TwoOpt {
                 }
             }
             TwoOptMode::IntraRandom => {
+                let mut rand = rand::thread_rng();
                 // get random plan where a swap should be performed
-                let v = self.rand.gen_range(0..problem.vessels().len());
+                let v = rand.gen_range(0..problem.vessels().len());
                 let mut mutator = solution.mutate();
                 let plan = &mut mutator[v];
                 // select two random visits to swap
-                let v1 = self.rand.gen_range(0..plan.len() - 2);
-                let v2 = self.rand.gen_range(v1 + 2..plan.len());
+                let v1 = rand.gen_range(0..plan.len() - 2);
+                let v2 = rand.gen_range(v1 + 2..plan.len());
 
                 Self::update(plan, v1, v2);
             }

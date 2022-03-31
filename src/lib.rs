@@ -9,6 +9,8 @@ pub mod utils;
 
 use ga::chromosome::Chromosome;
 use ga::mutations::Twerk;
+use ga::mutations::TwoOpt;
+use ga::mutations::TwoOptMode;
 use ga::Mutation;
 use ga::Nop;
 use ga::Stochastic;
@@ -27,6 +29,7 @@ use problem::Vessel;
 use problem::VesselIndex;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use pyo3_log;
 use pyo3_log::Logger;
 use quants::Order;
@@ -373,10 +376,43 @@ impl Mutation for PyMut {
     }
 }
 
+#[pymethods]
+impl PyMut {
+    fn py_apply(&mut self, problem: Problem, routes: Vec<Vec<Visit>>) -> Vec<Vec<usize>> {
+        let arc = Arc::new(problem);
+        let mut solution = RoutingSolution::new(arc.clone(), routes);
+        self.inner
+            .lock()
+            .unwrap()
+            .apply(&arc.clone(), &mut solution);
+        solution
+            .iter()
+            .map(|r| r.iter().map(|v| v.node).collect())
+            .collect()
+    }
+}
+
 #[pyfunction]
 fn twerk() -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(Twerk::everybody())),
+    }
+}
+
+#[pyfunction]
+fn two_opt_local(iters: usize, improvement: f64) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::LocalSerach(
+            improvement,
+            iters,
+        )))),
+    }
+}
+
+#[pyfunction]
+fn two_opt_intra() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::IntraRandom))),
     }
 }
 
