@@ -259,6 +259,7 @@ impl RedCost {
         let mut visit_indices: Vec<usize> = (0..n_visits).collect();
         // the reduced costs
         let mut reduced_costs = vec![f64::NEG_INFINITY; n_visits];
+        trace!("init reduced costs: {:?}", reduced_costs);
 
         for (visit_idx, t, n, v) in Self::mutable_indices(vessel, solution) {
             trace!(
@@ -290,6 +291,7 @@ impl RedCost {
                 })
                 .sum::<f64>();
 
+            trace!("reduced costs: {:?}", reduced_costs);
             // get the index of the lowest reduced cost found so far
             let index = reduced_costs
                 .iter()
