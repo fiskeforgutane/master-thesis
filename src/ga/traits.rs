@@ -36,12 +36,11 @@ pub trait Mutation {
 pub trait SurvivalSelection {
     fn select_survivors<F>(
         &mut self,
-        count: usize,
         objective_fn: F,
         population: &[RoutingSolution],
         parents: &[&RoutingSolution],
         children: &[RoutingSolution],
-        out: &mut Vec<RoutingSolution>,
+        out: &mut [RoutingSolution],
     ) where
         F: Fn(&RoutingSolution) -> f64;
 }
