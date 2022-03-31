@@ -8,6 +8,7 @@ use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
+use crate::ga::mutations::TwoOptMode;
 use crate::ga::mutations::{BounceMode, RedCostMode};
 use crate::ga::parent_selection;
 use crate::ga::Chain;
@@ -82,9 +83,19 @@ pub fn intra_swap() -> PyMut {
 }
 
 #[pyfunction]
-pub fn two_opt() -> PyMut {
+pub fn two_opt_local(iters: usize, improvement: f64) -> PyMut {
     PyMut {
-        inner: Arc::new(Mutex::new(TwoOpt {})),
+        inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::LocalSerach(
+            improvement,
+            iters,
+        )))),
+    }
+}
+
+#[pyfunction]
+pub fn two_opt_intra() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::IntraRandom))),
     }
 }
 

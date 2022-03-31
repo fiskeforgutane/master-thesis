@@ -49,7 +49,8 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(red_cost, m)?)?;
     m.add_function(wrap_pyfunction!(bounce, m)?)?;
     m.add_function(wrap_pyfunction!(intra_swap, m)?)?;
-    m.add_function(wrap_pyfunction!(two_opt, m)?)?;
+    m.add_function(wrap_pyfunction!(two_opt_local, m)?)?;
+    m.add_function(wrap_pyfunction!(two_opt_intra, m)?)?;
     m.add_function(wrap_pyfunction!(inter_swap, m)?)?;
 
     // Mutation combinators
