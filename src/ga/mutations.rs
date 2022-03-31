@@ -209,8 +209,11 @@ impl RedCost {
     ) -> impl Iterator<Item = (usize, usize, usize, usize)> + 'a {
         let problem = solution.problem();
 
-        solution[v].iter().enumerate().tuple_windows().flat_map(
-            move |((curr_idx, curr), (next_idx, next))| {
+        solution[v]
+            .iter_with_origin(v, problem)
+            .enumerate()
+            .tuple_windows()
+            .flat_map(move |((curr_idx, curr), (next_idx, next))| {
                 let (t1, t2) = (curr.time as isize, next.time as isize);
 
                 // check that t2 is acutally at least 1. If not, it should be ensured that the second visit must happen no before time period 1
@@ -235,8 +238,7 @@ impl RedCost {
                     (next_idx, before_next as usize, next.node, v),
                 ]
                 .into_iter()
-            },
-        )
+            })
     }
 
     /// Returns the visit indices for the given vessel that should be mutated

@@ -44,6 +44,18 @@ impl Plan {
     pub fn mutate(&mut self) -> PlanMut<'_> {
         PlanMut(self)
     }
+
+    // Iterates over the plan, including its origin. Do not tamper with origin!
+    pub fn iter_with_origin(
+        &self,
+        v: usize,
+        problem: &Problem,
+    ) -> impl Iterator<Item = Visit> + '_ {
+        let node = problem.vessels()[v].origin();
+        let time = problem.vessels()[v].available_from();
+        let origin_visit = std::iter::once(Visit { node, time });
+        origin_visit.chain(self.iter().cloned())
+    }
 }
 
 impl Deref for Plan {
