@@ -529,7 +529,12 @@ impl TwoOpt {
         let mut count = 0;
 
         while count < iterations_without_improvement {
-            trace!("Starting new iteration, count is {:?}", count);
+            trace!(
+                "Starting new iteration, count is {:?}. Start: {:?}, end: {:?}",
+                count,
+                start,
+                end
+            );
             // bool to say if we found an improving solution above threshold
             let mut found_improving = false;
             // bool to say if we did not find any improving solution at all
@@ -553,7 +558,10 @@ impl TwoOpt {
                             swap_last
                         );
                         if change <= improvement_threshold {
+                            trace!("setting found improving to true. threshold is {:?} and change is {:?}", improvement_threshold, change);
                             found_improving = true
+                        } else {
+                            trace!("NOT setting found improving to true. threshold is {:?} and change is {:?}", improvement_threshold, change)
                         }
                         // move to next solution
                         Self::update(plan, swap_first, swap_last);
@@ -567,6 +575,7 @@ impl TwoOpt {
             };
 
             if found_none {
+                trace!("found none - breaking");
                 break;
             }
         }
