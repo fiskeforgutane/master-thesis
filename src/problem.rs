@@ -506,7 +506,6 @@ impl Node {
         port_capacity: Vec<usize>,
         min_unloading_amount: Quantity,
         max_loading_amount: Quantity,
-        time_per_quantity: f64,
         port_fee: Cost,
         capacity: FixedInventory,
         inventory_changes: Vec<InventoryChange>,

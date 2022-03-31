@@ -17,3 +17,5 @@ impl<'a, T> GetPairMut for &'a mut [T] {
         (one, two)
     }
 }
+
+pub const EPSILON: f64 = 1e-5;
