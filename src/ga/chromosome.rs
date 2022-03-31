@@ -65,6 +65,7 @@ impl Chromosome {
         trace!("Available from: {:?}", avail_from);
 
         for order in &initial_orders {
+            trace!("Order: {:?}", order);
             let serve_time = rng.gen_range(order.open()..order.close());
 
             trace!("Serve time: {:?}", serve_time);
