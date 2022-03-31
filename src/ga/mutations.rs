@@ -672,7 +672,7 @@ impl Mutation for InterSwap {
         trace!(
             "Length of plans: 1: {}, 2: {}",
             solution[vessel1].len(),
-            solution[vessel1].len()
+            solution[vessel2].len()
         );
 
         let mutator = &mut solution.mutate();
