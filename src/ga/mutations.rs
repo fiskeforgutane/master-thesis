@@ -317,8 +317,13 @@ impl RedCost {
     ) {
         // select random vessel to search for a index where the visit can be extended
         let v = rand.gen_range(0..problem.vessels().len());
+
+        // If the chosen vessel has no visits return
+        if solution[v].len() < 1 {
+            return;
+        }
         // number of visits to alter
-        let n_visits = max_visits.min(rand.gen_range(0..solution[v].len()));
+        let n_visits = max_visits.min(rand.gen_range(1..solution[v].len()));
 
         // indices of visits to alter
         let visit_indices = Self::get_visit_indices(n_visits, v, problem, solution);
