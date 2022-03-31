@@ -686,9 +686,14 @@ impl Mutation for TwoOpt {
                 let v = rand.gen_range(0..problem.vessels().len());
                 let mut mutator = solution.mutate();
                 let plan = &mut mutator[v];
+
+                // check that there are at least four visits in the plan, including start and end
+                if plan.len() < 4 {
+                    return;
+                }
                 // select two random visits to swap
                 let v1 = rand.gen_range(0..plan.len() - 2);
-                let v2 = rand.gen_range(v1 + 2..plan.len());
+                let v2 = rand.gen_range((v1 + 2)..plan.len());
 
                 Self::update(plan, v1, v2);
             }
@@ -717,7 +722,7 @@ impl Mutation for InterSwap {
         let mutator = &mut solution.mutate();
 
         // perform the swap
-        let (p1, p2) = &mut mutator.get_pair_mut(v1, v2);
+        let (p1, p2) = &mut mutator.get_pair_mut(vessel1, vessel2);
         let visit1 = &mut p1.mutate()[v1];
         let visit2 = &mut p2.mutate()[v2];
 

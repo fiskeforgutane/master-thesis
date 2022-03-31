@@ -453,7 +453,11 @@ impl<'a> RoutingSolutionMut<'a> {
         let (one, rest) = self[min..].split_first_mut().unwrap();
         let two = &mut rest[max - min - 1];
 
-        (one, two)
+        if v1 < v2 {
+            (one, two)
+        } else {
+            (two, one)
+        }
     }
 }
 
