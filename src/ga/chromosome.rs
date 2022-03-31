@@ -67,6 +67,8 @@ impl Chromosome {
         for order in &initial_orders {
             let serve_time = rng.gen_range(order.open()..order.close());
 
+            trace!("Serve time: {:?}", serve_time);
+
             let first_choice = vessels
                 .iter()
                 .filter(|v| {
