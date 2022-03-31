@@ -1,16 +1,15 @@
-use std::{ops::Deref, cmp::{min, max}};
-
 use grb::attr;
+
+use float_ord::FloatOrd;
 
 use log::warn;
 use rand::prelude::*;
-use float_ord::FloatOrd;
 
 use crate::{
     ga::Mutation,
     problem::{Node, Problem, Timestep, Vessel, VesselIndex},
     solution::{
-        routing::{Plan, RoutingSolution, PlanMut},
+        routing::{Plan, PlanMut, RoutingSolution},
         Visit,
     },
     utils::GetPairMut,
@@ -420,41 +419,177 @@ impl Mutation for IntraSwap {
     }
 }
 
-pub struct TwoOpt {
-    rand: ThreadRng,
+pub enum TwoOptMode {
+    /// Performs a 2-opt local search on every voyage for every vessel. The the f64 is the relative improvement that is needed to consider a new solution as an improvement.
+    /// The usize is the number of iterations without improvement that is accepted before it breaks.
+    LocalSerach(f64, usize),
+    /// Performs a random 2-opt mutation in a random vessel's route
+    IntraRandom,
 }
 
-impl Mutation for TwoOpt {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        // get random plan where a swap should be performed
-        let v = self.rand.gen_range(0..problem.vessels().len());
-        let mut mutator = solution.mutate();
-        let plan = &mut mutator[v].mutate();
+pub struct TwoOpt {
+    rand: ThreadRng,
+    mode: TwoOptMode,
+}
 
-        // select two random visits to swap
-        let v1 = self.rand.gen_range(0..plan.len() - 1);
-        let v2 = self.rand.gen_range(0..plan.len());
+impl TwoOpt {
+    pub fn new(mode: TwoOptMode) -> TwoOpt {
+        let rand = rand::thread_rng();
+        TwoOpt { rand, mode }
+    }
 
-        // if v1 and v2 are equal, we don't do anything
+    /// Performs a two-opt swap in the given route for the given visit indices
+    ///
+    /// ## Arguments
+    ///
+    /// * `plan` - The current plan in scope
+    /// * `v1` - The index of the first visit to swap
+    /// * `v2` - The index of the second visit to swap
+    pub fn update(plan: &mut Plan, v1: usize, v2: usize) {
+        let plan = &mut plan.mutate();
+        // if the visit indices are equal, we do not do anything
         if v1 == v2 {
             return;
         }
 
         // switch the order of nodes visited in the inclusive range [v1..v2]
         for i in v1..v2 {
-            let k = v2 - (v1 - i);
+            let k = v2 - (i - v1);
             // break when we are at the midpoint
             if k <= i {
                 break;
             }
-            // swap
+
             // get the visits
-            let (v1, v2) = plan.get_pair_mut(v1, v2);
-            let n1 = v1.node;
+            let (visit1, visit2) = plan.get_pair_mut(v1, v2);
+            let temp = visit1.node;
 
             // perform the swap
-            v1.node = v2.node;
-            v2.node = n1;
+            visit1.node = visit2.node;
+            visit2.node = temp;
+        }
+    }
+
+    /// Evaluates the 2-opt swap and returns the relative change in travel distance. A decreased distance yields an output in the range [0,0.99).
+    ///
+    /// The change in distance can be evaluated in constant time by only comparing the edges that will be swapped
+    ///
+    /// ## Arguments
+    ///
+    /// * `plan` - The plan that a change should be evaluated
+    /// * `v1` - The index of the first visit, cannot be a visit to a production node
+    /// * `v2` - The index of the second visit, cannot be a visit to a production node
+    pub fn evaluate(plan: &Plan, v1: usize, v2: usize, problem: &Problem) -> f64 {
+        // node indices corresponding to visit v1 and v2
+        let (n1, n2) = (plan[v1].node, plan[v2].node);
+        // node indices corresponding to the next visit from v1 and v2
+        let (n1next, n2next) = (plan[v1 + 1].node, plan[v2 + 1].node);
+        // current distance
+        let current_dist = problem.distance(n1, n1next) + problem.distance(n2, n2next);
+        // new distance if the 2opt operation were to be performed
+        let new_dist = problem.distance(n1, n2) + problem.distance(n1next, n2next);
+        // return the relative change in distance
+        new_dist / current_dist
+    }
+
+    /// Performs a 2-opt local search on the given voyage
+    ///
+    /// ## Arguments
+    ///
+    /// * `plan` - The plan in scope
+    /// * `start` - The index of the production node at the beginning of the voyage in scope
+    /// * `end` - The index of the production node at the end of the voyage in scope
+    /// * `problem` - The underlying problem
+    /// * `improvement_threshold` - The relative improvement threshold in solutoion quality to consider a new solution as "better"
+    /// * `iterations_without_improvement` - The number of consecutive iterations without improvements below threshold that is required before i breaks.
+    ///     Note that if no improving solutions are found in one iteration, it breaks anyway.
+    pub fn local_search(
+        plan: &mut Plan,
+        start: usize,
+        end: usize,
+        problem: &Problem,
+        improvement_threshold: f64,
+        iterations_without_improvement: usize,
+    ) {
+        // count of number of iterations with improvemen less than threshold
+        let mut count = 0;
+
+        while count < iterations_without_improvement {
+            // bool to say if we found an improving solution above threshold
+            let mut found_improving = false;
+            // bool to say if we did not find any improving solution at all
+            let mut found_none = true;
+
+            for swap_first in start + 1..end - 2 {
+                for swap_last in (swap_first + 2)..end {
+                    let change = Self::evaluate(plan, swap_first, swap_last, problem);
+                    if change < 1.0 {
+                        found_none = false;
+
+                        if change >= improvement_threshold {
+                            found_improving = true
+                        }
+                        // move to next solution
+                        Self::update(plan, swap_first, swap_last);
+                    }
+                }
+            }
+            count = match found_improving {
+                true => 0,
+                false => count + 1,
+            };
+
+            if found_none {
+                break;
+            }
+        }
+    }
+
+    /// Returns the indicies of the production visits in the given plan
+    pub fn production_visits(plan: &Plan, problem: &Problem) -> Vec<usize> {
+        (0..plan.len())
+            .filter(|i| {
+                let visit = plan[*i];
+                let kind = problem.nodes()[visit.node].r#type();
+                match kind {
+                    crate::problem::NodeType::Consumption => false,
+                    crate::problem::NodeType::Production => true,
+                }
+            })
+            .collect()
+    }
+}
+
+impl Mutation for TwoOpt {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        match self.mode {
+            TwoOptMode::LocalSerach(improvement_threshold, iterations_without_improvement) => {
+                let mutator = &mut solution.mutate();
+                for plan in mutator.iter_mut() {
+                    for interval in Self::production_visits(plan, problem).windows(2) {
+                        let (start, end) = (interval[0], interval[1]);
+                        Self::local_search(
+                            plan,
+                            start,
+                            end,
+                            problem,
+                            improvement_threshold,
+                            iterations_without_improvement,
+                        )
+                    }
+                }
+            }
+            TwoOptMode::IntraRandom => {
+                // get random plan where a swap should be performed
+                let v = self.rand.gen_range(0..problem.vessels().len());
+                let mut mutator = solution.mutate();
+                let plan = &mut mutator[v];
+                // select two random visits to swap
+                let v1 = self.rand.gen_range(0..plan.len() - 2);
+                let v2 = self.rand.gen_range(v1 + 2..plan.len());
+
+                Self::update(plan, v1, v2);
+            }
         }
     }
 }
@@ -506,22 +641,21 @@ impl Mutation for BestMove {
 
         // Finds the index in the route of the most expensive node
         let key1 = |x: &usize| FloatOrd(self.decreased_distance(*x, plan, problem));
-        let v1 = (0..(plan_len - 1)).max_by_key(key1).unwrap();    
+        let v1 = (0..(plan_len - 1)).max_by_key(key1).unwrap();
 
         // Finds the cheapest position to insert the most expensive node
         let key2 = |x: &usize| FloatOrd(self.increased_distance(v1, *x, problem, plan));
-        let v2 = (0..(plan_len-1)).min_by_key(key2).unwrap();
-        
+        let v2 = (0..(plan_len - 1)).min_by_key(key2).unwrap();
+
         // The new visit time for the selected node
         let new_time = plan[v2].time;
-        
+
         // Move all visits between the new and the old position in time
         for node_index in v2..v1 {
             if v2 > v1 {
-                plan[node_index].time = plan[node_index+1].time;
-            }
-            else {
-                plan[node_index].time = plan[node_index-1].time;
+                plan[node_index].time = plan[node_index + 1].time;
+            } else {
+                plan[node_index].time = plan[node_index - 1].time;
             }
         }
 
@@ -532,13 +666,17 @@ impl Mutation for BestMove {
 
 impl BestMove {
     /// Calculates the distance removed from the plan if a visit is removed
-    fn decreased_distance(&self, visit: usize, vessel_plan: &mut PlanMut, problem: &Problem) -> f64 {
+    fn decreased_distance(
+        &self,
+        visit: usize,
+        vessel_plan: &mut PlanMut,
+        problem: &Problem,
+    ) -> f64 {
         let prev = vessel_plan[visit - 1].node;
         let cur = vessel_plan[visit].node;
         let next = vessel_plan[visit + 1].node;
 
-        problem.distance(prev, cur) + problem.distance(cur, next)
-                    - problem.distance(prev, next)
+        problem.distance(prev, cur) + problem.distance(cur, next) - problem.distance(prev, next)
     }
 
     /// Calculates the increased distance by inserting a node at a particular position
@@ -553,8 +691,7 @@ impl BestMove {
         let cur = vessel_plan[node_index].node;
         let next = vessel_plan[position].node;
 
-        problem.distance(prev, cur) + problem.distance(cur, next)
-                    - problem.distance(prev, next)
+        problem.distance(prev, cur) + problem.distance(cur, next) - problem.distance(prev, next)
     }
 }
 
