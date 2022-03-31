@@ -525,6 +525,7 @@ impl TwoOpt {
         improvement_threshold: f64,
         iterations_without_improvement: usize,
     ) {
+        // check that the voyage consists of at least
         // count of number of iterations with improvemen less than threshold
         let mut count = 0;
 
@@ -540,7 +541,8 @@ impl TwoOpt {
             // bool to say if we did not find any improving solution at all
             let mut found_none = true;
 
-            for swap_first in start..end - 2 {
+            for swap_first in start..(end - 2) {
+                trace!("here");
                 for swap_last in (swap_first + 2)..end {
                     let change = Self::evaluate(plan, swap_first, swap_last, problem);
                     trace!(
