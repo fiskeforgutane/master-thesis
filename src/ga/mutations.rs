@@ -232,6 +232,8 @@ impl RedCost {
 
         let status = model.status().expect("Could not retrive the model status");
         assert!(matches!(status, Status::Optimal));
+        let is_mip = model.get_attr(attr::IsMIP);
+        trace!("type of model: {:?}", is_mip);
 
         // the visits indeccorresponding to the ones with high reduced cost
         let mut visit_indices: Vec<usize> = (0..n_visits).collect();
