@@ -11,6 +11,7 @@ use crate::ga::mutations::TwoOpt;
 use crate::ga::mutations::{BounceMode, RedCostMode};
 use crate::ga::parent_selection;
 use crate::ga::Chain;
+use crate::ga::Fitness;
 use crate::ga::GeneticAlgorithm;
 use crate::ga::ParentSelection;
 use crate::ga::Recombination;
@@ -23,7 +24,10 @@ use crate::ga::Stochastic;
 use crate::ga::recombinations::PIX;
 use crate::ga::survival_selection;
 use crate::ga::survival_selection::Elite;
+use crate::models::quantity::F64Variables;
+use crate::models::utils::ConvertVars;
 use crate::problem::Problem;
+use crate::solution::Visit;
 use pyo3::prelude::*;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -250,5 +254,33 @@ impl PyGA {
                 fitness,
             ))),
         }
+    }
+
+    pub fn epoch(&mut self) {
+        self.inner.lock().unwrap().epoch()
+    }
+
+    pub fn population(&self) -> Vec<(Vec<Vec<Visit>>, F64Variables, f64)> {
+        let ga = self.inner.lock().unwrap();
+        let problem = &ga.problem;
+        ga.population
+            .iter()
+            .map(|solution| {
+                let routing = solution
+                    .iter_with_origin()
+                    .map(|it| it.collect::<Vec<_>>())
+                    .collect::<Vec<_>>();
+
+                let lp = solution.quantities();
+                let x = lp.vars.x.convert(&lp.model).unwrap();
+                let s = lp.vars.s.convert(&lp.model).unwrap();
+                let l = lp.vars.l.convert(&lp.model).unwrap();
+                let w = lp.vars.w.convert(&lp.model).unwrap();
+
+                let v = F64Variables { w, x, s, l };
+
+                (routing, v, ga.fitness.of(problem, solution))
+            })
+            .collect::<Vec<_>>()
     }
 }

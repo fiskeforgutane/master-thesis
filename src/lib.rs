@@ -10,7 +10,11 @@ pub mod utils;
 
 use crate::python::ga::*;
 use crate::python::*;
-use ga::{chromosome::Chromosome, fitness::Weighted};
+use ga::{
+    chromosome::Chromosome,
+    fitness::Weighted,
+    mutations::{BounceMode, RedCostMode},
+};
 use models::quantity::F64Variables;
 use problem::{Compartment, Node, NodeType, Problem, Vessel};
 use pyo3::{prelude::*, wrap_pymodule};
@@ -31,15 +35,32 @@ pub fn test_logging() {
 /// A submodule for the GA
 #[pymodule]
 fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
+    // Mutations
     m.add_function(wrap_pyfunction!(twerk, m)?)?;
+    m.add_function(wrap_pyfunction!(red_cost, m)?)?;
+    m.add_function(wrap_pyfunction!(bounce, m)?)?;
+    m.add_function(wrap_pyfunction!(intra_swap, m)?)?;
+    m.add_function(wrap_pyfunction!(two_opt, m)?)?;
+    m.add_function(wrap_pyfunction!(inter_swap, m)?)?;
+
+    // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;
     m.add_function(wrap_pyfunction!(stochastic, m)?)?;
+
+    // Recombinations
     m.add_function(wrap_pyfunction!(pix, m)?)?;
+
+    // Survival and parent selection
     m.add_function(wrap_pyfunction!(proportionate, m)?)?;
     m.add_function(wrap_pyfunction!(tournament, m)?)?;
     m.add_function(wrap_pyfunction!(greedy, m)?)?;
     m.add_function(wrap_pyfunction!(elite, m)?)?;
 
+    // Fitness
+    m.add_function(wrap_pyfunction!(weighted, m)?)?;
+
+    m.add_class::<BounceMode>()?;
+    m.add_class::<RedCostMode>()?;
     m.add_class::<PyMut>()?;
     m.add_class::<PyRecombination>()?;
     m.add_class::<PyParentSelection>()?;
