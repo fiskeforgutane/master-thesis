@@ -452,6 +452,8 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(twerk, m)?)?;
     m.add_function(wrap_pyfunction!(chain, m)?)?;
     m.add_function(wrap_pyfunction!(stochastic, m)?)?;
+    m.add_function(wrap_pyfunction!(two_opt_intra, m)?)?;
+    m.add_function(wrap_pyfunction!(two_opt_local, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
