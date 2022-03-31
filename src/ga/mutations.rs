@@ -6,6 +6,7 @@ use std::{
 use grb::{attr, Status};
 
 use float_ord::FloatOrd;
+use itertools::Itertools;
 use log::{trace, warn};
 use pyo3::pyclass;
 use rand::prelude::*;
@@ -205,35 +206,37 @@ impl RedCost {
     pub fn mutable_indices<'a>(
         v: usize,
         solution: &'a RoutingSolution,
-    ) -> impl Iterator<Item = (usize, usize, usize)> + 'a {
+    ) -> impl Iterator<Item = (usize, usize, usize, usize)> + 'a {
         let problem = solution.problem();
 
-        solution[v].windows(2).flat_map(move |visits| {
-            let (curr, next) = (visits[0], visits[1]);
-            let (t1, t2) = (curr.time as isize, next.time as isize);
+        solution[v].iter().enumerate().tuple_windows().flat_map(
+            move |((curr_idx, curr), (next_idx, next))| {
+                let (t1, t2) = (curr.time as isize, next.time as isize);
 
-            // check that t2 is acutally at least 1. If not, it should be ensured that the second visit must happen no before time period 1
-            assert!(t2 >= 1);
-            // time period before arriving at next
-            let before_next = t2 - 1;
+                // check that t2 is acutally at least 1. If not, it should be ensured that the second visit must happen no before time period 1
+                assert!(t2 >= 1);
+                // time period before arriving at next
+                let before_next = t2 - 1;
 
-            // time period when the vesse must leave current visit
-            let must_leave = t1.max(
-                t2 - (problem.travel_time(curr.node, next.node, &problem.vessels()[v]) as isize),
-            );
+                // time period when the vesse must leave current visit
+                let must_leave = t1.max(
+                    t2 - (problem.travel_time(curr.node, next.node, &problem.vessels()[v])
+                        as isize),
+                );
 
-            // double check that before next and must leave are positive
-            assert!(before_next >= 0);
-            assert!(must_leave >= 0);
+                // double check that before next and must leave are positive
+                assert!(before_next >= 0);
+                assert!(must_leave >= 0);
 
-            // vessel must leave at the beginning of this time period, i.e. this time period can be opened for loading/unloading if next is pushed
+                // vessel must leave at the beginning of this time period, i.e. this time period can be opened for loading/unloading if next is pushed
 
-            [
-                (must_leave as usize, curr.node, v),
-                (before_next as usize, next.node, v),
-            ]
-            .into_iter()
-        })
+                [
+                    (curr_idx, must_leave as usize, curr.node, v),
+                    (next_idx, before_next as usize, next.node, v),
+                ]
+                .into_iter()
+            },
+        )
     }
 
     /// Returns the visit indices for the given vessel that should be mutated
@@ -257,7 +260,7 @@ impl RedCost {
         // the reduced costs
         let mut reduced_costs = vec![f64::NEG_INFINITY; n_visits];
 
-        for (visit_idx, (t, n, v)) in Self::mutable_indices(vessel, solution).enumerate() {
+        for (visit_idx, t, n, v) in Self::mutable_indices(vessel, solution) {
             trace!(
                 "Trying to retrieve the reduced cost for x_{}_{}_{}",
                 t,
