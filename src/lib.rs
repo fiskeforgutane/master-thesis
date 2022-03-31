@@ -16,8 +16,17 @@ use ga::{
     mutations::{BounceMode, RedCostMode},
 };
 use models::quantity::F64Variables;
-use problem::{Compartment, Node, NodeType, Problem, Vessel};
-use pyo3::{prelude::*, wrap_pymodule};
+
+use problem::Compartment;
+
+use problem::Node;
+use problem::NodeType;
+use problem::Problem;
+use problem::Vessel;
+
+use pyo3::prelude::*;
+use pyo3::wrap_pymodule;
+use pyo3_log;
 use pyo3_log::Logger;
 use quants::Order;
 use solution::{Delivery, Evaluation, Visit};
