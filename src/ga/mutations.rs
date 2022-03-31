@@ -579,6 +579,7 @@ impl Mutation for TwoOpt {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
         match self.mode {
             TwoOptMode::LocalSerach(improvement_threshold, iterations_without_improvement) => {
+                println!("starting local search");
                 let mutator = &mut solution.mutate();
                 for plan in mutator.iter_mut() {
                     for interval in Self::production_visits(plan, problem).windows(2) {
