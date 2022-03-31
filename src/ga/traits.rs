@@ -36,18 +36,21 @@ pub trait Mutation {
 pub trait SurvivalSelection {
     fn select_survivors<F>(
         &mut self,
-        count: usize,
         objective_fn: F,
         population: &[RoutingSolution],
         parents: &[&RoutingSolution],
         children: &[RoutingSolution],
-        out: &mut Vec<RoutingSolution>,
+        out: &mut [RoutingSolution],
     ) where
-        F: Fn(&RoutingSolution) -> (f64, bool);
+        F: Fn(&RoutingSolution) -> f64;
 }
 
 pub trait Penalty {
     fn penalty(&self, problem: &Problem, solution: &RoutingSolution) -> f64;
+}
+
+pub trait Fitness {
+    fn of(&self, problem: &Problem, solution: &RoutingSolution) -> f64;
 }
 
 // Some actual implemtations
