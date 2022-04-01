@@ -125,6 +125,45 @@ impl<'s> IntoIterator for &'s Plan {
 /// invariants are upheld after this goes out of scope.
 pub struct PlanMut<'a>(&'a mut Plan);
 
+impl<'a> PlanMut<'a> {
+    /// Fixes a plan that has been mutated in order to satisfy the "no simultaneous visits"-requirement by:
+    /// 1. Attempting to move one of the simultaneous visits forward/backward until it encounters a free time slot.
+    ///    The preferred movement way is the one that maintains the ordering of the visits
+    /// 2. If (1) fails, the visit is simply removed
+    pub fn fix(&mut self) {
+        // Ensure that we're sorted by time.
+        self.sort_unstable_by_key(|v| v.time);
+        // Attempt to move `current` in order to avoid collisions
+        // Note 1: this only does one pass, so it cannot handle all types of collisions.
+        // Note 2: the last visit is not ever changed
+        for i in 1..self.len() - 1 {
+            let prev = self[i - 1];
+            let next = self[i + 1];
+            let current = &mut self[i];
+            if next.time == current.time && current.time - prev.time > 1 {
+                current.time -= 1;
+            }
+
+            if prev.time == current.time && next.time - current.time > 1 {
+                current.time += 1;
+            }
+        }
+
+        let mut remove = Vec::new();
+        for i in 1..self.len() {
+            if self[i].time == self[i - 1].time {
+                remove.push(i);
+            }
+        }
+
+        // Note: by going over this in reverse order, we prevent any "shuffling" of the indices
+        // (since `remove` is constructed sorted ascending)
+        for &i in remove.iter().rev() {
+            self.swap_remove(i);
+        }
+    }
+}
+
 impl Deref for PlanMut<'_> {
     type Target = Vec<Visit>;
 
