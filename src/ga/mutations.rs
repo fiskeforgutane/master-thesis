@@ -762,6 +762,9 @@ impl TwoOpt {
                         change
                     ); */
                     if change < epsilon {
+                        if count % 10000 == 0 {
+                            trace!("change is {}, epsilon is {}", change, epsilon);
+                        }
                         found_improving = true;
                         /* trace!(
                             "found improving with change: {:?} for swap 1:{:?} 2: {:?}",
