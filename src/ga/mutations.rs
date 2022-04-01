@@ -728,7 +728,7 @@ impl DistanceReduction {
         let mut largest_reduction: f64 = -1.0;
 
         // Have to check all node moves
-        for from in 0..(plan_len - 1) {
+        for from in 1..plan_len {
             // For each (from, to)-combination we calculate the distance reduction
             let key = |to: &usize| FloatOrd(self.distance_reduction_calc(problem, plan, from, *to));
             let to = (0..(plan_len - 1))
@@ -770,17 +770,36 @@ impl DistanceReduction {
         from: usize,
         to: usize,
     ) -> f64 {
-        let old_1 = (plan[from].node, plan[from + 1].node);
-        let old_2 = (plan[to].node, plan[to + 1].node);
-        let new_1 = (plan[to].node, plan[from].node);
-        let new_2 = (plan[from].node, plan[to + 1].node);
+        let edges = DistanceReduction::find_edges(from, to, plan);
 
-        if (new_1.0 == new_1.1) || (new_2.0 == new_2.1) {
+        if edges.is_empty() {
             return -1.0
         }
-        problem.distance(old_1.0, old_1.1) + problem.distance(old_2.0, old_2.1)
-            - problem.distance(new_1.0, new_1.1)
-            - problem.distance(new_2.0, new_2.1)
+
+        edges.iter().map(|(sign, from, to)| sign * problem.distance(*from, *to)).sum()
+    }
+
+    fn find_edges(from: usize, to: usize, plan: &mut PlanMut) -> Vec<(f64, usize, usize)> {
+        let mut edges: Vec<(f64, usize, usize)> = Vec::new();
+
+        if (from == to)||(from == to + 1) {
+            return edges
+        }
+
+        if from < plan.len() {
+            edges.push((1.0, from, from + 1));
+            edges.push((-1.0, from - 1, from));
+        }
+
+        if to < plan.len() {
+            edges.push((1.0, to, to + 1));
+            edges.push((-1.0, from, to + 1));
+        }
+
+        edges.push((1.0, from-1, from));
+        edges.push((-1.0, to, from));
+
+        edges
     }
 }
 
