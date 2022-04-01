@@ -59,7 +59,9 @@ impl Recombination for PIX {
             let mut l = left[v].mutate();
             let mut r = right[v].mutate();
 
-            l[..split].swap_with_slice(&mut r[..split])
+            l[..split].swap_with_slice(&mut r[..split]);
+            l.fix();
+            r.fix();
         }
     }
 }
