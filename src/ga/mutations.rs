@@ -621,8 +621,8 @@ impl Mutation for IntraSwap {
 
 #[derive(Debug)]
 pub enum TwoOptMode {
-    /// Performs a 2-opt local search on every voyage for every vessel. The the u64 is the time limit for the local search per voyage
-    LocalSerach(u64),
+    /// Performs a 2-opt local search on every voyage for every vessel. The the u64 is the time limit for the local search per voyage. The f64 is the epsilon for accepting new solutions.
+    LocalSerach(u64, f64),
     /// Performs a random 2-opt mutation in a random vessel's route
     IntraRandom,
 }
@@ -718,7 +718,12 @@ impl TwoOpt {
         end: usize,
         problem: &Problem,
         time_limit: u64,
+        epsilon: f64,
     ) {
+        // check that the voyage consists of at least four visits, including start and end
+        if end - start < 3 {
+            return;
+        }
         trace!(
             "running local search in voyage: {:?}",
             plan[start..=end]
@@ -726,10 +731,6 @@ impl TwoOpt {
                 .map(|visit| (visit.node, visit.time))
                 .collect::<Vec<_>>()
         );
-        // check that the voyage consists of at least four visits, including start and end
-        if end - start < 3 {
-            return;
-        }
         // count of number of iterations with improvemen less than threshold
         let mut count = 0;
         let mut aggregated_improvement = 0.0;
@@ -760,7 +761,7 @@ impl TwoOpt {
                         swap_last,
                         change
                     ); */
-                    if change < 0.0 {
+                    if change < epsilon {
                         found_improving = true;
                         /* trace!(
                             "found improving with change: {:?} for swap 1:{:?} 2: {:?}",
@@ -815,13 +816,13 @@ impl Mutation for TwoOpt {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
         //trace!("Applying TwoOpt({:?}) to {:?}", self.mode, solution);
         match self.mode {
-            TwoOptMode::LocalSerach(time_limit) => {
+            TwoOptMode::LocalSerach(time_limit, epsilon) => {
                 println!("starting local search");
                 let mutator = &mut solution.mutate();
                 for plan in mutator.iter_mut() {
                     for interval in Self::production_visits(plan, problem).windows(2) {
                         let (start, end) = (interval[0], interval[1]);
-                        Self::local_search(plan, start, end, problem, time_limit)
+                        Self::local_search(plan, start, end, problem, time_limit, epsilon)
                     }
                 }
             }

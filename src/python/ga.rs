@@ -120,9 +120,11 @@ pub fn intra_swap() -> PyMut {
 /// ## Arguments
 ///
 /// * `time_limit` - The time limit in seconds for every local search in a **voyage**
-pub fn two_opt_local(time_limit: u64) -> PyMut {
+pub fn two_opt_local(time_limit: u64, epsilon: f64) -> PyMut {
     PyMut {
-        inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::LocalSerach(time_limit)))),
+        inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::LocalSerach(
+            time_limit, epsilon,
+        )))),
     }
 }
 
