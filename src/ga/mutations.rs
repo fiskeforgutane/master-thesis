@@ -799,7 +799,7 @@ impl TwoOpt {
 
 impl Mutation for TwoOpt {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        trace!("Applying TwoOpt({:?}) to {:?}", self.mode, solution);
+        //trace!("Applying TwoOpt({:?}) to {:?}", self.mode, solution);
         match self.mode {
             TwoOptMode::LocalSerach(time_limit) => {
                 println!("starting local search");
