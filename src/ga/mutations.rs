@@ -364,7 +364,7 @@ impl Bounce {
         vessel: VesselIndex,
         solution: &mut RoutingSolution,
     ) {
-        let first = problem.origin_visit(vessel);
+        let first = solution[vessel][0];
         let last = solution.artificial_end(vessel);
         let boat = &problem.vessels()[vessel];
         let max_t = problem.timesteps() - 1;
@@ -372,7 +372,7 @@ impl Bounce {
         let mut mutator = solution.mutate();
         let mut plan = mutator[vessel].mutate();
 
-        for i in 0..plan.len() {
+        for i in 1..plan.len() {
             // Note: `one.len() == i` and `two.len() == plan.len() - i`, by construction
             let (one, two) = plan.split_at_mut(i);
             let prev = one.last().unwrap_or(&first);
