@@ -643,22 +643,11 @@ impl TwoOpt {
     /// * `plan` - The current plan in scope
     /// * `v1` - The index of the first visit to swap
     /// * `v2` - The index of the second visit to swap
-    pub fn update(plan: &mut Plan, v1: usize, v2: usize, trace: bool) {
+    pub fn update(plan: &mut Plan, v1: usize, v2: usize) {
         let plan = &mut plan.mutate();
 
-        if trace {
-            trace!(
-                "plan: {:?}\nv1:{}\nv2:{}",
-                plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>(),
-                v1,
-                v2
-            )
-        }
         // reverse the plan from v1+1 to v2
         let v1 = v1 + 1;
-        if trace {
-            trace!("changed v1 to: {}", v1);
-        }
 
         // if the visit indices are equal, we do not do anything
         if v1 == v2 {
@@ -668,10 +657,7 @@ impl TwoOpt {
         // switch the order of nodes visited in the inclusive range [v1..v2]
         for i in v1..v2 {
             let k = v2 - (i - v1);
-            if trace {
-                trace!("i: {}", i);
-                trace!("k: {}", k);
-            }
+
             // break when we are at the midpoint
             if k <= i {
                 break;
@@ -681,27 +667,9 @@ impl TwoOpt {
             let (visit1, visit2) = plan.get_pair_mut(i, k);
             let temp = visit1.node;
 
-            if trace {
-                trace!("visit1: {:?}, visit2:{:?}", visit1, visit2)
-            };
-
             // perform the swap
             visit1.node = visit2.node;
-            visit2.node = temp;
-
-            if trace {
-                trace!(
-                    "after swapping the pair: visit1: {:?}, visit2:{:?}",
-                    visit1,
-                    visit2
-                )
-            };
-        }
-        if trace {
-            trace!(
-                "plan after swapping all: {:?}",
-                plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
-            );
+            visit2.node = temp
         }
     }
 
@@ -757,13 +725,6 @@ impl TwoOpt {
         if end - start < 3 {
             return;
         }
-        trace!(
-            "running local search in voyage: {:?}",
-            plan[start..=end]
-                .iter()
-                .map(|visit| (visit.node, visit.time))
-                .collect::<Vec<_>>()
-        );
         // count of number of iterations with improvemen less than threshold
         let mut count = 0;
         let mut aggregated_improvement = 0.0;
@@ -775,12 +736,7 @@ impl TwoOpt {
 
         while now.elapsed().as_secs() < time_limit && found_improving {
             count += 1;
-            /* trace!(
-                "Starting new iteration, count is {:?}. Start: {:?}, end: {:?}",
-                count,
-                start,
-                end
-            ); */
+
             // bool to say if we found an improving solution above threshold
             found_improving = false;
 
@@ -788,63 +744,18 @@ impl TwoOpt {
                 //trace!("here");
                 for swap_last in (swap_first + 2)..end {
                     let change = Self::evaluate(plan, swap_first, swap_last, problem);
-                    /* trace!(
-                        "checking: {:?}, {:?}, change is {:?}",
-                        swap_first,
-                        swap_last,
-                        change
-                    ); */
+
                     if change < epsilon {
                         found_improving = true;
-                        /* trace!(
-                            "found improving with change: {:?} for swap 1:{:?} 2: {:?}",
-                            change,
-                            swap_first,
-                            swap_last
-                        ); */
                         aggregated_improvement += f64::abs(change);
 
-                        if count % 10000 == 0 {
-                            trace!("change is {}, epsilon is {}", change, epsilon);
-                            trace!(
-                                "found improving with change: {:?} for swap 1:{:?} 2: {:?}",
-                                change,
-                                swap_first,
-                                swap_last
-                            );
-                            trace!(
-                                "Plan is: {:?}",
-                                plan[start..=end]
-                                    .iter()
-                                    .map(|v| (v.node, v.time))
-                                    .collect::<Vec<_>>()
-                            );
-                        }
-                        let trace = count % 10000 == 0;
-
                         // move to next solution
-                        Self::update(plan, swap_first, swap_last, trace);
-                        if count % 10000 == 0 {
-                            trace!(
-                                "after update: {:?}",
-                                plan[start..=end]
-                                    .iter()
-                                    .map(|v| (v.node, v.time))
-                                    .collect::<Vec<_>>()
-                            );
-                        }
+                        Self::update(plan, swap_first, swap_last);
                     }
                 }
             }
         }
         trace!("Ran local search for {} iterations ({} seconds) from start: {} to end: {}, and reduced the total travel distance by {}", count, now.elapsed().as_secs(), start, end, aggregated_improvement);
-        trace!(
-            "Voyage now looks like: {:?}",
-            plan[start..=end]
-                .iter()
-                .map(|visit| (visit.node, visit.time))
-                .collect::<Vec<_>>()
-        );
     }
 
     /// Returns the indicies of the production visits in the given plan, and the last visit, regardless of type
@@ -873,10 +784,8 @@ impl TwoOpt {
 
 impl Mutation for TwoOpt {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        //trace!("Applying TwoOpt({:?}) to {:?}", self.mode, solution);
         match self.mode {
             TwoOptMode::LocalSerach(time_limit, epsilon) => {
-                println!("starting local search");
                 let mutator = &mut solution.mutate();
                 for plan in mutator.iter_mut() {
                     for interval in Self::production_visits(plan, problem).windows(2) {
@@ -900,7 +809,7 @@ impl Mutation for TwoOpt {
                 let v1 = rand.gen_range(0..plan.len() - 2);
                 let v2 = rand.gen_range((v1 + 2)..plan.len());
 
-                Self::update(plan, v1, v2, false);
+                Self::update(plan, v1, v2);
             }
         }
     }
