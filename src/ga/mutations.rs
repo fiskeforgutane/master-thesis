@@ -643,11 +643,22 @@ impl TwoOpt {
     /// * `plan` - The current plan in scope
     /// * `v1` - The index of the first visit to swap
     /// * `v2` - The index of the second visit to swap
-    pub fn update(plan: &mut Plan, v1: usize, v2: usize) {
+    pub fn update(plan: &mut Plan, v1: usize, v2: usize, trace: bool) {
         let plan = &mut plan.mutate();
 
+        if trace {
+            trace!(
+                "plan: {:?}\nv1:{}\nv2:{}",
+                plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>(),
+                v1,
+                v2
+            )
+        }
         // reverse the plan from v1+1 to v2
         let v1 = v1 + 1;
+        if trace {
+            trace!("changed v1 to: {}", v1);
+        }
 
         // if the visit indices are equal, we do not do anything
         if v1 == v2 {
@@ -657,6 +668,9 @@ impl TwoOpt {
         // switch the order of nodes visited in the inclusive range [v1..v2]
         for i in v1..v2 {
             let k = v2 - (i - v1);
+            if trace {
+                trace!("i: {}", i)
+            }
             // break when we are at the midpoint
             if k <= i {
                 break;
@@ -669,6 +683,12 @@ impl TwoOpt {
             // perform the swap
             visit1.node = visit2.node;
             visit2.node = temp;
+        }
+        if trace {
+            trace!(
+                "plan after swapping all: {:?}",
+                plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
+            );
         }
     }
 
@@ -787,9 +807,10 @@ impl TwoOpt {
                                     .collect::<Vec<_>>()
                             );
                         }
+                        let trace = count % 10000 == 0;
 
                         // move to next solution
-                        Self::update(plan, swap_first, swap_last);
+                        Self::update(plan, swap_first, swap_last, trace);
                         if count % 10000 == 0 {
                             trace!(
                                 "after update: {:?}",
@@ -866,7 +887,7 @@ impl Mutation for TwoOpt {
                 let v1 = rand.gen_range(0..plan.len() - 2);
                 let v2 = rand.gen_range((v1 + 2)..plan.len());
 
-                Self::update(plan, v1, v2);
+                Self::update(plan, v1, v2, false);
             }
         }
     }
