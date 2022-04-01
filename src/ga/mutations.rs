@@ -750,6 +750,8 @@ impl DistanceReduction {
             }
         }
 
+        debug!("Largest reduction: {}   From: {:?}    To: {:?}", largest_reduction, plan[best_move.0], plan[best_move.1]);
+
         let (start, end) = best_move;
 
         let new_time = plan[end].time;
