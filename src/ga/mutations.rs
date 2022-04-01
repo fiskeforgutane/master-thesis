@@ -669,7 +669,8 @@ impl TwoOpt {
         for i in v1..v2 {
             let k = v2 - (i - v1);
             if trace {
-                trace!("i: {}", i)
+                trace!("i: {}", i);
+                trace!("k: {}", k);
             }
             // break when we are at the midpoint
             if k <= i {
@@ -680,9 +681,21 @@ impl TwoOpt {
             let (visit1, visit2) = plan.get_pair_mut(v1, v2);
             let temp = visit1.node;
 
+            if trace {
+                trace!("visit1: {:?}, visit2:{:?}", visit1, visit2)
+            };
+
             // perform the swap
             visit1.node = visit2.node;
             visit2.node = temp;
+
+            if trace {
+                trace!(
+                    "after swapping the pair: visit1: {:?}, visit2:{:?}",
+                    visit1,
+                    visit2
+                )
+            };
         }
         if trace {
             trace!(
