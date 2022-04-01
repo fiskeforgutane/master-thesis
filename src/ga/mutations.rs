@@ -382,6 +382,15 @@ impl RedCost {
 
     /// Moves the visit of the given index in the given plan one time period later, if possible, otherwise, nothing happens.
     fn move_forward(visit_index: usize, plan: &mut Plan, problem: &Problem) {
+        // check that the visit after, if any, this one does not happen in the same time period as this one plus 1
+        if let Some(next_visit) = plan.get(visit_index + 1) {
+            let visit = plan.get(visit_index).unwrap();
+            if next_visit.time == visit.time + 1 {
+                // not possible to move the visit later
+                return;
+            }
+        }
+
         trace!(
             "in move_forward, plan has lenght: {}, and visit index is: {}",
             plan.len(),
@@ -390,6 +399,7 @@ impl RedCost {
         let mut_plan = &mut plan.mutate();
 
         let visit = mut_plan.get_mut(visit_index).unwrap();
+
         visit.time = (problem.timesteps() - 1).min(visit.time + 1);
     }
     /// Moves the visit of the given index in the given plan one time period earlier, if possible, otherwise, nothing happens.
@@ -399,10 +409,17 @@ impl RedCost {
             plan.len(),
             visit_index
         );
+        // check that the visit before this one does not happen in the preious time period
+        // should be safe to index the previous, as origin should never be called move back on.
+        if plan[visit_index - 1].time == plan[visit_index].time - 1 {
+            return;
+        }
+
         let mut_plan = &mut plan.mutate();
 
         let visit = mut_plan.get_mut(visit_index).unwrap();
         assert!(visit.time >= 1);
+
         visit.time = problem.vessels()[vessel]
             .available_from()
             .max(visit.time - 1);
@@ -853,7 +870,6 @@ impl DistanceReduction {
         let plan = &mut mutator[vessel_index].mutate();
         let plan_len = plan.len();
 
-
         // Holders for the best move (from, to) and the largest reduction in distance
         let mut best_move: (usize, usize) = (0, 0);
         let mut largest_reduction: f64 = -1.0;
@@ -881,12 +897,11 @@ impl DistanceReduction {
 
         // Move all other visits accordingly to the best move
         if end > start {
-            for node_index in (start..(end+1)).rev() {
+            for node_index in (start..(end + 1)).rev() {
                 plan[node_index].time = plan[node_index - 1].time;
             }
-        }
-        else {
-            for node_index in end..(start+1) {
+        } else {
+            for node_index in end..(start + 1) {
                 plan[node_index].time = plan[node_index + 1].time;
             }
         }
@@ -907,7 +922,7 @@ impl DistanceReduction {
         let new_2 = (plan[from].node, plan[to + 1].node);
 
         if (new_1.0 == new_1.1) || (new_2.0 == new_2.1) {
-            return -1.0
+            return -1.0;
         }
         problem.distance(old_1.0, old_1.1) + problem.distance(old_2.0, old_2.1)
             - problem.distance(new_1.0, new_1.1)
