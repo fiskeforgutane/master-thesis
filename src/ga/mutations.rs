@@ -350,12 +350,12 @@ impl RedCost {
             if i == 0 || rand.gen::<f64>() < 0.5 {
                 Self::move_forward(i + 1, plan, problem);
             } else {
-                Self::move_back(i, plan, problem);
+                Self::move_back(i, v, plan, problem);
             }
         }
     }
 
-    /// Moves the visit of the given index in the given plan one time period earlier, if possible, otherwise, nothing happens.
+    /// Moves the visit of the given index in the given plan one time period later, if possible, otherwise, nothing happens.
     fn move_forward(visit_index: usize, plan: &mut Plan, problem: &Problem) {
         trace!(
             "in move_forward, plan has lenght: {}, and visit index is: {}",
@@ -367,8 +367,8 @@ impl RedCost {
         let visit = mut_plan.get_mut(visit_index).unwrap();
         visit.time = (problem.timesteps() - 1).min(visit.time + 1);
     }
-    /// Moves the visit of the given index in the given plan one time period later, if possible, otherwise, nothing happens.
-    fn move_back(visit_index: usize, plan: &mut Plan, problem: &Problem) {
+    /// Moves the visit of the given index in the given plan one time period earlier, if possible, otherwise, nothing happens.
+    fn move_back(visit_index: usize, vessel: usize, plan: &mut Plan, problem: &Problem) {
         trace!(
             "in move_back, plan has lenght: {}, and visit index is: {}",
             plan.len(),
@@ -377,7 +377,8 @@ impl RedCost {
         let mut_plan = &mut plan.mutate();
 
         let visit = mut_plan.get_mut(visit_index).unwrap();
-        visit.time = problem.vessels()[visit_index]
+        assert!(visit.time >= 1);
+        visit.time = problem.vessels()[vessel]
             .available_from()
             .max(visit.time - 1);
     }
