@@ -41,6 +41,11 @@ use crate::solution::routing::RoutingSolution;
 
 use super::pyerr;
 
+#[pyfunction]
+pub fn nop() -> Nop {
+    Nop
+}
+
 #[pyclass]
 #[derive(Clone)]
 pub struct PyMut {

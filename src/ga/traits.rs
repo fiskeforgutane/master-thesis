@@ -1,3 +1,4 @@
+use pyo3::pyclass;
 use rand::{
     prelude::{SliceRandom, StdRng},
     Rng, SeedableRng,
@@ -133,6 +134,7 @@ where
     }
 }
 
+#[pyclass]
 pub struct Nop;
 
 impl Recombination for Nop {
