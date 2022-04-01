@@ -313,9 +313,11 @@ impl RedCost {
             // sum the reduced cost over all products
             let reduced = (0..problem.products())
                 .map(|p| {
-                    model
-                        .get_obj_attr(attr::RC, &vars.x[t][n][v][p])
-                        .expect("Failed to retrieve reduced cost")
+                    f64::abs(
+                        model
+                            .get_obj_attr(attr::RC, &vars.x[t][n][v][p])
+                            .expect("Failed to retrieve reduced cost"),
+                    )
                 })
                 .sum::<f64>();
 
