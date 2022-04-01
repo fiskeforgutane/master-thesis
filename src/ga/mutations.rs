@@ -6,7 +6,7 @@ use std::{
 use grb::attr;
 
 use float_ord::FloatOrd;
-use log::{trace, warn};
+use log::{trace, warn, debug};
 use pyo3::pyclass;
 use rand::prelude::*;
 
@@ -721,13 +721,13 @@ impl DistanceReduction {
         solution: &mut RoutingSolution,
         vessel_index: usize,
     ) {
-        trace!("Starting distance reduction for: {}", vessel_index);
+        debug!("Starting distance reduction for: {}", vessel_index);
         // Initialize values
         let mut mutator = solution.mutate();
         let plan = &mut mutator[vessel_index].mutate();
         let plan_len = plan.len();
 
-        trace!("The plan to be distance reduced: {:?}", plan);
+        debug!("The plan to be distance reduced: {:?}", plan);
 
         // Holders for the best move (from, to) and the largest reduction in distance
         let mut best_move: (usize, usize) = (0, 0);
@@ -765,7 +765,7 @@ impl DistanceReduction {
 
         plan[start].time = new_time;
 
-        trace!("The plan after distance reduction: {:?}", plan);
+        debug!("The plan to be distance reduced: {:?}", plan);
     }
 
     fn distance_reduction_calc(
