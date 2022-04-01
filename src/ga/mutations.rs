@@ -189,6 +189,14 @@ pub struct RedCost {
     max_visits: usize,
 }
 
+#[derive(Debug, Clone)]
+pub enum MoveDirection {
+    /// move visit to a later time period
+    Forward,
+    /// move to an earlier time period
+    Back,
+}
+
 impl RedCost {
     /// Returns a RedCost with mode set to mutation
     pub fn red_cost_mutation(max_visits: usize) -> Self {
@@ -207,7 +215,7 @@ impl RedCost {
     pub fn mutable_indices<'a>(
         v: usize,
         solution: &'a RoutingSolution,
-    ) -> impl Iterator<Item = (usize, usize, usize, usize)> + 'a {
+    ) -> impl Iterator<Item = (usize, MoveDirection, usize, usize, usize)> + 'a {
         let problem = solution.problem();
 
         solution[v].iter().enumerate().tuple_windows().flat_map(
@@ -232,8 +240,20 @@ impl RedCost {
                 // vessel must leave at the beginning of this time period, i.e. this time period can be opened for loading/unloading if next is pushed
 
                 [
-                    (curr_idx, must_leave as usize, curr.node, v),
-                    (next_idx, before_next as usize, next.node, v),
+                    (
+                        curr_idx,
+                        MoveDirection::Forward,
+                        must_leave as usize,
+                        curr.node,
+                        v,
+                    ),
+                    (
+                        next_idx,
+                        MoveDirection::Back,
+                        before_next as usize,
+                        next.node,
+                        v,
+                    ),
                 ]
                 .into_iter()
             },
@@ -247,18 +267,19 @@ impl RedCost {
         vessel: usize,
         problem: &Problem,
         solution: &RoutingSolution,
-    ) -> Vec<usize> {
+    ) -> Vec<(usize, MoveDirection)> {
         let quant_lp = solution.quantities();
         let vars = solution.variables();
         let model = &quant_lp.model;
 
         // the visits indices ccorresponding to the ones with high reduced cost
-        let mut visit_indices: Vec<usize> = (0..n_visits).collect();
+        let mut visit_indices: Vec<(usize, MoveDirection)> =
+            (0..n_visits).map(|i| (i, MoveDirection::Forward)).collect();
         // the reduced costs
         let mut reduced_costs = vec![f64::NEG_INFINITY; n_visits];
         trace!("init reduced costs: {:?}", reduced_costs);
 
-        for (visit_idx, t, n, v) in Self::mutable_indices(vessel, solution) {
+        for (visit_idx, direction, t, n, v) in Self::mutable_indices(vessel, solution) {
             trace!(
                 "Trying to retrieve the reduced cost for x_{}_{}_{}",
                 t,
@@ -310,7 +331,7 @@ impl RedCost {
             // if the new reduced cost is larger than the lowest found so far that has been kept, keep the new instead
             if reduced_costs[index] < reduced {
                 reduced_costs[index] = reduced;
-                visit_indices[index] = visit_idx;
+                visit_indices[index] = (visit_idx, direction);
             }
         }
         visit_indices
@@ -345,12 +366,10 @@ impl RedCost {
         // the the plan as mut
         let plan = &mut solution.mutate()[v];
 
-        for i in visit_indices {
-            // if the index is 0 (indicating origin), we must move the next visit forward (to a later time period), otherwise we do it with a 50% probability
-            if i == 0 || rand.gen::<f64>() < 0.5 {
-                Self::move_forward(i + 1, plan, problem);
-            } else {
-                Self::move_back(i, v, plan, problem);
+        for (i, direction) in visit_indices {
+            match direction {
+                MoveDirection::Forward => Self::move_forward(i + 1, plan, problem),
+                MoveDirection::Back => Self::move_back(i, v, plan, problem),
             }
         }
     }
