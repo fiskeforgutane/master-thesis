@@ -770,7 +770,7 @@ impl TwoOpt {
                 }
             }
         }
-        trace!("Ran local search for {} iterations from start: {} to end: {}, and reduced the total travel distance by {}", count, start, end, aggregated_improvement);
+        trace!("Ran local search for {} iterations ({} seconds) from start: {} to end: {}, and reduced the total travel distance by {}", count, now.elapsed().as_secs(), start, end, aggregated_improvement);
     }
 
     /// Returns the indicies of the production visits in the given plan, and the last visit, regardless of type

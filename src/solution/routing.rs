@@ -84,10 +84,6 @@ impl Plan {
     fn validate(&self) {
         let origin = self.origin;
         let sorted = &self.sorted;
-        trace!(
-            "plan before assertion: {:?}",
-            sorted.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
-        );
 
         // Enforce that the first visit is equal to the origin visit
         let first = sorted.first();
