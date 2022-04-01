@@ -2,6 +2,7 @@ use std::{
     cmp::{max, min},
     fmt::Error,
     ops::Deref,
+    time::Instant,
 };
 
 use grb::{attr, Status};
@@ -620,9 +621,8 @@ impl Mutation for IntraSwap {
 
 #[derive(Debug)]
 pub enum TwoOptMode {
-    /// Performs a 2-opt local search on every voyage for every vessel. The the f64 is the relative improvement that is needed to consider a new solution as an improvement.
-    /// The usize is the number of iterations without improvement that is accepted before it breaks.
-    LocalSerach(f64, usize),
+    /// Performs a 2-opt local search on every voyage for every vessel. The the u64 is the time limit for the local search per voyage
+    LocalSerach(u64),
     /// Performs a random 2-opt mutation in a random vessel's route
     IntraRandom,
 }
@@ -672,7 +672,7 @@ impl TwoOpt {
         }
     }
 
-    /// Evaluates the 2-opt swap and returns the relative change in travel distance. A decreased distance yields an output in the range [0,0.99).
+    /// Evaluates the 2-opt swap and returns the change in travel distance. A decreased distance yields a negative output.
     ///
     /// The change in distance can be evaluated in constant time by only comparing the edges that will be swapped
     ///
@@ -698,7 +698,7 @@ impl TwoOpt {
         // new distance if the 2opt operation were to be performed
         let new_dist = problem.distance(n1, n2) + problem.distance(n1next, n2next);
         // return the relative change in distance
-        new_dist / current_dist
+        new_dist - current_dist
     }
 
     /// Performs a 2-opt local search on the given voyage
@@ -717,8 +717,7 @@ impl TwoOpt {
         start: usize,
         end: usize,
         problem: &Problem,
-        improvement_threshold: f64,
-        iterations_without_improvement: usize,
+        time_limit: u64,
     ) {
         // check that the voyage consists of at least four visits, including start and end
         if end - start < 3 {
@@ -726,59 +725,52 @@ impl TwoOpt {
         }
         // count of number of iterations with improvemen less than threshold
         let mut count = 0;
+        let mut aggregated_improvement = 0.0;
 
-        while count < iterations_without_improvement {
-            trace!(
+        let now = Instant::now();
+
+        // keep track of wheter an improving solution was found
+        let mut found_improving = true;
+
+        while now.elapsed().as_secs() < time_limit && found_improving {
+            count += 1;
+            /* trace!(
                 "Starting new iteration, count is {:?}. Start: {:?}, end: {:?}",
                 count,
                 start,
                 end
-            );
+            ); */
             // bool to say if we found an improving solution above threshold
-            let mut found_improving = false;
-            // bool to say if we did not find any improving solution at all
-            let mut found_none = true;
+            found_improving = false;
 
             for swap_first in start..(end - 2) {
-                trace!("here");
+                //trace!("here");
                 for swap_last in (swap_first + 2)..end {
                     let change = Self::evaluate(plan, swap_first, swap_last, problem);
-                    trace!(
+                    /* trace!(
                         "checking: {:?}, {:?}, change is {:?}",
                         swap_first,
                         swap_last,
                         change
-                    );
-                    if change < 1.0 {
-                        found_none = false;
-                        trace!(
+                    ); */
+                    if change < 0.0 {
+                        found_improving = true;
+                        /* trace!(
                             "found improving with change: {:?} for swap 1:{:?} 2: {:?}",
                             change,
                             swap_first,
                             swap_last
-                        );
-                        if change <= improvement_threshold {
-                            trace!("setting found improving to true. threshold is {:?} and change is {:?}", improvement_threshold, change);
-                            found_improving = true
-                        } else {
-                            trace!("NOT setting found improving to true. threshold is {:?} and change is {:?}", improvement_threshold, change)
-                        }
+                        ); */
+                        aggregated_improvement += f64::abs(change);
+
                         // move to next solution
                         Self::update(plan, swap_first, swap_last);
-                        trace!("Plan is now: {:?}", plan)
+                        //trace!("Plan is now: {:?}", plan)
                     }
                 }
             }
-            count = match found_improving {
-                true => 0,
-                false => count + 1,
-            };
-
-            if found_none {
-                trace!("found none - breaking");
-                break;
-            }
         }
+        trace!("Ran local search for {} iterations from start: {} to end: {}, and reduced the total travel distance by {}", count, start, end, aggregated_improvement);
     }
 
     /// Returns the indicies of the production visits in the given plan, and the last visit, regardless of type
@@ -809,20 +801,13 @@ impl Mutation for TwoOpt {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
         trace!("Applying TwoOpt({:?}) to {:?}", self.mode, solution);
         match self.mode {
-            TwoOptMode::LocalSerach(improvement_threshold, iterations_without_improvement) => {
+            TwoOptMode::LocalSerach(time_limit) => {
                 println!("starting local search");
                 let mutator = &mut solution.mutate();
                 for plan in mutator.iter_mut() {
                     for interval in Self::production_visits(plan, problem).windows(2) {
                         let (start, end) = (interval[0], interval[1]);
-                        Self::local_search(
-                            plan,
-                            start,
-                            end,
-                            problem,
-                            improvement_threshold,
-                            iterations_without_improvement,
-                        )
+                        Self::local_search(plan, start, end, problem, time_limit)
                     }
                 }
             }

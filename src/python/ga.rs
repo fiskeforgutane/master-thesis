@@ -115,12 +115,14 @@ pub fn intra_swap() -> PyMut {
 }
 
 #[pyfunction]
-pub fn two_opt_local(iters: usize, improvement: f64) -> PyMut {
+/// 2-opt local search mutation
+///
+/// ## Arguments
+///
+/// * `time_limit` - The time limit in seconds for every local search in a **voyage**
+pub fn two_opt_local(time_limit: u64) -> PyMut {
     PyMut {
-        inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::LocalSerach(
-            improvement,
-            iters,
-        )))),
+        inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::LocalSerach(time_limit)))),
     }
 }
 
