@@ -382,20 +382,26 @@ impl RedCost {
 
     /// Moves the visit of the given index in the given plan one time period later, if possible, otherwise, nothing happens.
     fn move_forward(visit_index: usize, plan: &mut Plan, problem: &Problem) {
+        trace!(
+            "in move_forward, plan has lenght: {}, and visit index is: {}",
+            plan.len(),
+            visit_index
+        );
+
         // check that the visit after, if any, this one does not happen in the same time period as this one plus 1
         if let Some(next_visit) = plan.get(visit_index + 1) {
             let visit = plan.get(visit_index).unwrap();
+            trace!(
+                "time of this visit: {}, time of next visit: {}",
+                visit.time,
+                next_visit.time
+            );
             if next_visit.time == visit.time + 1 {
                 // not possible to move the visit later
                 return;
             }
         }
 
-        trace!(
-            "in move_forward, plan has lenght: {}, and visit index is: {}",
-            plan.len(),
-            visit_index
-        );
         let mut_plan = &mut plan.mutate();
 
         let visit = mut_plan.get_mut(visit_index).unwrap();
@@ -408,6 +414,11 @@ impl RedCost {
             "in move_back, plan has lenght: {}, and visit index is: {}",
             plan.len(),
             visit_index
+        );
+        trace!(
+            "previous time: {}, current time: {}",
+            plan[visit_index - 1].time,
+            plan[visit_index].time - 1
         );
         // check that the visit before this one does not happen in the preious time period
         // should be safe to index the previous, as origin should never be called move back on.
