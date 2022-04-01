@@ -357,13 +357,25 @@ impl RedCost {
 
     /// Moves the visit of the given index in the given plan one time period earlier, if possible, otherwise, nothing happens.
     fn move_forward(visit_index: usize, plan: &mut Plan, problem: &Problem) {
-        let mutPlan = &mut plan.mutate();
-        let visit = mutPlan.get_mut(visit_index).unwrap();
+        trace!(
+            "in move_forward, plan has lenght: {}, and visit index is: {}",
+            plan.len(),
+            visit_index
+        );
+        let mut_plan = &mut plan.mutate();
+
+        let visit = mut_plan.get_mut(visit_index).unwrap();
         visit.time = (problem.timesteps() - 1).min(visit.time + 1);
     }
     /// Moves the visit of the given index in the given plan one time period later, if possible, otherwise, nothing happens.
     fn move_back(visit_index: usize, plan: &mut Plan, problem: &Problem) {
+        trace!(
+            "in move_back, plan has lenght: {}, and visit index is: {}",
+            plan.len(),
+            visit_index
+        );
         let mut_plan = &mut plan.mutate();
+
         let visit = mut_plan.get_mut(visit_index).unwrap();
         visit.time = problem.vessels()[visit_index]
             .available_from()
