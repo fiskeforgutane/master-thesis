@@ -722,7 +722,6 @@ impl DistanceReduction {
         let plan = &mut mutator[vessel_index].mutate();
         let plan_len = plan.len();
 
-
         // Holders for the best move (from, to) and the largest reduction in distance
         let mut best_move: (usize, usize) = (0, 0);
         let mut largest_reduction: f64 = -1.0;
@@ -750,12 +749,11 @@ impl DistanceReduction {
 
         // Move all other visits accordingly to the best move
         if end > start {
-            for node_index in (start..(end+1)).rev() {
+            for node_index in (start..(end + 1)).rev() {
                 plan[node_index].time = plan[node_index - 1].time;
             }
-        }
-        else {
-            for node_index in end..(start+1) {
+        } else {
+            for node_index in end..(start + 1) {
                 plan[node_index].time = plan[node_index + 1].time;
             }
         }
@@ -770,35 +768,83 @@ impl DistanceReduction {
         from: usize,
         to: usize,
     ) -> f64 {
-        let edges = DistanceReduction::find_edges(from, to, plan);
+        //let edges = DistanceReduction::find_edges(from, to, plan);
+        //let (from_i, to_i) = (from as isize, to as isize);
 
-        if edges.is_empty() {
-            return -1.0
+        // returns the edges affected if the visit with the given index is removed or a visit is inserted there
+        let three_edges = |idx: usize| -> (f64, f64, f64) {
+            let idx_i = idx as isize;
+            // cost of edge into idx
+            let into = problem.distance(plan[idx - 1].node, plan[idx].node);
+            // cost of edge out of idx
+            let out;
+            // cost of edge between previous and next, omitting idx
+            let new;
+
+            // then idx is the last visit in the plan
+            if plan.len() as isize - 1 == idx_i {
+                out = 0.0;
+                new = 0.0;
+            }
+            // then idx is not the last visit in the plan
+            else {
+                out = problem.distance(plan[idx].node, plan[idx + 1].node);
+                new = problem.distance(plan[idx - 1].node, plan[idx + 1].node);
+            }
+            (into, out, new)
+        };
+
+        // affected edges
+        let from_edges = three_edges(from);
+        let to_edges = three_edges(to);
+
+        // always positive due to the triangle inequality
+        let gain = from_edges.0 + from_edges.1 - from_edges.2;
+        let loss = to_edges.0 + to_edges.1 - to_edges.2;
+
+        let change_in_distance = gain - loss;
+        change_in_distance
+
+        /* let gained = in_from
+
+        let in_to = problem.distance(plan[to-1].node, plan[to].node);
+        let to_out = match to as isize {
+            (plan.len() as isize-1) => 0.0,
+            _ => problem.distance(plan[to].node, plan[to+1].node),
+        };
+
+        let gained =  */
+
+        /* if edges.is_empty() {
+            return -1.0;
         }
 
-        edges.iter().map(|(sign, from, to)| sign * problem.distance(*from, *to)).sum()
+        edges
+            .iter()
+            .map(|(sign, from, to)| sign * problem.distance(*from, *to))
+            .sum() */
     }
 
-    /// 
+    ///
     fn find_edges(from: usize, to: usize, plan: &mut PlanMut) -> Vec<(f64, usize, usize)> {
         let mut edges: Vec<(f64, usize, usize)> = Vec::new();
 
-        if (from == to)||(from == to + 1) {
-            return edges
+        if (from == to) || (from == to + 1) {
+            return edges;
         }
 
-        if from < (plan.len()-1) {
+        if from < (plan.len() - 1) {
             edges.push((1.0, plan[from].node, plan[from + 1].node));
             edges.push((-1.0, plan[from - 1].node, plan[from].node));
         }
 
-        if to < (plan.len()-1) {
+        if to < (plan.len() - 1) {
             edges.push((1.0, plan[to].node, plan[to + 1].node));
             edges.push((-1.0, plan[from].node, plan[to + 1].node));
         }
-        
-        edges.push((1.0, plan[from - 1].node, plan[from].node));
-        edges.push((-1.0, plan[to].node, plan[from].node));
+
+        edges.push((1.0, from - 1, from));
+        edges.push((-1.0, to, from));
 
         edges
     }
