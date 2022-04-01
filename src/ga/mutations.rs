@@ -387,6 +387,10 @@ impl RedCost {
             plan.len(),
             visit_index
         );
+        trace!(
+            "plan: {:?}",
+            plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
+        );
 
         // check that the visit after, if any, this one does not happen in the same time period as this one plus 1
         if let Some(next_visit) = plan.get(visit_index + 1) {
