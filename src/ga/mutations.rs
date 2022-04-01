@@ -420,6 +420,10 @@ impl RedCost {
             visit_index
         );
         trace!(
+            "plan: {:?}",
+            plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
+        );
+        trace!(
             "previous time: {}, current time: {}",
             plan[visit_index - 1].time,
             plan[visit_index].time - 1

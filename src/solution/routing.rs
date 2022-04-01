@@ -6,6 +6,7 @@ use std::ops::DerefMut;
 use std::{ops::Deref, sync::Arc};
 
 use itertools::Itertools;
+use log::trace;
 use pyo3::pyclass;
 
 use crate::models::quantity::{QuantityLp, Variables};
@@ -83,11 +84,16 @@ impl Plan {
     fn validate(&self) {
         let origin = self.origin;
         let sorted = &self.sorted;
+        trace!(
+            "plan before assertion: {:?}",
+            sorted.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
+        );
 
         // Enforce that the first visit is equal to the origin visit
         let first = sorted.first();
         assert!(first.map(|&v| v == origin).unwrap_or(false));
         // Enforce that there is at least one time step between consecutive visits
+
         assert!(sorted
             .iter()
             .tuple_windows()
