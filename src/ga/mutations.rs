@@ -1,5 +1,6 @@
 use std::{
     cmp::{max, min},
+    fmt::Error,
     ops::Deref,
 };
 
@@ -203,6 +204,7 @@ impl RedCost {
     }
 
     /// Returns an iterator with all the x-variable indices that can have the upper bound increased
+    /// every variable is also associated with a `VisitIndex` that includes the origin of the plan as index 0.
     pub fn mutable_indices<'a>(
         v: usize,
         solution: &'a RoutingSolution,
@@ -242,6 +244,7 @@ impl RedCost {
     }
 
     /// Returns the visit indices for the given vessel that should be mutated
+    /// Starts at the origin so an index = 0 implpies the origin.
     fn get_visit_indices(
         n_visits: usize,
         vessel: usize,
@@ -270,13 +273,7 @@ impl RedCost {
                 n,
                 v
             );
-            trace!(
-                "variable x_{}_{}_{}_0, and its current value: {:?}",
-                t,
-                n,
-                v,
-                model.get_obj_attr(attr::X, &vars.x[t][n][v][0])
-            );
+
             trace!(
                 "reduced cost of x_{}_{}_{}_0: {:?}",
                 t,
@@ -284,6 +281,22 @@ impl RedCost {
                 v,
                 model.get_obj_attr(attr::RC, &vars.x[t][n][v][0])
             );
+
+            // assert that the value of the x-variable is 0
+            let value = model.get_obj_attr(attr::X, &vars.x[t][n][v][0]);
+            trace!(
+                "variable x_{}_{}_{}_0, and its current value: {:?}",
+                t,
+                n,
+                v,
+                value
+            );
+            let value = value.expect(&format!(
+                "Not able to retrieve x-variable x_{}_{}_{}_{}",
+                t, n, v, 0
+            ));
+            assert!(value == 0.0);
+
             // sum the reduced cost over all products
             let reduced = (0..problem.products())
                 .map(|p| {
@@ -327,27 +340,35 @@ impl RedCost {
         // number of visits to alter
         let n_visits = max_visits.min(rand.gen_range(1..solution[v].len()));
 
-        // indices of visits to alter
+        // indices of visits to alter, including origin which is index 0
         let visit_indices = Self::get_visit_indices(n_visits, v, problem, solution);
 
-        // get a mutator
-        let mutator = &mut solution.mutate();
-        let mut plan = mutator[v].mutate();
+        // the the plan as mut
+        let plan = &mut solution.mutate()[v];
 
         for i in visit_indices {
-            // move visit one back or one forward with a 50/50 probability
-            if rand.gen::<f64>() < 0.5 {
-                let visit = &mut plan[i];
-                // move back, if possible
-                visit.time = problem.vessels()[v].available_from().max(visit.time - 1);
+            // if the index is 0 (indicating origin), we must move the next visit forward (to a later time period), otherwise we do it with a 50% probability
+            if i == 0 || rand.gen::<f64>() < 0.5 {
+                Self::move_forward(i, plan, problem);
             } else {
-                // move next forward, if possible
-                let visit = &mut plan.get_mut(i + 1);
-                if let Some(visit) = visit {
-                    visit.time = (problem.timesteps() - 1).min(visit.time + 1);
-                }
+                Self::move_back(i - 1, plan, problem);
             }
         }
+    }
+
+    /// Moves the visit of the given index in the given plan one time period earlier, if possible, otherwise, nothing happens.
+    fn move_forward(visit_index: usize, plan: &mut Plan, problem: &Problem) {
+        let mutPlan = &mut plan.mutate();
+        let visit = mutPlan.get_mut(visit_index).unwrap();
+        visit.time = (problem.timesteps() - 1).min(visit.time + 1);
+    }
+    /// Moves the visit of the given index in the given plan one time period later, if possible, otherwise, nothing happens.
+    fn move_back(visit_index: usize, plan: &mut Plan, problem: &Problem) {
+        let mut_plan = &mut plan.mutate();
+        let visit = mut_plan.get_mut(visit_index).unwrap();
+        visit.time = problem.vessels()[visit_index]
+            .available_from()
+            .max(visit.time - 1);
     }
 }
 
