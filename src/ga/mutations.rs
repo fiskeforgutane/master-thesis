@@ -762,9 +762,6 @@ impl TwoOpt {
                         change
                     ); */
                     if change < epsilon {
-                        if count % 10000 == 0 {
-                            trace!("change is {}, epsilon is {}", change, epsilon);
-                        }
                         found_improving = true;
                         /* trace!(
                             "found improving with change: {:?} for swap 1:{:?} 2: {:?}",
@@ -776,7 +773,22 @@ impl TwoOpt {
 
                         // move to next solution
                         Self::update(plan, swap_first, swap_last);
-                        //trace!("Plan is now: {:?}", plan)
+                        if count % 10000 == 0 {
+                            trace!("change is {}, epsilon is {}", change, epsilon);
+                            trace!(
+                                "found improving with change: {:?} for swap 1:{:?} 2: {:?}",
+                                change,
+                                swap_first,
+                                swap_last
+                            );
+                            trace!(
+                                "Plan is now: {:?}",
+                                plan[start..=end]
+                                    .iter()
+                                    .map(|v| (v.node, v.time))
+                                    .collect::<Vec<_>>()
+                            );
+                        }
                     }
                 }
             }
