@@ -41,11 +41,6 @@ use crate::solution::routing::RoutingSolution;
 
 use super::pyerr;
 
-#[pyfunction]
-pub fn nop() -> Nop {
-    Nop
-}
-
 #[pyclass]
 #[derive(Clone)]
 pub struct PyMut {
@@ -172,6 +167,17 @@ pub fn pix() -> PyRecombination {
     PyRecombination {
         inner: Arc::new(Mutex::new(PIX)),
     }
+}
+
+#[pyfunction]
+pub fn recomb_chain(mutations: Vec<PyRecombination>) -> PyRecombination {
+    let nop = || PyRecombination {
+        inner: Arc::new(Mutex::new(Nop)),
+    };
+
+    mutations.into_iter().fold(nop(), |acc, x| PyRecombination {
+        inner: Arc::new(Mutex::new(Chain(acc, x))),
+    })
 }
 
 impl Recombination for PyRecombination {
