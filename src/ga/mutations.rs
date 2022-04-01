@@ -787,6 +787,10 @@ impl DistanceReduction {
         let new_1 = (plan[to].node, plan[from].node);
         let new_2 = (plan[from].node, plan[to + 1].node);
 
+        if (new_1.0 == new_1.1) || (new_2.0 == new_2.0) {
+            return -1.0
+        }
+
         problem.distance(old_1.0, old_1.1) + problem.distance(old_2.0, old_2.1)
             - problem.distance(new_1.0, new_1.1)
             - problem.distance(new_2.0, new_2.1)
