@@ -13,7 +13,7 @@ use crate::python::*;
 use ga::{
     chromosome::Chromosome,
     fitness::Weighted,
-    mutations::{BounceMode, RedCostMode},
+    mutations::{BounceMode, RedCostMode, DistanceReductionMode},
 };
 use models::quantity::F64Variables;
 
@@ -71,6 +71,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(weighted, m)?)?;
 
     m.add_class::<BounceMode>()?;
+    m.add_class::<DistanceReductionMode>()?;
     m.add_class::<RedCostMode>()?;
     m.add_class::<PyMut>()?;
     m.add_class::<PyRecombination>()?;
