@@ -694,12 +694,8 @@ impl Mutation for InterSwap {
     }
 }
 
-<<<<<<< HEAD
-#[derive(Debug)]
-=======
 #[pyclass]
-#[derive(Clone)]
->>>>>>> 25a9702 (Exposed to python)
+#[derive(Clone, Debug)]
 pub enum DistanceReductionMode {
     All,
     Random,
