@@ -48,6 +48,8 @@ impl Chromosome {
         let vessels = problem.vessels();
         let mut rng = rand::thread_rng();
 
+        debug!("Initial orders: {:?}", initial_orders);
+
         let mut chromosome = std::iter::repeat(vec![])
             .take(vessels.len())
             .collect::<Vec<Vec<Visit>>>();
@@ -69,7 +71,7 @@ impl Chromosome {
                         <= serve_time)
                         && ({
                             if chromosome.get(v.index()).unwrap().len() > 0 {
-                                debug!("Chromosome in process: {:?}     Last element: {:?}", chromosome.get(v.index()).unwrap(), chromosome.get(v.index()).unwrap().last().unwrap());
+                                // debug!("Chromosome in process: {:?}     Last element: {:?}", chromosome.get(v.index()).unwrap(), chromosome.get(v.index()).unwrap().last().unwrap());
                                 chromosome.get(v.index()).unwrap().last().unwrap().node
                                     != order.node()
                             } else {
@@ -89,7 +91,7 @@ impl Chromosome {
             avail_from.insert(chosen.index(), (order.node(), serve_time + 1));
         }
 
-        debug!("Chromosome after init: {:?}", chromosome);
+        // debug!("Chromosome after init: {:?}", chromosome);
         Ok(Self { chromosome })
     }
 
