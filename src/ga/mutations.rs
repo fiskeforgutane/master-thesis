@@ -411,6 +411,14 @@ impl RedCost {
         let visit = mut_plan.get_mut(visit_index).unwrap();
 
         visit.time = (problem.timesteps() - 1).min(visit.time + 1);
+
+        trace!(
+            "finished move forward, plan is now: {:?}",
+            mut_plan
+                .iter()
+                .map(|v| (v.node, v.time))
+                .collect::<Vec<_>>()
+        )
     }
     /// Moves the visit of the given index in the given plan one time period earlier, if possible, otherwise, nothing happens.
     fn move_back(visit_index: usize, vessel: usize, plan: &mut Plan, problem: &Problem) {
@@ -442,6 +450,14 @@ impl RedCost {
         visit.time = problem.vessels()[vessel]
             .available_from()
             .max(visit.time - 1);
+
+        trace!(
+            "finished move back, plan is now: {:?}",
+            mut_plan
+                .iter()
+                .map(|v| (v.node, v.time))
+                .collect::<Vec<_>>()
+        )
     }
 }
 
