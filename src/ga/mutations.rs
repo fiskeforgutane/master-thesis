@@ -545,14 +545,6 @@ pub struct Bounce {
 }
 
 impl Bounce {
-    pub fn new(passes: usize, mode: BounceMode) -> Bounce {
-        Bounce {
-            rng: rand::rngs::StdRng::from_entropy(),
-            passes,
-            mode,
-        }
-    }
-
     pub fn apply_bounce_pass(
         problem: &Problem,
         vessel: VesselIndex,
@@ -584,16 +576,34 @@ impl Bounce {
             let w1 = t1 - (current.time - prev.time).min(t1);
             let w2 = t2 - (next.time - current.time).min(t2);
 
-            match w1.cmp(&w2) {
+            match (
+                current.time - prev.time,
+                next.time - current.time,
+                w1.cmp(&w2),
+            ) {
                 // If there is more warp to the future than the past, we'll move `current` one timestep towards
                 // the start if possible (this is effectively time = max(time - 1, 0) for usize)
-                std::cmp::Ordering::Less => current.time = current.time - 1.min(current.time),
-                // If they are equal we will not move any of them
-                std::cmp::Ordering::Equal => (),
+                (2.., _, std::cmp::Ordering::Less) => {
+                    current.time = current.time - 1.min(current.time)
+                }
                 // If there is more warp towards the past than the future we'll try to push the `current` visit
                 // one step forward.
-                std::cmp::Ordering::Greater => current.time = (current.time + 1).min(max_t),
+                (_, 2.., std::cmp::Ordering::Greater) => {
+                    current.time = (current.time + 1).min(max_t)
+                }
+
+                // If they are equal we will not move any of them
+                // Same goes if moving one of them would violate the "no simultaneous visits" requirement.
+                (_, _, _) => (),
             }
+        }
+    }
+
+    pub fn new(passes: usize, mode: BounceMode) -> Bounce {
+        Bounce {
+            rng: rand::rngs::StdRng::from_entropy(),
+            passes,
+            mode,
         }
     }
 }
