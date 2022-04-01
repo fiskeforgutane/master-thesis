@@ -54,10 +54,13 @@ impl Plan {
             false => raw.insert(0, origin),
         }
 
-        Self {
+        let plan = Self {
             sorted: raw,
             origin,
-        }
+        };
+
+        plan.validate();
+        plan
     }
 
     pub fn mutate(&mut self) -> PlanMut<'_> {
