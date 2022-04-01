@@ -647,9 +647,9 @@ impl Mutation for IntraSwap {
         let mut mutator = solution.mutate();
         let plan = &mut mutator[v].mutate();
 
-        // select two random visits to swap
-        let v1 = rand.gen_range(0..plan.len());
-        let v2 = rand.gen_range(0..plan.len());
+        // select two random visits to swap - exclude the origin
+        let v1 = rand.gen_range(1..plan.len());
+        let v2 = rand.gen_range(1..plan.len());
 
         // if v1 and v2 are equal, we don't do anything
         if v1 == v2 {
@@ -658,11 +658,11 @@ impl Mutation for IntraSwap {
 
         // get the visits
         let (v1, v2) = plan.get_pair_mut(v1, v2);
-        let n1 = v1.node;
+        let temp = v1.node;
 
         // perform the swap
         v1.node = v2.node;
-        v2.node = n1;
+        v2.node = temp;
     }
 }
 
