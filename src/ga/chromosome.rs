@@ -67,7 +67,14 @@ impl Chromosome {
                     (avail_from[&v.index()].1
                         + problem.travel_time(avail_from[&v.index()].0, order.node(), *v)
                         <= serve_time) &&
-                    (chromosome.get(v.index()).unwrap().last().unwrap().node != order.node())
+                        {
+                            if chromosome.get(v.index()).unwrap().len() > 0 {
+                                chromosome.get(v.index()).unwrap().last().unwrap().node != order.node()
+                            }
+                            else {
+                                true
+                            }
+                        }
                 })
                 .choose(&mut rng);
             
