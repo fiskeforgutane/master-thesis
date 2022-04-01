@@ -461,6 +461,37 @@ impl RedCost {
     }
 }
 
+impl Mutation for RedCost {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // check that status is optimal and do nothing if semi-cont has been enabled
+        let status = solution
+            .quantities()
+            .model
+            .status()
+            .expect("Could not retrieve the model status");
+        let is_mip = solution
+            .quantities()
+            .model
+            .get_attr(attr::IsMIP)
+            .expect("Could not retrieve the IsMIP attribuite");
+
+        assert!(matches!(status, Status::Optimal));
+        trace!("type of model: {:?}", is_mip);
+        // if the model is not an LP, we have used semi-cont which doesn't have a well defined dual so we return
+        if is_mip == 1 {
+            return;
+        }
+
+        trace!("Applying RedCost({:?}) to {:?}", self.mode, solution);
+        let rand = &mut rand::thread_rng();
+        match self.mode {
+            RedCostMode::Mutate => Self::iterate(self.max_visits, rand, problem, solution),
+            RedCostMode::LocalSerach => todo!(),
+        }
+        trace!("FINISHED RED COST MUTATION")
+    }
+}
+
 /// How to apply the Bounce
 #[pyclass]
 #[derive(Debug, Clone)]
@@ -527,36 +558,6 @@ impl Bounce {
                 // one step forward.
                 std::cmp::Ordering::Greater => current.time = (current.time + 1).min(max_t),
             }
-        }
-    }
-}
-
-impl Mutation for RedCost {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        // check that status is optimal and do nothing if semi-cont has been enabled
-        let status = solution
-            .quantities()
-            .model
-            .status()
-            .expect("Could not retrieve the model status");
-        let is_mip = solution
-            .quantities()
-            .model
-            .get_attr(attr::IsMIP)
-            .expect("Could not retrieve the IsMIP attribuite");
-
-        assert!(matches!(status, Status::Optimal));
-        trace!("type of model: {:?}", is_mip);
-        // if the model is not an LP, we have used semi-cont which doesn't have a well defined dual so we return
-        if is_mip == 1 {
-            return;
-        }
-
-        trace!("Applying RedCost({:?}) to {:?}", self.mode, solution);
-        let rand = &mut rand::thread_rng();
-        match self.mode {
-            RedCostMode::Mutate => Self::iterate(self.max_visits, rand, problem, solution),
-            RedCostMode::LocalSerach => todo!(),
         }
     }
 }
