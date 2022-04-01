@@ -771,8 +771,6 @@ impl TwoOpt {
                         ); */
                         aggregated_improvement += f64::abs(change);
 
-                        // move to next solution
-                        Self::update(plan, swap_first, swap_last);
                         if count % 10000 == 0 {
                             trace!("change is {}, epsilon is {}", change, epsilon);
                             trace!(
@@ -782,7 +780,19 @@ impl TwoOpt {
                                 swap_last
                             );
                             trace!(
-                                "Plan is now: {:?}",
+                                "Plan is: {:?}",
+                                plan[start..=end]
+                                    .iter()
+                                    .map(|v| (v.node, v.time))
+                                    .collect::<Vec<_>>()
+                            );
+                        }
+
+                        // move to next solution
+                        Self::update(plan, swap_first, swap_last);
+                        if count % 10000 == 0 {
+                            trace!(
+                                "after update: {:?}",
                                 plan[start..=end]
                                     .iter()
                                     .map(|v| (v.node, v.time))
