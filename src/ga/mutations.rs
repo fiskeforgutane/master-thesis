@@ -756,12 +756,17 @@ impl DistanceReduction {
 
         let new_time = plan[end].time;
 
+        debug!("Start: {}   End: {}", start, end);
+
         // Move all other visits accordingly to the best move
-        for node_index in start..end {
-            if end > start {
-                plan[node_index].time = plan[node_index + 1].time;
-            } else {
+        if end > start {
+            for node_index in (start..(end+1)).rev() {
                 plan[node_index].time = plan[node_index - 1].time;
+            }
+        }
+        else {
+            for node_index in end..(start+1) {
+                plan[node_index].time = plan[node_index + 1].time;
             }
         }
 
