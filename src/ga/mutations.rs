@@ -199,13 +199,13 @@ impl Mutation for Twerk {
         match self.mode {
             TwerkMode::Random => match (0..mutator.len()).choose(rng) {
                 Some(vessel) => {
-                    Twerk::those_hips(rng, vessel, problem, &mut mutator[vessel].mutate())
+                    Twerk::those_hips(rng, vessel, problem, &mut mutator[vessel].mutate()[1..])
                 }
                 None => warn!("unable to twerk"),
             },
             TwerkMode::All => {
                 for (vessel, plan) in mutator.iter_mut().enumerate() {
-                    Twerk::those_hips(rng, vessel, problem, &mut plan.mutate())
+                    Twerk::those_hips(rng, vessel, problem, &mut plan.mutate()[1..])
                 }
             }
         }
