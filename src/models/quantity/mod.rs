@@ -5,7 +5,7 @@ use pyo3::pyclass;
 use crate::{
     models::utils::AddVars,
     problem::{NodeIndex, NodeType, Problem, ProductIndex, TimeIndex, VesselIndex},
-    solution::{routing::RoutingSolution, Visit},
+    solution::routing::RoutingSolution,
 };
 
 use super::utils::ConvertVars;

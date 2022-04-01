@@ -1,14 +1,7 @@
 use rand::{seq::SliceRandom, Rng};
-use std::{
-    cmp::{max, min},
-    ops::Deref,
-    sync::Arc,
-};
+use std::cmp::{max, min};
 
-use crate::{
-    problem::{IndexCount, Vessel},
-    solution::{routing::Plan, Visit},
-};
+use crate::problem::Vessel;
 
 use super::{Problem, Recombination, RoutingSolution};
 

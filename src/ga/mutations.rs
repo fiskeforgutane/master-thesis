@@ -1,10 +1,4 @@
-use std::{
-    cmp::{max, min},
-    collections::HashSet,
-    fmt::Error,
-    ops::Deref,
-    time::Instant,
-};
+use std::{collections::HashSet, time::Instant};
 
 use grb::{attr, Status};
 
@@ -17,12 +11,12 @@ use rand::prelude::*;
 use crate::{
     ga::Mutation,
     models::quantity_cont::QuantityLpCont,
-    problem::{Node, NodeType, Problem, Timestep, Vessel, VesselIndex},
+    problem::{Node, NodeType, Problem, Vessel, VesselIndex},
     solution::{
         routing::{Plan, PlanMut, RoutingSolution},
         Visit,
     },
-    utils::GetPairMut,
+    utils::{GetPairMut, SwapNodes},
 };
 
 pub fn choose_proportional_by_key<'a, I, T, F, R>(it: I, f: F, mut rng: R) -> T
@@ -346,10 +340,6 @@ impl RedCost {
                 v,
                 value
             );
-            let value = value.expect(&format!(
-                "Not able to retrieve x-variable x_{}_{}_{}_{}",
-                t, n, v, 0
-            ));
 
             // sum the reduced cost over all products
             let reduced = (0..problem.products())
@@ -647,9 +637,9 @@ impl Mutation for IntraSwap {
         let mut mutator = solution.mutate();
         let plan = &mut mutator[v].mutate();
 
-        // select two random visits to swap
-        let v1 = rand.gen_range(0..plan.len());
-        let v2 = rand.gen_range(0..plan.len());
+        // select two random visits to swap - exclude the origin
+        let v1 = rand.gen_range(1..plan.len());
+        let v2 = rand.gen_range(1..plan.len());
 
         // if v1 and v2 are equal, we don't do anything
         if v1 == v2 {
@@ -658,11 +648,8 @@ impl Mutation for IntraSwap {
 
         // get the visits
         let (v1, v2) = plan.get_pair_mut(v1, v2);
-        let n1 = v1.node;
-
         // perform the swap
-        v1.node = v2.node;
-        v2.node = n1;
+        v1.swap_nodes(v2);
     }
 }
 
@@ -712,11 +699,9 @@ impl TwoOpt {
 
             // get the visits
             let (visit1, visit2) = plan.get_pair_mut(i, k);
-            let temp = visit1.node;
 
             // perform the swap
-            visit1.node = visit2.node;
-            visit2.node = temp
+            visit1.swap_nodes(visit2);
         }
     }
 
@@ -877,9 +862,9 @@ impl Mutation for InterSwap {
             return;
         }
 
-        // select a random visit from each vessel
-        let v1 = rand.gen_range(0..solution[vessel1].len());
-        let v2 = rand.gen_range(0..solution[vessel2].len());
+        // select a random visit from each vessel - excluding the origin
+        let v1 = rand.gen_range(1..solution[vessel1].len());
+        let v2 = rand.gen_range(1..solution[vessel2].len());
 
         let mutator = &mut solution.mutate();
 
@@ -888,7 +873,7 @@ impl Mutation for InterSwap {
         let visit1 = &mut p1.mutate()[v1];
         let visit2 = &mut p2.mutate()[v2];
 
-        std::mem::swap(visit1, visit2);
+        visit1.swap_nodes(visit2);
     }
 }
 
