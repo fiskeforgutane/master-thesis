@@ -788,6 +788,10 @@ impl DistanceReduction {
         let new_1 = (plan[to].node, plan[from].node);
         let new_2 = (plan[from].node, plan[to + 1].node);
 
+        debug!("Plan: {:?}", plan);
+
+        debug!("Old edges:  ({}, {}) and ({}, {})   New edges: ({}, {}) and ({}, {})", old_1.0, old_1.1, old_2.0, old_2.1, new_1.0, new_1.1, new_2.0, new_2.1);
+
         if (new_1.0 == new_1.1) || (new_2.0 == new_2.0) {
             return -1.0
         }
