@@ -719,6 +719,13 @@ impl TwoOpt {
         problem: &Problem,
         time_limit: u64,
     ) {
+        trace!(
+            "running local search in voyage: {:?}",
+            plan[start..=end]
+                .iter()
+                .map(|visit| (visit.node, visit.time))
+                .collect::<Vec<_>>()
+        );
         // check that the voyage consists of at least four visits, including start and end
         if end - start < 3 {
             return;
@@ -771,6 +778,13 @@ impl TwoOpt {
             }
         }
         trace!("Ran local search for {} iterations ({} seconds) from start: {} to end: {}, and reduced the total travel distance by {}", count, now.elapsed().as_secs(), start, end, aggregated_improvement);
+        trace!(
+            "Voyage now looks like: {:?}",
+            plan[start..=end]
+                .iter()
+                .map(|visit| (visit.node, visit.time))
+                .collect::<Vec<_>>()
+        );
     }
 
     /// Returns the indicies of the production visits in the given plan, and the last visit, regardless of type
