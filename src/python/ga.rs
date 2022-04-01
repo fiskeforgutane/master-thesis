@@ -39,8 +39,6 @@ use std::sync::Mutex;
 
 use crate::solution::routing::RoutingSolution;
 
-use super::pyerr;
-
 #[pyclass]
 #[derive(Clone)]
 pub struct PyMut {

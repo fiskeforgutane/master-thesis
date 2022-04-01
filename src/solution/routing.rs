@@ -1,4 +1,3 @@
-use std::borrow::{Borrow, BorrowMut};
 use std::cell::{Cell, Ref, RefCell};
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -6,7 +5,6 @@ use std::ops::DerefMut;
 use std::{ops::Deref, sync::Arc};
 
 use itertools::Itertools;
-use log::trace;
 use pyo3::pyclass;
 
 use crate::models::quantity::{QuantityLp, Variables};

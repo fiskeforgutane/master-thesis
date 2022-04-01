@@ -699,11 +699,9 @@ impl TwoOpt {
 
             // get the visits
             let (visit1, visit2) = plan.get_pair_mut(i, k);
-            let temp = visit1.node;
 
             // perform the swap
-            visit1.node = visit2.node;
-            visit2.node = temp
+            visit1.swap_nodes(visit2);
         }
     }
 

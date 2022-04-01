@@ -1,9 +1,5 @@
-use log::{info, trace};
 use pyo3::pyclass;
-use rand::{
-    prelude::{IteratorRandom, SliceRandom},
-    Rng,
-};
+use rand::{prelude::IteratorRandom, Rng};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
