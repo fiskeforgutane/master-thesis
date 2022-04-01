@@ -312,7 +312,6 @@ impl RedCost {
                 "Not able to retrieve x-variable x_{}_{}_{}_{}",
                 t, n, v, 0
             ));
-            assert!(value == 0.0);
 
             // sum the reduced cost over all products
             let reduced = (0..problem.products())
