@@ -1,3 +1,5 @@
+use crate::solution::Visit;
+
 pub trait GetPairMut {
     type Out;
     fn get_pair_mut(self, v1: usize, v2: usize) -> (Self::Out, Self::Out);
@@ -19,6 +21,20 @@ impl<'a, T> GetPairMut for &'a mut [T] {
         } else {
             (two, one)
         }
+    }
+}
+
+pub trait SwapNodes {
+    fn swap_nodes(self, visit: &mut Visit);
+}
+
+impl SwapNodes for &mut Visit {
+    fn swap_nodes(self, visit: &mut Visit) {
+        let temp = self.node;
+
+        // perform the swap
+        self.node = visit.node;
+        visit.node = temp;
     }
 }
 
