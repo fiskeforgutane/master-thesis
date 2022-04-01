@@ -779,6 +779,7 @@ impl DistanceReduction {
         edges.iter().map(|(sign, from, to)| sign * problem.distance(*from, *to)).sum()
     }
 
+    /// 
     fn find_edges(from: usize, to: usize, plan: &mut PlanMut) -> Vec<(f64, usize, usize)> {
         let mut edges: Vec<(f64, usize, usize)> = Vec::new();
 
@@ -786,18 +787,18 @@ impl DistanceReduction {
             return edges
         }
 
-        if from < plan.len() {
-            edges.push((1.0, from, from + 1));
-            edges.push((-1.0, from - 1, from));
+        if from < (plan.len()-1) {
+            edges.push((1.0, plan[from].node, plan[from + 1].node));
+            edges.push((-1.0, plan[from - 1].node, plan[from].node));
         }
 
-        if to < plan.len() {
-            edges.push((1.0, to, to + 1));
-            edges.push((-1.0, from, to + 1));
+        if to < (plan.len()-1) {
+            edges.push((1.0, plan[to].node, plan[to + 1].node));
+            edges.push((-1.0, plan[from].node, plan[to + 1].node));
         }
-
-        edges.push((1.0, from-1, from));
-        edges.push((-1.0, to, from));
+        
+        edges.push((1.0, plan[from - 1].node, plan[from].node));
+        edges.push((-1.0, plan[to].node, plan[from].node));
 
         edges
     }
