@@ -1,4 +1,4 @@
-use log::{trace, info};
+use log::{trace, info, debug};
 use pyo3::pyclass;
 use rand::{
     prelude::{IteratorRandom, SliceRandom},
@@ -37,7 +37,6 @@ impl Initialization for InitRoutingSolution {
     type Out = RoutingSolution;
 
     fn new(&self, problem: Arc<Problem>) -> Self::Out {
-        trace!("Starting new initialization.");
         let routes = Chromosome::new(&problem).unwrap().chromosome;
         RoutingSolution::new(problem, routes)
     }
@@ -65,9 +64,10 @@ impl Chromosome {
             let first_choice = vessels
                 .iter()
                 .filter(|v| {
-                    avail_from[&v.index()].1
+                    (avail_from[&v.index()].1
                         + problem.travel_time(avail_from[&v.index()].0, order.node(), *v)
-                        <= serve_time
+                        <= serve_time) &&
+                    (chromosome.get(v.index()).unwrap().last().unwrap().node != order.node())
                 })
                 .choose(&mut rng);
             
@@ -80,9 +80,9 @@ impl Chromosome {
 
             avail_from.insert(chosen.index(), (order.node(), serve_time + 1));
 
-        }
-        trace!("Chromosome: {:?}", chromosome);
-        
+        }        
+
+        debug!("Chromosome after init: {:?}", chromosome);
         Ok(Self { chromosome })
     }
 
