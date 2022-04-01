@@ -49,7 +49,7 @@ impl Chromosome {
         let vessels = problem.vessels();
         let mut rng = rand::thread_rng();
 
-        debug!("Initial orders: {:?}", initial_orders);
+        // debug!("Initial orders: {:?}", initial_orders);
 
         let mut chromosome = std::iter::repeat(vec![])
             .take(vessels.len())
