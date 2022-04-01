@@ -731,7 +731,7 @@ impl DistanceReduction {
 
         // Holders for the best move (from, to) and the largest reduction in distance
         let mut best_move: (usize, usize) = (0, 0);
-        let mut largest_reduction: f64 = std::f64::MIN;
+        let mut largest_reduction: f64 = -1.0;
 
         // Have to check all node moves
         for from in 0..(plan_len - 1) {
