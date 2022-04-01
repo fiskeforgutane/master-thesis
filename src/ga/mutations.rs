@@ -678,7 +678,7 @@ impl TwoOpt {
             }
 
             // get the visits
-            let (visit1, visit2) = plan.get_pair_mut(v1, v2);
+            let (visit1, visit2) = plan.get_pair_mut(i, k);
             let temp = visit1.node;
 
             if trace {
