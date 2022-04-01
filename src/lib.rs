@@ -13,7 +13,7 @@ use crate::python::*;
 use ga::{
     chromosome::Chromosome,
     fitness::Weighted,
-    mutations::{BounceMode, RedCostMode, DistanceReductionMode},
+    mutations::{BounceMode, DistanceReductionMode, RedCostMode},
 };
 use models::quantity::F64Variables;
 
@@ -60,6 +60,9 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
 
     // Recombinations
     m.add_function(wrap_pyfunction!(pix, m)?)?;
+
+    // Recombination combinators
+    m.add_function(wrap_pyfunction!(recomb_chain, m)?)?;
 
     // Survival and parent selection
     m.add_function(wrap_pyfunction!(proportionate, m)?)?;
