@@ -740,7 +740,7 @@ impl DistanceReduction {
             let to = (0..(plan_len - 1))
                 .filter(|v| *v != from)
                 .max_by_key(key)
-                .unwrap();
+                .unwrap_or_else(|| from);
 
             // If the new distance reduction is higher than the previous max, update the move and the
             // largest reduction
