@@ -335,6 +335,13 @@ impl RedCost {
         // indices of visits to alter, including origin which is index 0
         let visit_indices = Self::get_visit_indices(n_visits, v, problem, solution);
 
+        trace!(
+            "visit indices for vessel plan {} of lenght {}: {:?}",
+            v,
+            solution[v].len(),
+            visit_indices
+        );
+
         // the the plan as mut
         let plan = &mut solution.mutate()[v];
 
