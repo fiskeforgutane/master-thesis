@@ -59,6 +59,7 @@ impl AddRandom {
 
 impl Mutation for AddRandom {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        trace!("Applying AddRandom to {:?}", solution);
         // Note: there always be at least one vessel in a `Problem`, and
         // 0..=x is always non-empty when x is an unsigned type
         let v = problem.indices::<Vessel>().choose(&mut self.rng).unwrap();
@@ -85,6 +86,7 @@ impl RemoveRandom {
 
 impl Mutation for RemoveRandom {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        trace!("Applying RemoveRandom to {:?}", solution);
         // Note: there always be at least one vessel in a `Problem`, and
         // 0..=x is always non-empty when x is an unsigned type
         let v = problem.indices::<Vessel>().choose(&mut self.rng).unwrap();
@@ -99,6 +101,7 @@ impl Mutation for RemoveRandom {
 }
 
 // How we're going to perform the twerking.
+#[derive(Debug)]
 pub enum TwerkMode {
     Random,
     All,
@@ -155,6 +158,7 @@ impl Mutation for Twerk {
         problem: &crate::problem::Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
     ) {
+        trace!("Applying Twerk({:?}) to {:?}", self.mode, solution);
         let rng = &mut self.rng;
 
         let mut plans = solution.mutate();
@@ -174,7 +178,7 @@ impl Mutation for Twerk {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum RedCostMode {
     /// Performs only one iteration where it updates the upper bounds of a random subset of visits
     /// that look promising to expand
@@ -407,7 +411,7 @@ impl RedCost {
 
 /// How to apply the Bounce
 #[pyclass]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum BounceMode {
     All,
     Random,
@@ -496,6 +500,7 @@ impl Mutation for RedCost {
             return;
         }
 
+        trace!("Applying RedCost({:?}) to {:?}", self.mode, solution);
         let rand = &mut rand::thread_rng();
         match self.mode {
             RedCostMode::Mutate => Self::iterate(self.max_visits, rand, problem, solution),
@@ -510,6 +515,7 @@ impl Mutation for Bounce {
         problem: &Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
     ) {
+        trace!("Applying Bounce({:?}) to {:?}", self.mode, solution);
         for _ in 0..self.passes {
             match self.mode {
                 BounceMode::All => {
@@ -534,6 +540,7 @@ pub struct IntraSwap;
 
 impl Mutation for IntraSwap {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        trace!("Applying IntraSwap to {:?}", solution);
         let mut rand = rand::thread_rng();
         // get random plan where a swap should be performed
         let v = rand.gen_range(0..problem.vessels().len());
@@ -559,6 +566,7 @@ impl Mutation for IntraSwap {
     }
 }
 
+#[derive(Debug)]
 pub enum TwoOptMode {
     /// Performs a 2-opt local search on every voyage for every vessel. The the f64 is the relative improvement that is needed to consider a new solution as an improvement.
     /// The usize is the number of iterations without improvement that is accepted before it breaks.
@@ -747,6 +755,7 @@ impl TwoOpt {
 
 impl Mutation for TwoOpt {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        trace!("Applying TwoOpt({:?}) to {:?}", self.mode, solution);
         match self.mode {
             TwoOptMode::LocalSerach(improvement_threshold, iterations_without_improvement) => {
                 println!("starting local search");
@@ -791,6 +800,7 @@ pub struct InterSwap;
 
 impl Mutation for InterSwap {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+        trace!("Applying InterSwap to {:?}", solution);
         let mut rand = rand::thread_rng();
         // select two random vessels participate in the swap
         let vessel1 = rand.gen_range(0..solution.len());
@@ -815,6 +825,7 @@ impl Mutation for InterSwap {
     }
 }
 
+#[derive(Debug)]
 pub enum DistanceReductionMode {
     All,
     Random,
@@ -909,6 +920,7 @@ impl DistanceReduction {
 
 impl Mutation for DistanceReduction {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        trace!("DistanceReduction({:?}): {:?}", self.mode, solution);
         match self.mode {
             DistanceReductionMode::All => {
                 for vessel_index in 0..solution.len() {
@@ -931,6 +943,7 @@ pub struct BestMove {
 
 impl Mutation for BestMove {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        trace!("Applying BestMove to {:?}", solution);
         // Select a random vessel
         let vessel = self.rand.gen_range(0..solution.len());
 
@@ -1000,6 +1013,7 @@ pub struct VesselSwap {
 
 impl Mutation for VesselSwap {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+        trace!("Applying VesselSwap to {:?}", solution);
         // Select two random vessels for swapping
         let vessel1 = self.rand.gen_range(0..solution.len());
         let mut vessel2 = self.rand.gen_range(0..solution.len());
@@ -1035,6 +1049,7 @@ impl TimeSetter {
 impl Mutation for TimeSetter {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
         // solve the lp and retrieve the new time periods
+        trace!("Applying TimeSetter to {:?}", solution);
 
         let new_times = self.quants_lp.get_visit_times(&solution);
 

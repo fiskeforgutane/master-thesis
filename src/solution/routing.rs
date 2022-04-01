@@ -17,6 +17,8 @@ use crate::solution::Visit;
 #[pyclass]
 #[derive(Debug)]
 pub struct Plan {
+    /// The origin visit of this plan
+    origin: Visit,
     /// The set of visits sorted by ascending time
     sorted: Vec<Visit>,
 }
@@ -26,6 +28,7 @@ impl Clone for Plan {
     fn clone(&self) -> Self {
         Self {
             sorted: self.sorted.clone(),
+            origin: self.origin.clone(),
         }
     }
 
@@ -36,9 +39,25 @@ impl Clone for Plan {
 }
 
 impl Plan {
-    fn new(mut raw: Vec<Visit>) -> Self {
-        raw.sort_unstable_by_key(|visit| visit.time);
-        Self { sorted: raw }
+    fn new(origin: Visit, mut raw: Vec<Visit>) -> Self {
+        // Sort by time, and then ensure that the origin visit occurs first.
+        raw.sort_unstable_by_key(|&visit| (visit.time, visit != origin));
+
+        let first = raw.first();
+
+        if first.map(|v| v.time < origin.time).unwrap_or(false) {
+            panic!("Visit occurs before origin");
+        }
+
+        match raw.first().map(|&v| v == origin).unwrap_or(false) {
+            true => (),
+            false => raw.insert(0, origin),
+        }
+
+        Self {
+            sorted: raw,
+            origin,
+        }
     }
 
     pub fn mutate(&mut self) -> PlanMut<'_> {
@@ -97,7 +116,12 @@ impl DerefMut for PlanMut<'_> {
 
 impl Drop for PlanMut<'_> {
     fn drop(&mut self) {
-        self.0.sorted.sort_unstable_by_key(|visit| visit.time);
+        self.0
+            .sorted
+            .sort_unstable_by_key(|&visit| (visit.time, visit != self.0.origin));
+        // Enforce that the first visit is equal to the origin visit
+        let first = self.0.sorted.first();
+        assert!(first.map(|&v| v == self.0.origin).unwrap_or(false));
     }
 }
 
@@ -211,8 +235,12 @@ impl RoutingSolution {
         };
 
         Self {
+            routes: routes
+                .into_iter()
+                .enumerate()
+                .map(|(v, route)| Plan::new(problem.origin_visit(v), route))
+                .collect(),
             problem,
-            routes: routes.into_iter().map(|route| Plan::new(route)).collect(),
             cache,
         }
     }
@@ -476,11 +504,17 @@ impl Drop for RoutingSolutionMut<'_> {
         let timesteps = self.0.problem.timesteps();
 
         // Check that the visit times are correct
-        for plan in &self.0.routes {
+        for (v, plan) in self.0.routes.iter().enumerate() {
+            // Ensure that the last timestep is within the planning period.
             assert!(match plan.last() {
                 Some(visit) => visit.time < timesteps,
                 None => true,
             });
+            // Assert that the first visit of each vessel's plan corresponds to its origin visit.
+            assert!(plan
+                .first()
+                .map(|&visit| visit == self.0.problem.origin_visit(v))
+                .unwrap_or(false));
         }
     }
 }
