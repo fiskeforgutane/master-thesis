@@ -52,6 +52,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(two_opt_local, m)?)?;
     m.add_function(wrap_pyfunction!(two_opt_intra, m)?)?;
     m.add_function(wrap_pyfunction!(inter_swap, m)?)?;
+    m.add_function(wrap_pyfunction!(distance_reduction, m)?)?;
 
     // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;

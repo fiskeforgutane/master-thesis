@@ -694,7 +694,12 @@ impl Mutation for InterSwap {
     }
 }
 
+<<<<<<< HEAD
 #[derive(Debug)]
+=======
+#[pyclass]
+#[derive(Clone)]
+>>>>>>> 25a9702 (Exposed to python)
 pub enum DistanceReductionMode {
     All,
     Random,
@@ -702,23 +707,12 @@ pub enum DistanceReductionMode {
 
 /// A mutation operator that moves the node that leads to the maximum reduction in total travel distance for one vessel
 pub struct DistanceReduction {
-    rand: ThreadRng,
     mode: DistanceReductionMode,
 }
 
 impl DistanceReduction {
-    pub fn distance_reduction_all(vessel_index: usize) -> DistanceReduction {
-        DistanceReduction {
-            rand: rand::prelude::thread_rng(),
-            mode: DistanceReductionMode::All,
-        }
-    }
-
-    pub fn distance_reduction_random(vessel_index: usize) -> DistanceReduction {
-        DistanceReduction {
-            rand: rand::prelude::thread_rng(),
-            mode: DistanceReductionMode::Random,
-        }
+    pub fn new(mode: DistanceReductionMode) -> DistanceReduction {
+        DistanceReduction { mode }
     }
 
     pub fn distance_reduction(
@@ -797,7 +791,8 @@ impl Mutation for DistanceReduction {
                 }
             }
             DistanceReductionMode::Random => {
-                let vessel_index = self.rand.gen_range(0..solution.len());
+                let mut rand = rand::prelude::thread_rng();
+                let vessel_index = rand.gen_range(0..solution.len());
                 self.distance_reduction(problem, solution, vessel_index);
             }
         }

@@ -3,6 +3,8 @@ use crate::ga;
 use crate::ga::chromosome::InitRoutingSolution;
 use crate::ga::fitness::Weighted;
 use crate::ga::mutations::Bounce;
+use crate::ga::mutations::DistanceReduction;
+use crate::ga::mutations::DistanceReductionMode;
 use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
@@ -72,6 +74,13 @@ pub fn red_cost(mode: RedCostMode, max_visits: usize) -> PyMut {
 pub fn bounce(passes: usize, mode: BounceMode) -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(Bounce::new(passes, mode))),
+    }
+}
+
+#[pyfunction]
+pub fn distance_reduction(mode: DistanceReductionMode) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(DistanceReduction::new(mode))),
     }
 }
 
