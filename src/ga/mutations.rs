@@ -721,13 +721,13 @@ impl DistanceReduction {
         solution: &mut RoutingSolution,
         vessel_index: usize,
     ) {
-        debug!("Starting distance reduction for: {}", vessel_index);
+        // debug!("Starting distance reduction for: {}", vessel_index);
         // Initialize values
         let mut mutator = solution.mutate();
         let plan = &mut mutator[vessel_index].mutate();
         let plan_len = plan.len();
 
-        debug!("The plan to be distance reduced: {:?}", plan);
+        // debug!("The plan to be distance reduced: {:?}", plan);
 
         // Holders for the best move (from, to) and the largest reduction in distance
         let mut best_move: (usize, usize) = (0, 0);
@@ -744,19 +744,20 @@ impl DistanceReduction {
 
             // If the new distance reduction is higher than the previous max, update the move and the
             // largest reduction
+            debug!("Distance reduction -> From: {:?}    To: {:?}    Reduction: {:?}", from, to, self.distance_reduction_calc(problem, plan, from, to));
             if self.distance_reduction_calc(problem, plan, from, to) > largest_reduction {
                 best_move = (from, to);
                 largest_reduction = self.distance_reduction_calc(problem, plan, from, to);
             }
         }
 
-        debug!("Largest reduction: {}   From: {:?}    To: {:?}", largest_reduction, plan[best_move.0], plan[best_move.1]);
+        // debug!("Largest reduction: {}   From: {:?}    To: {:?}", largest_reduction, plan[best_move.0], plan[best_move.1]);
 
         let (start, end) = best_move;
 
         let new_time = plan[end].time;
 
-        debug!("Start: {}   End: {}", start, end);
+        // debug!("Start: {}   End: {}", start, end);
 
         // Move all other visits accordingly to the best move
         if end > start {
@@ -772,7 +773,7 @@ impl DistanceReduction {
 
         plan[start].time = new_time;
 
-        debug!("The plan to be distance reduced: {:?}", plan);
+        // debug!("The plan to be distance reduced: {:?}", plan);
     }
 
     fn distance_reduction_calc(
