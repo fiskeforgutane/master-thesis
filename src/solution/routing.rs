@@ -63,6 +63,21 @@ impl Plan {
     pub fn mutate(&mut self) -> PlanMut<'_> {
         PlanMut(self)
     }
+
+    /// Check invariants. Assumes that `self.sorted` is sorted.
+    fn validate(&self) {
+        let origin = self.origin;
+        let sorted = &self.sorted;
+
+        // Enforce that the first visit is equal to the origin visit
+        let first = sorted.first();
+        assert!(first.map(|&v| v == origin).unwrap_or(false));
+        // Enforce that there is at least one time step between consecutive visits
+        assert!(sorted
+            .iter()
+            .tuple_windows()
+            .all(|(x, y)| y.time - x.time >= 1));
+    }
 }
 
 impl Deref for Plan {
@@ -104,12 +119,11 @@ impl DerefMut for PlanMut<'_> {
 
 impl Drop for PlanMut<'_> {
     fn drop(&mut self) {
-        self.0
-            .sorted
-            .sort_unstable_by_key(|&visit| (visit.time, visit != self.0.origin));
-        // Enforce that the first visit is equal to the origin visit
-        let first = self.0.sorted.first();
-        assert!(first.map(|&v| v == self.0.origin).unwrap_or(false));
+        let origin = self.0.origin;
+        let sorted = &mut self.0.sorted;
+        sorted.sort_unstable_by_key(|&visit| (visit.time, visit != origin));
+
+        self.0.validate();
     }
 }
 
