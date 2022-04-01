@@ -1,5 +1,6 @@
 use std::{
     cmp::{max, min},
+    collections::HashSet,
     fmt::Error,
     ops::Deref,
 };
@@ -60,15 +61,35 @@ impl AddRandom {
 impl Mutation for AddRandom {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
         trace!("Applying AddRandom to {:?}", solution);
+        // The number of timesteps
+        let t = problem.timesteps();
         // Note: there always be at least one vessel in a `Problem`, and
         // 0..=x is always non-empty when x is an unsigned type
         let v = problem.indices::<Vessel>().choose(&mut self.rng).unwrap();
         let node = problem.indices::<Node>().choose(&mut self.rng).unwrap();
-        let time = problem.indices::<Timestep>().choose(&mut self.rng).unwrap();
 
-        let mut solution = solution.mutate();
-        let mut plan = solution[v].mutate();
-        plan.push(Visit { node, time });
+        // This is the valid range of times we can insert
+        let available = problem.vessels()[v].available_from();
+        let valid = available + 1..t;
+        let time = valid.choose(&mut self.rng).unwrap();
+        let plan = &solution[v];
+
+        // We try to find the point in time that is closest to `time` and insert the visit there
+        // We could restrict `0..t`, but it shouldn't really matter,
+        // since the *only* time we will go past is if there is exactly one visit at every time step.
+        for delta in 0..t {
+            let up = (time + delta).min(t - 1);
+            let down = time.max(delta + available + 1) - delta;
+
+            for t in [up, down] {
+                if plan.binary_search_by_key(&t, |v| v.time).is_err() {
+                    let mut solution = solution.mutate();
+                    let mut plan = solution[v].mutate();
+                    plan.push(Visit { node, time });
+                    return;
+                }
+            }
+        }
     }
 }
 
@@ -129,7 +150,12 @@ impl Twerk {
 }
 
 impl Twerk {
-    pub fn those_hips<R: rand::Rng>(rng: &mut R, problem: &Problem, plan: &mut [Visit]) {
+    pub fn those_hips<R: rand::Rng>(
+        rng: &mut R,
+        vessel: usize,
+        problem: &Problem,
+        plan: &mut [Visit],
+    ) {
         // Note: assumes that the visits are sorted in ascending order by time, which is normally enforced by the mutation guard.
         // However, if this is called after some other mutation that breaks that guarantee we might have to fix it here
         let total_time = plan
@@ -137,17 +163,26 @@ impl Twerk {
             .map(|w| w[1].time - w[0].time)
             .sum::<usize>();
 
+        // When the vessel is first available
+        let available = problem.vessels()[vessel].available_from();
         // The "average time" between two visits.
         let avg = total_time / plan.len().max(1);
         // We don't want the visits to cross too often, so we'll try to keep it such that they sheldom cross
         let max_delta = (avg / 3) as isize;
         // The highest allowed timestep
         let t_max = (problem.timesteps() - 1) as isize;
+        // The times that are "in use"
+        let mut times = plan.iter().map(|v| v.time).collect::<HashSet<_>>();
 
         for visit in plan {
             let delta = rng.gen_range(-max_delta..=max_delta);
-            let new = visit.time as isize + delta;
-            visit.time = new.clamp(0, t_max) as usize;
+            let new = (visit.time as isize + delta).clamp(available as isize + 1, t_max) as usize;
+
+            if !times.contains(&new) {
+                times.remove(&visit.time);
+                times.insert(new);
+                visit.time = new;
+            }
         }
     }
 }
@@ -161,16 +196,18 @@ impl Mutation for Twerk {
         trace!("Applying Twerk({:?}) to {:?}", self.mode, solution);
         let rng = &mut self.rng;
 
-        let mut plans = solution.mutate();
+        let mut mutator = solution.mutate();
 
         match self.mode {
-            TwerkMode::Random => match plans.choose_mut(rng) {
-                Some(plan) => Twerk::those_hips(rng, problem, &mut plan.mutate()),
+            TwerkMode::Random => match (0..mutator.len()).choose(rng) {
+                Some(vessel) => {
+                    Twerk::those_hips(rng, vessel, problem, &mut mutator[vessel].mutate()[1..])
+                }
                 None => warn!("unable to twerk"),
             },
             TwerkMode::All => {
-                for plan in plans.iter_mut() {
-                    Twerk::those_hips(rng, problem, &mut plan.mutate())
+                for (vessel, plan) in mutator.iter_mut().enumerate() {
+                    Twerk::those_hips(rng, vessel, problem, &mut plan.mutate()[1..])
                 }
             }
         }
@@ -521,7 +558,7 @@ impl Bounce {
         vessel: VesselIndex,
         solution: &mut RoutingSolution,
     ) {
-        let first = problem.origin_visit(vessel);
+        let first = solution[vessel][0];
         let last = solution.artificial_end(vessel);
         let boat = &problem.vessels()[vessel];
         let max_t = problem.timesteps() - 1;
@@ -529,7 +566,7 @@ impl Bounce {
         let mut mutator = solution.mutate();
         let mut plan = mutator[vessel].mutate();
 
-        for i in 0..plan.len() {
+        for i in 1..plan.len() {
             // Note: `one.len() == i` and `two.len() == plan.len() - i`, by construction
             let (one, two) = plan.split_at_mut(i);
             let prev = one.last().unwrap_or(&first);
