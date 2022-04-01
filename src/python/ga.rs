@@ -3,6 +3,8 @@ use crate::ga;
 use crate::ga::chromosome::InitRoutingSolution;
 use crate::ga::fitness::Weighted;
 use crate::ga::mutations::Bounce;
+use crate::ga::mutations::DistanceReduction;
+use crate::ga::mutations::DistanceReductionMode;
 use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
@@ -28,6 +30,8 @@ use crate::ga::survival_selection::Elite;
 use crate::models::quantity::F64Variables;
 use crate::models::utils::ConvertVars;
 use crate::problem::Problem;
+use crate::python::Solution;
+use crate::solution::Delivery;
 use crate::solution::Visit;
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -46,6 +50,27 @@ pub struct PyMut {
 impl Mutation for PyMut {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
         self.inner.lock().unwrap().apply(problem, solution)
+    }
+}
+
+#[pymethods]
+impl PyMut {
+    pub fn py_apply(&self, problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<Solution> {
+        let arc = Arc::new(problem);
+        let mut solution = RoutingSolution::new(arc.clone(), routes);
+        self.inner
+            .lock()
+            .unwrap()
+            .apply(&arc.clone(), &mut solution);
+        let deliveries = solution
+            .iter()
+            .map(|r| {
+                r.iter()
+                    .map(|visit| Delivery::new(visit.node, 0, visit.time, 0.0))
+                    .collect()
+            })
+            .collect();
+        Ok(Solution::new(deliveries))
     }
 }
 
@@ -72,6 +97,13 @@ pub fn red_cost(mode: RedCostMode, max_visits: usize) -> PyMut {
 pub fn bounce(passes: usize, mode: BounceMode) -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(Bounce::new(passes, mode))),
+    }
+}
+
+#[pyfunction]
+pub fn distance_reduction(mode: DistanceReductionMode) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(DistanceReduction::new(mode))),
     }
 }
 
