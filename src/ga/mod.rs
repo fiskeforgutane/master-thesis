@@ -152,9 +152,13 @@ where
         trace!("Applying recombination and mutation");
         for w in children.chunks_exact_mut(2) {
             if let [left, right] = w {
+                trace!("Applying recombination");
                 self.recombination.apply(problem, left, right);
+                trace!("Applying mutation to left");
                 self.mutation.apply(problem, left);
+                trace!("Applying mutation to right");
                 self.mutation.apply(problem, right);
+                trace!("finished with recomb and mutations")
             }
         }
 

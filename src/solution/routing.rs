@@ -6,6 +6,7 @@ use std::ops::DerefMut;
 use std::{ops::Deref, sync::Arc};
 
 use itertools::Itertools;
+use log::trace;
 use pyo3::pyclass;
 
 use crate::models::quantity::{QuantityLp, Variables};
@@ -67,15 +68,32 @@ impl Plan {
         PlanMut(self)
     }
 
+    // Iterates over the plan, including its origin. Do not tamper with origin!
+    pub fn iter_with_origin(
+        &self,
+        v: usize,
+        problem: &Problem,
+    ) -> impl Iterator<Item = Visit> + '_ {
+        let node = problem.vessels()[v].origin();
+        let time = problem.vessels()[v].available_from();
+        let origin_visit = std::iter::once(Visit { node, time });
+        origin_visit.chain(self.iter().cloned())
+    }
+
     /// Check invariants. Assumes that `self.sorted` is sorted.
     fn validate(&self) {
         let origin = self.origin;
         let sorted = &self.sorted;
+        trace!(
+            "plan before assertion: {:?}",
+            sorted.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
+        );
 
         // Enforce that the first visit is equal to the origin visit
         let first = sorted.first();
         assert!(first.map(|&v| v == origin).unwrap_or(false));
         // Enforce that there is at least one time step between consecutive visits
+
         assert!(sorted
             .iter()
             .tuple_windows()
@@ -488,24 +506,6 @@ impl<'a> IntoIterator for &'a RoutingSolution {
 }
 
 pub struct RoutingSolutionMut<'a>(&'a mut RoutingSolution);
-
-impl<'a> RoutingSolutionMut<'a> {
-    /// Get mutable references for two separate vessels.
-    pub fn get_pair_mut(&mut self, v1: VesselIndex, v2: VesselIndex) -> (&mut Plan, &mut Plan) {
-        assert!(v1 != v2);
-        let min = v1.min(v2);
-        let max = v2.max(v1);
-
-        let (one, rest) = self[min..].split_first_mut().unwrap();
-        let two = &mut rest[max - min - 1];
-
-        if v1 < v2 {
-            (one, two)
-        } else {
-            (two, one)
-        }
-    }
-}
 
 impl Deref for RoutingSolutionMut<'_> {
     type Target = [Plan];
