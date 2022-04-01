@@ -1,4 +1,4 @@
-use log::{trace, info};
+use log::{info, trace};
 use pyo3::pyclass;
 use rand::{
     prelude::{IteratorRandom, SliceRandom},
@@ -37,7 +37,6 @@ impl Initialization for InitRoutingSolution {
     type Out = RoutingSolution;
 
     fn new(&self, problem: Arc<Problem>) -> Self::Out {
-        trace!("Starting new initialization.");
         let routes = Chromosome::new(&problem).unwrap().chromosome;
         RoutingSolution::new(problem, routes)
     }
@@ -45,44 +44,67 @@ impl Initialization for InitRoutingSolution {
 
 impl Chromosome {
     pub fn new(problem: &Problem) -> Result<Chromosome, Box<dyn std::error::Error>> {
-        let initial_orders: Vec<Order> = quants::initial_orders(problem)?;
+        let mut initial_orders: Vec<Order> = quants::initial_orders(problem)?;
+        initial_orders.sort_by_key(|o| o.close());
         let vessels = problem.vessels();
         let mut rng = rand::thread_rng();
 
-        let mut chromosome = std::iter::repeat(vec![])
-            .take(vessels.len())
-            .collect::<Vec<Vec<Visit>>>();
-        
-        let mut avail_from = problem
-            .vessels()
+        let mut chromosome: Vec<Vec<Visit>> = (0..vessels.len())
+            .map(|v| {
+                vec![Visit::new(problem, vessels[v].origin(), vessels[v].available_from()).unwrap()]
+            })
+            .collect();
+
+        //let mut chromosome = std::iter::repeat(vec![])
+        //    .take(vessels.len())
+        //    .collect::<Vec<Vec<Visit>>>();
+
+        let mut avail_from = vessels
             .iter()
             .map(|vessel| (vessel.index(), (vessel.origin(), vessel.available_from())))
             .collect::<HashMap<_, _>>();
-        
+
         for order in &initial_orders {
-            let serve_time = rng.gen_range(order.open()..(order.close()+1));
+            let serve_time = rng.gen_range(order.open()..(order.close() + 1));
 
             let first_choice = vessels
                 .iter()
                 .filter(|v| {
-                    avail_from[&v.index()].1
+                    (avail_from[&v.index()].1
                         + problem.travel_time(avail_from[&v.index()].0, order.node(), *v)
-                        <= serve_time
+                        <= serve_time)
+                        && ({
+                            chromosome.get(v.index()).unwrap().last().unwrap().node != order.node()
+                        })
                 })
                 .choose(&mut rng);
-            
-            let chosen = first_choice.unwrap_or_else(|| vessels.choose(&mut rng).unwrap());
 
-            chromosome
-                .get_mut(chosen.index())
-                .unwrap()
-                .push(Visit::new(problem, order.node(), serve_time).unwrap());
+            let chosen = match first_choice {
+                Some(x) => Some(x),
+                None => vessels
+                    .iter()
+                    .filter(|v| {
+                        (avail_from[&v.index()].1 < serve_time)
+                            && (chromosome[v.index()]
+                                .iter()
+                                .all(|visit| visit.time != serve_time))
+                    })
+                    .choose(&mut rng),
+            };
 
-            avail_from.insert(chosen.index(), (order.node(), serve_time + 1));
+            match chosen {
+                Some(x) => {
+                    chromosome
+                        .get_mut(x.index())
+                        .unwrap()
+                        .push(Visit::new(problem, order.node(), serve_time).unwrap());
 
+                    avail_from.insert(x.index(), (order.node(), serve_time + 1));
+                }
+                None => continue,
+            }
         }
-        trace!("Chromosome: {:?}", chromosome);
-        
+
         Ok(Self { chromosome })
     }
 

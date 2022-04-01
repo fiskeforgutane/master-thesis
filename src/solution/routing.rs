@@ -102,6 +102,7 @@ impl<'s> IntoIterator for &'s Plan {
     }
 }
 
+#[derive(Debug)]
 /// A mutable reference to a plan that enforces that enforces that
 /// invariants are upheld after this goes out of scope.
 pub struct PlanMut<'a>(&'a mut Plan);
