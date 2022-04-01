@@ -825,7 +825,8 @@ impl Mutation for InterSwap {
     }
 }
 
-#[derive(Debug)]
+#[pyclass]
+#[derive(Clone, Debug)]
 pub enum DistanceReductionMode {
     All,
     Random,
@@ -833,23 +834,12 @@ pub enum DistanceReductionMode {
 
 /// A mutation operator that moves the node that leads to the maximum reduction in total travel distance for one vessel
 pub struct DistanceReduction {
-    rand: ThreadRng,
     mode: DistanceReductionMode,
 }
 
 impl DistanceReduction {
-    pub fn distance_reduction_all(vessel_index: usize) -> DistanceReduction {
-        DistanceReduction {
-            rand: rand::prelude::thread_rng(),
-            mode: DistanceReductionMode::All,
-        }
-    }
-
-    pub fn distance_reduction_random(vessel_index: usize) -> DistanceReduction {
-        DistanceReduction {
-            rand: rand::prelude::thread_rng(),
-            mode: DistanceReductionMode::Random,
-        }
+    pub fn new(mode: DistanceReductionMode) -> DistanceReduction {
+        DistanceReduction { mode }
     }
 
     pub fn distance_reduction(
@@ -863,9 +853,10 @@ impl DistanceReduction {
         let plan = &mut mutator[vessel_index].mutate();
         let plan_len = plan.len();
 
+
         // Holders for the best move (from, to) and the largest reduction in distance
         let mut best_move: (usize, usize) = (0, 0);
-        let mut largest_reduction: f64 = std::f64::MIN;
+        let mut largest_reduction: f64 = -1.0;
 
         // Have to check all node moves
         for from in 0..(plan_len - 1) {
@@ -874,7 +865,7 @@ impl DistanceReduction {
             let to = (0..(plan_len - 1))
                 .filter(|v| *v != from)
                 .max_by_key(key)
-                .unwrap();
+                .unwrap_or_else(|| from);
 
             // If the new distance reduction is higher than the previous max, update the move and the
             // largest reduction
@@ -889,11 +880,14 @@ impl DistanceReduction {
         let new_time = plan[end].time;
 
         // Move all other visits accordingly to the best move
-        for node_index in start..end {
-            if end > start {
-                plan[node_index].time = plan[node_index + 1].time;
-            } else {
+        if end > start {
+            for node_index in (start..(end+1)).rev() {
                 plan[node_index].time = plan[node_index - 1].time;
+            }
+        }
+        else {
+            for node_index in end..(start+1) {
+                plan[node_index].time = plan[node_index + 1].time;
             }
         }
 
@@ -912,6 +906,9 @@ impl DistanceReduction {
         let new_1 = (plan[to].node, plan[from].node);
         let new_2 = (plan[from].node, plan[to + 1].node);
 
+        if (new_1.0 == new_1.1) || (new_2.0 == new_2.1) {
+            return -1.0
+        }
         problem.distance(old_1.0, old_1.1) + problem.distance(old_2.0, old_2.1)
             - problem.distance(new_1.0, new_1.1)
             - problem.distance(new_2.0, new_2.1)
@@ -928,7 +925,8 @@ impl Mutation for DistanceReduction {
                 }
             }
             DistanceReductionMode::Random => {
-                let vessel_index = self.rand.gen_range(0..solution.len());
+                let mut rand = rand::prelude::thread_rng();
+                let vessel_index = rand.gen_range(0..solution.len());
                 self.distance_reduction(problem, solution, vessel_index);
             }
         }
