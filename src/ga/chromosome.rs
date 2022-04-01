@@ -44,7 +44,8 @@ impl Initialization for InitRoutingSolution {
 
 impl Chromosome {
     pub fn new(problem: &Problem) -> Result<Chromosome, Box<dyn std::error::Error>> {
-        let initial_orders: Vec<Order> = quants::initial_orders(problem)?;
+        let mut initial_orders: Vec<Order> = quants::initial_orders(problem)?;
+        initial_orders.sort_by_key(|o| o.close());
         let vessels = problem.vessels();
         let mut rng = rand::thread_rng();
 
