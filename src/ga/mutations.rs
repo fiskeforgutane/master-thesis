@@ -204,18 +204,14 @@ impl RedCost {
     }
 
     /// Returns an iterator with all the x-variable indices that can have the upper bound increased
-    /// every variable is also associated with a `VisitIndex` that includes the origin of the plan as index 0.
     pub fn mutable_indices<'a>(
         v: usize,
         solution: &'a RoutingSolution,
     ) -> impl Iterator<Item = (usize, usize, usize, usize)> + 'a {
         let problem = solution.problem();
 
-        solution[v]
-            .iter_with_origin(v, problem)
-            .enumerate()
-            .tuple_windows()
-            .flat_map(move |((curr_idx, curr), (next_idx, next))| {
+        solution[v].iter().enumerate().tuple_windows().flat_map(
+            move |((curr_idx, curr), (next_idx, next))| {
                 let (t1, t2) = (curr.time as isize, next.time as isize);
 
                 // check that t2 is acutally at least 1. If not, it should be ensured that the second visit must happen no before time period 1
@@ -240,7 +236,8 @@ impl RedCost {
                     (next_idx, before_next as usize, next.node, v),
                 ]
                 .into_iter()
-            })
+            },
+        )
     }
 
     /// Returns the visit indices for the given vessel that should be mutated
@@ -255,12 +252,7 @@ impl RedCost {
         let vars = solution.variables();
         let model = &quant_lp.model;
 
-        let status = model.status().expect("Could not retrive the model status");
-        assert!(matches!(status, Status::Optimal));
-        let is_mip = model.get_attr(attr::IsMIP);
-        trace!("type of model: {:?}", is_mip);
-
-        // the visits indeccorresponding to the ones with high reduced cost
+        // the visits indices ccorresponding to the ones with high reduced cost
         let mut visit_indices: Vec<usize> = (0..n_visits).collect();
         // the reduced costs
         let mut reduced_costs = vec![f64::NEG_INFINITY; n_visits];
@@ -349,9 +341,9 @@ impl RedCost {
         for i in visit_indices {
             // if the index is 0 (indicating origin), we must move the next visit forward (to a later time period), otherwise we do it with a 50% probability
             if i == 0 || rand.gen::<f64>() < 0.5 {
-                Self::move_forward(i, plan, problem);
+                Self::move_forward(i + 1, plan, problem);
             } else {
-                Self::move_back(i - 1, plan, problem);
+                Self::move_back(i, plan, problem);
             }
         }
     }
@@ -444,6 +436,25 @@ impl Bounce {
 
 impl Mutation for RedCost {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        // check that status is optimal and do nothing if semi-cont has been enabled
+        let status = solution
+            .quantities()
+            .model
+            .status()
+            .expect("Could not retrieve the model status");
+        let is_mip = solution
+            .quantities()
+            .model
+            .get_attr(attr::IsMIP)
+            .expect("Could not retrieve the IsMIP attribuite");
+
+        assert!(matches!(status, Status::Optimal));
+        trace!("type of model: {:?}", is_mip);
+        // if the model is not an LP, we have used semi-cont which doesn't have a well defined dual so we return
+        if is_mip == 1 {
+            return;
+        }
+
         let rand = &mut rand::thread_rng();
         match self.mode {
             RedCostMode::Mutate => Self::iterate(self.max_visits, rand, problem, solution),
