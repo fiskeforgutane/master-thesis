@@ -1,4 +1,4 @@
-use log::{trace, info, debug};
+use log::{debug, info, trace};
 use pyo3::pyclass;
 use rand::{
     prelude::{IteratorRandom, SliceRandom},
@@ -51,33 +51,34 @@ impl Chromosome {
         let mut chromosome = std::iter::repeat(vec![])
             .take(vessels.len())
             .collect::<Vec<Vec<Visit>>>();
-        
+
         let mut avail_from = problem
             .vessels()
             .iter()
             .map(|vessel| (vessel.index(), (vessel.origin(), vessel.available_from())))
             .collect::<HashMap<_, _>>();
-        
+
         for order in &initial_orders {
-            let serve_time = rng.gen_range(order.open()..(order.close()+1));
+            let serve_time = rng.gen_range(order.open()..(order.close() + 1));
 
             let first_choice = vessels
                 .iter()
                 .filter(|v| {
                     (avail_from[&v.index()].1
                         + problem.travel_time(avail_from[&v.index()].0, order.node(), *v)
-                        <= serve_time) &&
-                        {
+                        <= serve_time)
+                        && ({
                             if chromosome.get(v.index()).unwrap().len() > 0 {
-                                chromosome.get(v.index()).unwrap().last().unwrap().node != order.node()
-                            }
-                            else {
+                                debug!("Chromosome in process: {:?}     Last element: {:?}", chromosome.get(v.index()).unwrap(), chromosome.get(v.index()).unwrap().last().unwrap());
+                                chromosome.get(v.index()).unwrap().last().unwrap().node
+                                    != order.node()
+                            } else {
                                 true
                             }
-                        }
+                        })
                 })
                 .choose(&mut rng);
-            
+
             let chosen = first_choice.unwrap_or_else(|| vessels.choose(&mut rng).unwrap());
 
             chromosome
@@ -86,8 +87,7 @@ impl Chromosome {
                 .push(Visit::new(problem, order.node(), serve_time).unwrap());
 
             avail_from.insert(chosen.index(), (order.node(), serve_time + 1));
-
-        }        
+        }
 
         debug!("Chromosome after init: {:?}", chromosome);
         Ok(Self { chromosome })
