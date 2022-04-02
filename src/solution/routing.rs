@@ -321,9 +321,11 @@ impl RoutingSolution {
             let vessel = &self.problem.vessels()[v];
             let node = vessel.origin();
             let time = vessel.available_from();
-            let first = std::iter::once(Visit { node, time });
+            let first = Visit { node, time };
 
-            first.chain(plan.iter().cloned())
+            assert!(plan.first() == Some(&first));
+
+            plan.iter().cloned()
         })
     }
 
@@ -336,13 +338,15 @@ impl RoutingSolution {
             let vessel = &self.problem.vessels()[v];
             let node = vessel.origin();
             let time = vessel.available_from();
-            let first = std::iter::once(Visit { node, time });
+            let first = Visit { node, time };
             let end = plan.last().map(|v| Visit {
                 node: v.node,
                 time: self.problem.timesteps(),
             });
 
-            first.chain(plan.iter().cloned()).chain(end)
+            assert!(plan.first() == Some(&first));
+
+            plan.iter().cloned().chain(end)
         })
     }
 
