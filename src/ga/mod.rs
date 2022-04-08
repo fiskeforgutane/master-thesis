@@ -176,6 +176,20 @@ where
 
         // And then we'll switch to the new generation
         std::mem::swap(population, next);
+        trace!(
+            "Highest fitness: {:?}",
+            population.iter().max_by(|a, b| fitness
+                .of(problem, a)
+                .partial_cmp(&fitness.of(problem, b))
+                .unwrap())
+        );
+        trace!(
+            "Lowest fitness: {:?}",
+            population.iter().min_by(|a, b| fitness
+                .of(problem, a)
+                .partial_cmp(&fitness.of(problem, b))
+                .unwrap())
+        );
         trace!("End of epoch");
     }
 }
