@@ -11,7 +11,7 @@ pub mod traits;
 
 use std::sync::Arc;
 
-use log::trace;
+use log::{info, trace};
 pub use traits::*;
 
 use crate::{problem::Problem, solution::routing::RoutingSolution};
@@ -176,14 +176,14 @@ where
 
         // And then we'll switch to the new generation
         std::mem::swap(population, next);
-        trace!(
+        info!(
             "Highest fitness: {:?}",
             population.iter().max_by(|a, b| fitness
                 .of(problem, a)
                 .partial_cmp(&fitness.of(problem, b))
                 .unwrap())
         );
-        trace!(
+        info!(
             "Lowest fitness: {:?}",
             population.iter().min_by(|a, b| fitness
                 .of(problem, a)
