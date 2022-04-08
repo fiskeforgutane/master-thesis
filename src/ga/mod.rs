@@ -178,17 +178,17 @@ where
         std::mem::swap(population, next);
         info!(
             "Highest fitness: {:?}",
-            population.iter().max_by(|a, b| fitness
-                .of(problem, a)
-                .partial_cmp(&fitness.of(problem, b))
-                .unwrap())
+            population
+                .iter()
+                .map(|x| fitness.of(problem, x))
+                .max_by(|a, b| a.partial_cmp(&b).unwrap())
         );
         info!(
             "Lowest fitness: {:?}",
-            population.iter().min_by(|a, b| fitness
-                .of(problem, a)
-                .partial_cmp(&fitness.of(problem, b))
-                .unwrap())
+            population
+                .iter()
+                .map(|x| fitness.of(problem, x))
+                .min_by(|a, b| a.partial_cmp(&b).unwrap())
         );
         trace!("End of epoch");
     }
