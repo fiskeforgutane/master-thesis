@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use grb::{attr, c, expr::GurobiSum, Constr, Model, Var};
+use grb::{attr, c, expr::GurobiSum, param, Constr, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
 
@@ -68,7 +68,9 @@ impl QuantityLpCont {
     ///
     /// * `delay` - The mandatory delay that is added between visits for a vessel. A nonzero value will hopefully make the output from the continuous model fit a discrete time representation better.
     pub fn new(delay: f64) -> grb::Result<QuantityLpCont> {
-        let model = Model::new(&format!("cont quant model"))?;
+        let mut model = Model::new(&format!("cont quant model"))?;
+        // Disable console output
+        model.set_param(param::OutputFlag, 0)?;
         let vars = Variables {
             w: Vec::new(),
             x: Vec::new(),
