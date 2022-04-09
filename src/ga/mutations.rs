@@ -209,14 +209,13 @@ impl Mutation for Twerk {
     }
 }
 
-#[pyclass]
 #[derive(Debug, Clone)]
 pub enum RedCostMode {
     /// Performs only one iteration where it updates the upper bounds of a random subset of visits
     /// that look promising to expand
     Mutate,
     /// Several iterations where it iteratively seeks to improve the soution by expanding visits
-    LocalSerach,
+    LocalSerach(usize),
 }
 
 /// This mutation exploits the dual solution of the quantities LP to direct the search towards a hopefulle better solution.
@@ -241,8 +240,8 @@ impl RedCost {
         RedCost { mode, max_visits }
     }
     /// Returns a RedCost with mode set to local search
-    pub fn red_cost_local_search(max_visits: usize) -> Self {
-        let mode = RedCostMode::LocalSerach;
+    pub fn red_cost_local_search(max_visits: usize, iterations: usize) -> Self {
+        let mode = RedCostMode::LocalSerach(iterations);
 
         RedCost { mode, max_visits }
     }
@@ -513,7 +512,11 @@ impl Mutation for RedCost {
         let rand = &mut rand::thread_rng();
         match self.mode {
             RedCostMode::Mutate => Self::iterate(self.max_visits, rand, problem, solution),
-            RedCostMode::LocalSerach => todo!(),
+            RedCostMode::LocalSerach(iters) => {
+                for _ in 0..iters {
+                    Self::iterate(self.max_visits, rand, problem, solution);
+                }
+            }
         }
         trace!("FINISHED RED COST MUTATION")
     }
