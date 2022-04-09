@@ -11,7 +11,7 @@ pub mod traits;
 
 use std::sync::Arc;
 
-use log::trace;
+use log::{info, trace};
 pub use traits::*;
 
 use crate::{problem::Problem, solution::routing::RoutingSolution};
@@ -176,6 +176,20 @@ where
 
         // And then we'll switch to the new generation
         std::mem::swap(population, next);
+        info!(
+            "Highest fitness: {:?}",
+            population
+                .iter()
+                .map(|x| fitness.of(problem, x))
+                .max_by(|a, b| a.partial_cmp(&b).unwrap())
+        );
+        info!(
+            "Lowest fitness: {:?}",
+            population
+                .iter()
+                .map(|x| fitness.of(problem, x))
+                .min_by(|a, b| a.partial_cmp(&b).unwrap())
+        );
         trace!("End of epoch");
     }
 }

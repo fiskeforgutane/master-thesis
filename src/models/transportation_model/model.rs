@@ -20,6 +20,9 @@ impl TransportationSolver {
 
         let mut model = Model::new(&format!("transport_model_{}", product))?;
 
+        // Disable console output
+        model.set_param(param::OutputFlag, 0)?;
+
         //*************CREATE VARIABLES*************//
         let N = sets.N.len();
         let H = sets.H.len();
