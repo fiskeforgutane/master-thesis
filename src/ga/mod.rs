@@ -176,20 +176,22 @@ where
 
         // And then we'll switch to the new generation
         std::mem::swap(population, next);
-        info!(
-            "Highest fitness: {:?}",
-            population
-                .iter()
-                .map(|x| fitness.of(problem, x))
-                .max_by(|a, b| a.partial_cmp(&b).unwrap())
-        );
-        info!(
-            "Lowest fitness: {:?}",
-            population
-                .iter()
-                .map(|x| fitness.of(problem, x))
-                .min_by(|a, b| a.partial_cmp(&b).unwrap())
-        );
+        let best = population
+            .iter()
+            .min_by(|a, b| {
+                fitness
+                    .of(problem, a)
+                    .partial_cmp(&fitness.of(problem, b))
+                    .unwrap()
+            })
+            .unwrap();
+
+        info!("Lowest fitness: {:?}", fitness.of(problem, best));
+        info!("Time warp: {:?}", best.warp());
+        info!("Shortage: {:?}", best.violation());
+        info!("Revenue: {:?}", best.revenue());
+        info!("Cost: {:?}", best.cost());
+
         trace!("End of epoch");
     }
 }

@@ -13,7 +13,7 @@ use crate::python::*;
 use ga::{
     chromosome::Chromosome,
     fitness::Weighted,
-    mutations::{BounceMode, DistanceReductionMode, RedCostMode},
+    mutations::{BounceMode, DistanceReductionMode},
 };
 use models::quantity::F64Variables;
 
@@ -46,13 +46,16 @@ pub fn test_logging() {
 fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     // Mutations
     m.add_function(wrap_pyfunction!(twerk, m)?)?;
-    m.add_function(wrap_pyfunction!(red_cost, m)?)?;
+    m.add_function(wrap_pyfunction!(local_search_red_cost, m)?)?;
+    m.add_function(wrap_pyfunction!(red_cost_mutation, m)?)?;
     m.add_function(wrap_pyfunction!(bounce, m)?)?;
     m.add_function(wrap_pyfunction!(intra_swap, m)?)?;
     m.add_function(wrap_pyfunction!(two_opt_local, m)?)?;
     m.add_function(wrap_pyfunction!(two_opt_intra, m)?)?;
     m.add_function(wrap_pyfunction!(inter_swap, m)?)?;
     m.add_function(wrap_pyfunction!(distance_reduction, m)?)?;
+    m.add_function(wrap_pyfunction!(add_random, m)?)?;
+    m.add_function(wrap_pyfunction!(remove_random, m)?)?;
 
     // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;
@@ -75,7 +78,6 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<BounceMode>()?;
     m.add_class::<DistanceReductionMode>()?;
-    m.add_class::<RedCostMode>()?;
     m.add_class::<PyMut>()?;
     m.add_class::<PyRecombination>()?;
     m.add_class::<PyParentSelection>()?;
