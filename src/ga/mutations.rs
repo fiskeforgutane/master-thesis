@@ -107,7 +107,7 @@ impl Mutation for RemoveRandom {
         // 0..=x is always non-empty when x is an unsigned type
         let v = problem.indices::<Vessel>().choose(&mut self.rng).unwrap();
 
-        match (0..solution[v].len()).choose(&mut self.rng) {
+        match (1..solution[v].len()).choose(&mut self.rng) {
             Some(x) => {
                 solution.mutate()[v].mutate().remove(x);
             }
