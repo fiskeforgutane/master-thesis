@@ -640,6 +640,11 @@ impl Mutation for IntraSwap {
         let mut mutator = solution.mutate();
         let plan = &mut mutator[v].mutate();
 
+        // if the plan does not contain any visits other than origin, return
+        if plan.len() <= 1 {
+            return;
+        }
+
         // select two random visits to swap - exclude the origin
         let v1 = rand.gen_range(1..plan.len());
         let v2 = rand.gen_range(1..plan.len());
@@ -862,6 +867,10 @@ impl Mutation for InterSwap {
         let vessel2 = rand.gen_range(0..solution.len());
 
         if vessel1 == vessel2 {
+            return;
+        }
+        // if any of the vessels do not have a visit other than origin, return
+        if solution[vessel1].len() <= 1 || solution[vessel2].len() <= 1 {
             return;
         }
 
