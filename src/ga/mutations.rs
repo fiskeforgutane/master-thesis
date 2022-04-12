@@ -378,8 +378,8 @@ impl RedCost {
         // select random vessel to search for a index where the visit can be extended
         let v = rand.gen_range(0..problem.vessels().len());
 
-        // If the chosen vessel has no visits return
-        if solution[v].len() < 1 {
+        // If the chosen vessel has no visits return, only origin is considered no visits
+        if solution[v].len() <= 1 {
             return;
         }
         // number of visits to alter
