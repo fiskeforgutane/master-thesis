@@ -81,6 +81,8 @@ impl Mutation for AddRandom {
                     let mut solution = solution.mutate();
                     let mut plan = solution[v].mutate();
                     plan.push(Visit { node, time });
+                    // fix the plan such that the newly added visit comes in sorted order
+                    plan.fix();
                     return;
                 }
             }
