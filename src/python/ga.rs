@@ -161,11 +161,31 @@ pub fn inter_swap() -> PyMut {
     }
 }
 
+pub struct TimeSetterWrapper {
+    inner: Arc<Mutex<TimeSetter>>,
+}
+
+impl TimeSetterWrapper {
+    pub fn new(delay: f64) -> TimeSetterWrapper {
+        TimeSetterWrapper {
+            inner: Arc::new(Mutex::new(TimeSetter::new(delay).unwrap())),
+        }
+    }
+}
+
+// careful
+unsafe impl Send for TimeSetterWrapper {}
+
+impl Mutation for TimeSetterWrapper {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        self.inner.lock().unwrap().apply(problem, solution)
+    }
+}
+
 #[pyfunction]
 pub fn time_setter(delay: f64) -> PyMut {
     PyMut {
-        inner: Arc::new(Mutex::new(PyTimeSetter::new(delay))),
-        //inner: Arc::new(Mutex::new(TimeSetter::new(delay))),
+        inner: Arc::new(Mutex::new(TimeSetterWrapper::new(delay))),
     }
 }
 
@@ -310,30 +330,8 @@ pub struct PyGA {
         Arc<Mutex<GeneticAlgorithm<PyParentSelection, PyRecombination, PyMut, PyElite, Weighted>>>,
 }
 
-#[pyclass(name = "TimeSetter")]
-pub struct PyTimeSetter {
-    inner: Arc<Mutex<TimeSetter>>,
-}
-
-#[pymethods]
-impl PyTimeSetter {
-    #[new]
-    pub fn new(delay: f64) -> PyTimeSetter {
-        PyTimeSetter {
-            inner: Arc::new(Mutex::new(TimeSetter::new(delay).unwrap())),
-        }
-    }
-}
-
 // Don't do this.
 unsafe impl Send for PyGA {}
-unsafe impl Send for PyTimeSetter {}
-
-impl Mutation for PyTimeSetter {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        self.inner.lock().unwrap().apply(problem, solution)
-    }
-}
 
 #[pymethods]
 impl PyGA {
