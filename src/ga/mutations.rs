@@ -1115,6 +1115,7 @@ impl Mutation for TimeSetter {
         trace!("Applying TimeSetter to {:?}", solution);
 
         let new_times = self.quants_lp.get_visit_times(&solution);
+        trace!("new times: {:?}", new_times);
 
         match new_times {
             Ok(times) => {
