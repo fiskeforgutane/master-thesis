@@ -36,6 +36,7 @@ use crate::problem::Problem;
 use crate::python::Solution;
 use crate::solution::Delivery;
 use crate::solution::Visit;
+use log::trace;
 use pyo3::prelude::*;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -167,9 +168,11 @@ pub struct TimeSetterWrapper {
 
 impl TimeSetterWrapper {
     pub fn new(delay: f64) -> TimeSetterWrapper {
-        TimeSetterWrapper {
+        let res = TimeSetterWrapper {
             inner: Arc::new(Mutex::new(TimeSetter::new(delay).unwrap())),
-        }
+        };
+        trace!("wrapper succesfully built");
+        res
     }
 }
 

@@ -1103,6 +1103,7 @@ impl TimeSetter {
     ///
     /// * `delay` - The mandatory delay that is added between visits for a vessel. A nonzero value will hopefully make the output from the continuous model fit a discrete time representation better.
     pub fn new(delay: f64) -> grb::Result<TimeSetter> {
+        trace!("Creating time setter mutation");
         let quants_lp = QuantityLpCont::new(delay)?;
         Ok(TimeSetter { quants_lp })
     }
