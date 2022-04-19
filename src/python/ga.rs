@@ -11,6 +11,7 @@ use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
 use crate::ga::mutations::RemoveRandom;
+use crate::ga::mutations::TimeSetter;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
 use crate::ga::mutations::TwoOptMode;
@@ -161,6 +162,14 @@ pub fn inter_swap() -> PyMut {
 }
 
 #[pyfunction]
+pub fn time_setter(delay: f64) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(PyTimeSetter::new(delay))),
+        //inner: Arc::new(Mutex::new(TimeSetter::new(delay))),
+    }
+}
+
+#[pyfunction]
 pub fn stochastic(probability: f64, mutation: PyMut) -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(Stochastic::new(probability, mutation))),
@@ -301,8 +310,30 @@ pub struct PyGA {
         Arc<Mutex<GeneticAlgorithm<PyParentSelection, PyRecombination, PyMut, PyElite, Weighted>>>,
 }
 
+#[pyclass(name = "TimeSetter")]
+pub struct PyTimeSetter {
+    inner: Arc<Mutex<TimeSetter>>,
+}
+
+#[pymethods]
+impl PyTimeSetter {
+    #[new]
+    pub fn new(delay: f64) -> PyTimeSetter {
+        PyTimeSetter {
+            inner: Arc::new(Mutex::new(TimeSetter::new(delay).unwrap())),
+        }
+    }
+}
+
 // Don't do this.
 unsafe impl Send for PyGA {}
+unsafe impl Send for PyTimeSetter {}
+
+impl Mutation for PyTimeSetter {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        self.inner.lock().unwrap().apply(problem, solution)
+    }
+}
 
 #[pymethods]
 impl PyGA {
