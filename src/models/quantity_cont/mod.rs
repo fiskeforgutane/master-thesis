@@ -68,7 +68,9 @@ impl QuantityLpCont {
     ///
     /// * `delay` - The mandatory delay that is added between visits for a vessel. A nonzero value will hopefully make the output from the continuous model fit a discrete time representation better.
     pub fn new(delay: f64) -> grb::Result<QuantityLpCont> {
-        let model = Model::new(&format!("cont quant model"))?;
+        let mut model = Model::new(&format!("cont quant model"))?;
+        model.set_param(grb::param::OutputFlag, 0)?;
+
         let vars = Variables {
             w: Vec::new(),
             x: Vec::new(),
