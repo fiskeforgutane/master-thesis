@@ -1121,9 +1121,10 @@ impl Mutation for TimeSetter {
             Ok(times) => {
                 let mutator = &mut solution.mutate();
                 for vessel_idx in 0..times.len() {
+                    let plan_mut = &mut mutator[vessel_idx].mutate();
                     for visit_idx in 0..times[vessel_idx].len() {
                         let new_time = times[vessel_idx][visit_idx];
-                        let visit = &mut mutator[vessel_idx].mutate()[visit_idx];
+                        let mut visit = plan_mut[visit_idx];
                         // change arrival time
                         visit.time = new_time;
                     }
