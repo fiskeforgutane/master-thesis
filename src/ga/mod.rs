@@ -14,7 +14,9 @@ use std::sync::Arc;
 use log::{info, trace};
 pub use traits::*;
 
-use crate::{problem::Problem, solution::routing::RoutingSolution};
+use crate::{
+    models::quantity::ModelObjectiveWeights, problem::Problem, solution::routing::RoutingSolution,
+};
 
 /// A general implementation of a genetic algorithm.
 pub struct GeneticAlgorithm<PS, R, M, S, F> {
@@ -63,13 +65,14 @@ where
         mutation: M,
         selection: S,
         fitness: F,
+        model_obj_weights: Arc<ModelObjectiveWeights>,
     ) -> Self
     where
         I: initialization::Initialization<Out = RoutingSolution>,
     {
         trace!("Initializing population");
         let population = (0..population_size)
-            .map(|_| initialization.new(problem.clone()))
+            .map(|_| initialization.new(problem.clone(), model_obj_weights.clone()))
             .collect::<Vec<_>>();
 
         // We need a strictly positive population size for this to make sense

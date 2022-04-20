@@ -2,6 +2,7 @@ pub mod ga;
 
 use crate::ga::chromosome::Chromosome;
 use crate::models::quantity::F64Variables;
+use crate::models::quantity::ModelObjectiveWeights;
 use crate::models::quantity::QuantityLp;
 use crate::problem::Compartment;
 use crate::problem::Cost;
@@ -313,9 +314,13 @@ pub fn initial_orders(problem: &Problem) -> PyResult<Vec<Order>> {
 }
 
 #[pyfunction]
-pub fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F64Variables> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
-    let solution = RoutingSolution::new(Arc::new(problem), routes);
+pub fn solve_quantities(
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+    objective_weights: ModelObjectiveWeights,
+) -> PyResult<F64Variables> {
+    let mut lp = QuantityLp::new(&problem, &objective_weights).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes, Arc::new(objective_weights));
     lp.configure(&solution).map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
     Ok(res)
@@ -325,13 +330,15 @@ pub fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F
 pub fn solve_multiple_quantities(
     problem: Problem,
     solutions: Vec<Vec<Vec<Visit>>>,
+    objective_weights: ModelObjectiveWeights,
 ) -> PyResult<Vec<F64Variables>> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = QuantityLp::new(&problem, &objective_weights).map_err(pyerr)?;
 
     let mut results = Vec::new();
     let arc = Arc::new(problem);
+    let objective_weights = Arc::new(objective_weights);
     for routes in solutions {
-        let solution = RoutingSolution::new(arc.clone(), routes);
+        let solution = RoutingSolution::new(arc.clone(), routes, objective_weights.clone());
         lp.configure(&solution).map_err(pyerr)?;
         results.push(lp.solve_python().map_err(pyerr)?);
     }

@@ -7,7 +7,7 @@ use std::{ops::Deref, sync::Arc};
 use itertools::Itertools;
 use pyo3::pyclass;
 
-use crate::models::quantity::{QuantityLp, Variables};
+use crate::models::quantity::{ModelObjectiveWeights, QuantityLp, Variables};
 use crate::problem::{Cost, Inventory, Problem, Product, Quantity, VesselIndex};
 use crate::solution::Visit;
 
@@ -206,6 +206,8 @@ pub struct Cache {
 pub struct RoutingSolution {
     /// The problem this routing solution `belongs` to.
     problem: Arc<Problem>,
+    /// The objective weights the models working with this solution will use
+    model_obj_weights: Arc<ModelObjectiveWeights>,
     /// The routes of each vessel.
     routes: Vec<Plan>,
     /// Cache for the evaluation of the solution
@@ -226,10 +228,12 @@ impl Clone for RoutingSolution {
         Self {
             problem: self.problem.clone(),
             routes: self.routes.clone(),
+            model_obj_weights: self.model_obj_weights.clone(),
             cache: Cache {
                 warp: self.cache.warp.clone(),
                 quantity: RefCell::new(
-                    QuantityLp::new(self.problem()).expect("cloning failed for routing solution"),
+                    QuantityLp::new(self.problem(), &self.model_obj_weights)
+                        .expect("cloning failed for routing solution"),
                 ),
                 solved: Cell::new(false),
                 violation: Cell::new(None),
@@ -276,7 +280,11 @@ impl Deref for RoutingSolution {
 }
 
 impl RoutingSolution {
-    pub fn new(problem: Arc<Problem>, routes: Vec<Vec<Visit>>) -> Self {
+    pub fn new(
+        problem: Arc<Problem>,
+        routes: Vec<Vec<Visit>>,
+        objective_weights: Arc<ModelObjectiveWeights>,
+    ) -> Self {
         // We won't bother returning a result from this, since it'll probably just be .unwrapped() anyways
         if routes.len() != problem.vessels().len() {
             panic!("#r = {} != V = {}", routes.len(), problem.vessels().len());
@@ -284,7 +292,7 @@ impl RoutingSolution {
 
         let cache = Cache {
             warp: Cell::default(),
-            quantity: RefCell::new(QuantityLp::new(&problem).unwrap()),
+            quantity: RefCell::new(QuantityLp::new(&problem, &objective_weights).unwrap()),
             solved: Cell::new(false),
             violation: Cell::new(None),
             cost: Cell::new(None),
@@ -299,6 +307,7 @@ impl RoutingSolution {
                 .collect(),
             problem,
             cache,
+            model_obj_weights: objective_weights,
         }
     }
 
@@ -501,6 +510,7 @@ impl RoutingSolution {
             problem: self.problem,
             routes: self.routes,
             cache: self.cache,
+            model_obj_weights: self.model_obj_weights,
         }
     }
 

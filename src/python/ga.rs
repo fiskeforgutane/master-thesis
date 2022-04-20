@@ -21,6 +21,7 @@ use crate::ga::GeneticAlgorithm;
 use crate::ga::ParentSelection;
 use crate::ga::Recombination;
 use crate::ga::SurvivalSelection;
+use crate::models::quantity::ModelObjectiveWeights;
 
 use crate::ga::Mutation;
 use crate::ga::Nop;
@@ -55,9 +56,14 @@ impl Mutation for PyMut {
 
 #[pymethods]
 impl PyMut {
-    pub fn py_apply(&self, problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<Solution> {
+    pub fn py_apply(
+        &self,
+        problem: Problem,
+        routes: Vec<Vec<Visit>>,
+        objective_weights: ModelObjectiveWeights,
+    ) -> PyResult<Solution> {
         let arc = Arc::new(problem);
-        let mut solution = RoutingSolution::new(arc.clone(), routes);
+        let mut solution = RoutingSolution::new(arc.clone(), routes, Arc::new(objective_weights));
         self.inner
             .lock()
             .unwrap()
@@ -316,6 +322,7 @@ impl PyGA {
         mutation: PyMut,
         selection: PyElite,
         fitness: Weighted,
+        model_obj_weights: ModelObjectiveWeights,
     ) -> Self {
         PyGA {
             inner: Arc::new(Mutex::new(GeneticAlgorithm::new(
@@ -328,6 +335,7 @@ impl PyGA {
                 mutation,
                 selection,
                 fitness,
+                Arc::new(model_obj_weights),
             ))),
         }
     }

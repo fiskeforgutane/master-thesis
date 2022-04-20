@@ -3,6 +3,7 @@ use rand::{prelude::IteratorRandom, Rng};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
+    models::quantity::ModelObjectiveWeights,
     problem::Problem,
     quants::{self, Order},
     solution::{routing::RoutingSolution, Visit},
@@ -22,7 +23,11 @@ pub struct Init;
 impl Initialization for Init {
     type Out = Chromosome;
 
-    fn new(&self, problem: Arc<Problem>) -> Self::Out {
+    fn new(
+        &self,
+        problem: Arc<Problem>,
+        _: Arc<ModelObjectiveWeights>,
+    ) -> Self::Out {
         Chromosome::new(&problem).unwrap()
     }
 }
@@ -32,9 +37,13 @@ pub struct InitRoutingSolution;
 impl Initialization for InitRoutingSolution {
     type Out = RoutingSolution;
 
-    fn new(&self, problem: Arc<Problem>) -> Self::Out {
+    fn new(
+        &self,
+        problem: Arc<Problem>,
+        objective_weights: Arc<ModelObjectiveWeights>,
+    ) -> Self::Out {
         let routes = Chromosome::new(&problem).unwrap().chromosome;
-        RoutingSolution::new(problem, routes)
+        RoutingSolution::new(problem, routes, objective_weights)
     }
 }
 

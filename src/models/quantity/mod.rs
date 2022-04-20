@@ -29,6 +29,13 @@ pub struct F64Variables {
     pub l: Vec<Vec<Vec<f64>>>,
 }
 
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct ModelObjectiveWeights {
+    pub violation: f64,
+    pub revenue: f64,
+}
+
 pub struct QuantityLp {
     pub model: Model,
     pub vars: Variables,
@@ -148,7 +155,7 @@ impl QuantityLp {
         }
     }
 
-    pub fn new(problem: &Problem) -> grb::Result<Self> {
+    pub fn new(problem: &Problem, objective_weights: &ModelObjectiveWeights) -> grb::Result<Self> {
         let mut model = Model::new(&format!("quantities"))?;
         model.set_param(grb::param::OutputFlag, 0)?;
 
@@ -169,8 +176,21 @@ impl QuantityLp {
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
 
-        let obj = w.iter().flatten().flatten().grb_sum();
-        model.set_objective(obj, grb::ModelSense::Minimize)?;
+        let shortage = w.iter().flatten().flatten().grb_sum();
+
+        let revenue = iproduct!(0..t, 0..n)
+            .map(|(t, n)| {
+                let rev = problem.nodes()[n].revenue();
+                iproduct!(0..v, 0..p)
+                    .map(|(v, p)| rev * x[t][n][v][p])
+                    .grb_sum()
+            })
+            .grb_sum();
+
+        model.set_objective(
+            objective_weights.violation * shortage - objective_weights.revenue * revenue,
+            grb::ModelSense::Minimize,
+        )?;
 
         Ok(QuantityLp {
             model,
