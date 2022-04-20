@@ -249,15 +249,12 @@ impl QuantityLpCont {
             .map(|path| {
                 path.iter()
                     .map(|(i, m)| {
-                        f64::ceil(
-                            self.model
-                                .get_obj_attr(attr::X, &self.vars.t[*i][*m])
-                                .unwrap(),
-                        ) as usize
+                        let value = self.model.get_obj_attr(attr::X, &self.vars.t[*i][*m])?;
+                        Ok(f64::ceil(value) as usize)
                     })
                     .collect()
             })
-            .collect();
+            .collect::<grb::Result<Vec<Vec<usize>>>>()?;
 
         /* // the optimized continous arrival variables
         let t: Vec<Vec<Var>> = variables.t.iter().cloned().collect();
