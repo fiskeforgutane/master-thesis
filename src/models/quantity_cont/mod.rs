@@ -542,12 +542,12 @@ impl QuantityLpCont {
                 )?;
             }
 
-            // bound the last visit to be before the end of the planning period
+            // bound the last visit to be before the end of the planning period, time steps are counted from 0
             let last = paths.get(v).unwrap().iter().last();
             if let Some((i, m)) = last {
                 model.add_constr(
                     &format!("upper_bound_time_{}_{}_{}", v, i, m),
-                    c!(t[*i][*m] <= T),
+                    c!(t[*i][*m] <= T - 1),
                 )?;
             }
 
