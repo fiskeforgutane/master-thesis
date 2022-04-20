@@ -5,6 +5,7 @@ use std::{
 
 use derive_more::Constructor;
 use pyo3::pyclass;
+use serde::{Deserialize, Serialize};
 
 use crate::solution::Visit;
 
@@ -24,7 +25,7 @@ pub type TimeIndex = usize;
 pub type ProductIndex = usize;
 
 #[pyclass]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Problem {
     #[pyo3(get)]
     /// The vessels available for use in the problem. Assumed to be ordered by index
@@ -359,11 +360,11 @@ impl Problem {
 
 // A compartment is used to hold fed during transport
 #[pyclass]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Compartment(pub Quantity);
 
 #[pyclass]
-#[derive(Debug, Clone, Constructor)]
+#[derive(Debug, Clone, Constructor, Serialize, Deserialize)]
 pub struct Vessel {
     #[pyo3(get)]
     /// The compartments available on the vessel.
@@ -451,14 +452,14 @@ impl Vessel {
 }
 
 #[pyclass]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum NodeType {
     Consumption,
     Production,
 }
 
 #[pyclass]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
     #[pyo3(get)]
     /// The name of the node
@@ -624,7 +625,7 @@ impl Node {
 }
 
 /// Inventory at either a node or a vessel.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum RawInventory {
     /// Inventory when we only have a single product type.
     Single(Quantity),
@@ -633,7 +634,7 @@ enum RawInventory {
 }
 
 #[pyclass]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Inventory(RawInventory);
 
 impl Inventory {
@@ -712,7 +713,7 @@ impl IndexMut<usize> for Inventory {
 }
 
 /// An inventory that can not be changed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FixedInventory(Inventory);
 
 impl FixedInventory {
