@@ -172,6 +172,13 @@ pub fn pix() -> PyRecombination {
 }
 
 #[pyfunction]
+pub fn recomb_stochastic(probability: f64, recombination: PyRecombination) -> PyRecombination {
+    PyRecombination {
+        inner: Arc::new(Mutex::new(Stochastic::new(probability, recombination))),
+    }
+}
+
+#[pyfunction]
 pub fn recomb_chain(mutations: Vec<PyRecombination>) -> PyRecombination {
     let nop = || PyRecombination {
         inner: Arc::new(Mutex::new(Nop)),
