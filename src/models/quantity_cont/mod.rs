@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use grb::{attr, c, expr::GurobiSum, param, Constr, Model, Var};
 use itertools::{iproduct, Itertools};
+use log::trace;
 use pyo3::pyclass;
 
 use crate::{
