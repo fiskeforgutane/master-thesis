@@ -4,6 +4,7 @@ use grb::{attr, c, expr::GurobiSum, param, Constr, Model, Var};
 use itertools::{iproduct, Itertools};
 use log::trace;
 use pyo3::pyclass;
+use rand::{prelude::SliceRandom, thread_rng};
 
 use crate::{
     models::utils::AddVars,
@@ -87,12 +88,11 @@ impl QuantityLpCont {
     /// A visit is represented as (i,m), where i is the node index and m indicates that it is the m'th visit at node i
     ///
     /// The paths are constructed such that a vessel visiting node (i,m) is visit number m to port i if all vessels were to sail
-    /// their plans as quickly as possible. Meaning that no loading or unloading time is taken into account
+    /// their plans as quickly as possible. Meaning that no loading or unloading time is taken into account.
+    /// Ties are handled by shuffling before sorting
     /// ## Arguments
     ///
     /// * `solution` - A sequence of visits for every vessel, given as a RoutingSolution
-    /// * `problmem` - The underlying problem
-    /// * `M` - A `HashMap` with the nodes in the problem as keys, and the number of visits to each node according to the given `solution` as values
     pub fn paths(solution: &RoutingSolution) -> Vec<Vec<(NodeIndex, VisitIndex)>> {
         let problem = solution.problem();
         // hash map vesselindex, visit -> rank
@@ -112,6 +112,11 @@ impl QuantityLpCont {
                     }
                 }
             }
+            // shuffle to handle ties stochastically
+            let mut rng = thread_rng();
+            earliest_visit_times.shuffle(&mut rng);
+
+            // sort by visit time and add rank
             earliest_visit_times.sort_by(|a, b| a.2.cmp(&b.2));
             earliest_visit_times.into_iter().enumerate().for_each(
                 |(rank, (vessel_idx, visit, _))| {
@@ -133,32 +138,6 @@ impl QuantityLpCont {
                     .collect::<Vec<_>>()
             })
             .collect()
-
-        /* // helper to hold the number of visits assigned a vessel
-        let mut _b = (0..problem.nodes().len())
-            .map(|n| *M.get(&n).unwrap())
-            .collect::<Vec<_>>();
-
-        // vessel:[(visit,time)]
-
-        // go through the solution and decrease the number of remaining visits along the way
-        solution
-            .iter()
-            .enumerate()
-            .map(|(vessel, plan)| {
-                (
-                    vessel,
-                    plan.iter()
-                        .map(|visit| {
-                            let n = visit.node;
-                            let res = (n, M.get(&n).unwrap() - _b[n]);
-                            _b[n] -= 1;
-                            res
-                        })
-                        .collect(),
-                )
-            })
-            .collect() */
     }
 
     /// Configure the model such that it is ready to solve for the given solution
@@ -243,7 +222,6 @@ impl QuantityLpCont {
         let paths = Self::paths(solution);
         self.solve(solution, &paths)?;
 
-        //let t: Vec<Vec<Var>> = variables.t.iter().cloned().collect();
         let res = paths
             .iter()
             .map(|path| {
@@ -255,32 +233,6 @@ impl QuantityLpCont {
                     .collect()
             })
             .collect::<grb::Result<Vec<Vec<usize>>>>()?;
-
-        /* // the optimized continous arrival variables
-        let t: Vec<Vec<Var>> = variables.t.iter().cloned().collect();
-
-        // counter for every node, used to index the right arrival variable
-        let mut counter = vec![0; problem.nodes().len()];
-        let mut res: Vec<Vec<usize>> = Vec::new();
-
-        for (v, plan) in solution.iter().enumerate() {
-            for visit in plan {
-                // the nodeindex
-                let i = visit.node;
-                let count = counter[i];
-                counter[i] += 1;
-                let calculated_visit_time =
-                    f64::ceil(self.model.get_obj_attr(attr::X, &t[i][count])?) as usize;
-
-                // push new arrival time if the correct inner vector exists, otherwise, create the inner vector and push
-                if let Some(x) = res.get_mut(v) {
-                    x.push(calculated_visit_time);
-                } else {
-                    res.push(Vec::new());
-                    res[v].push(calculated_visit_time);
-                }
-            }
-        } */
 
         Ok(res)
     }
