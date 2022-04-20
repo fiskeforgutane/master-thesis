@@ -524,6 +524,8 @@ impl QuantityLpCont {
                 let (i, m) = win[0];
                 let (j, n) = win[1];
 
+                let epsilon = if i == j { 1.0 } else { 0.0 };
+
                 // unloading rate as time per quantity
                 let time_per_quant = 1.0 / (problem.nodes()[i].max_loading_amount() as f64);
 
@@ -535,7 +537,7 @@ impl QuantityLpCont {
 
                 model.add_constr(
                     &format!("time_{v}_{i}_{m}_{j}_{n}"),
-                    c!(t[j][n] == t[i][m] + visit_time + sail_time + delay),
+                    c!(t[j][n] == t[i][m] + visit_time + sail_time + delay + epsilon),
                 )?;
             }
 
