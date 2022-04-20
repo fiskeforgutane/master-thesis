@@ -80,7 +80,7 @@ impl Mutation for AddRandom {
                 if plan.binary_search_by_key(&t, |v| v.time).is_err() {
                     let mut solution = solution.mutate();
                     let mut plan = solution[v].mutate();
-                    plan.push(Visit { node, time });
+                    plan.push(Visit { node, time: t });
                     return;
                 }
             }
@@ -107,7 +107,7 @@ impl Mutation for RemoveRandom {
         // 0..=x is always non-empty when x is an unsigned type
         let v = problem.indices::<Vessel>().choose(&mut self.rng).unwrap();
 
-        match (0..solution[v].len()).choose(&mut self.rng) {
+        match (1..solution[v].len()).choose(&mut self.rng) {
             Some(x) => {
                 solution.mutate()[v].mutate().remove(x);
             }
@@ -1025,6 +1025,11 @@ impl Mutation for BestMove {
 }
 
 impl BestMove {
+    pub fn new() -> Self {
+        BestMove {
+            rand: rand::thread_rng(),
+        }
+    }
     /// Calculates the distance removed from the plan if a visit is removed
     fn decreased_distance(
         &self,
@@ -1057,6 +1062,14 @@ impl BestMove {
 
 pub struct VesselSwap {
     rand: ThreadRng,
+}
+
+impl VesselSwap {
+    pub fn new() -> Self {
+        Self {
+            rand: rand::thread_rng(),
+        }
+    }
 }
 
 impl Mutation for VesselSwap {
