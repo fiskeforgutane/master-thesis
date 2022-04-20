@@ -186,6 +186,8 @@ impl QuantityLpCont {
         // update the paths according to the given solution
         let paths = Self::paths(solution, problem, &M);
 
+        trace!("paths: {:?}", paths);
+
         // set new variables
         self.vars = Self::create_vars(&mut self.model, problem, &M)?;
 
