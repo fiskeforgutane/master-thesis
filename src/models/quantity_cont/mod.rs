@@ -7,7 +7,7 @@ use pyo3::pyclass;
 
 use crate::{
     models::utils::AddVars,
-    problem::{NodeIndex, NodeType, Problem, VesselIndex},
+    problem::{NodeIndex, NodeType, Problem},
     solution::routing::RoutingSolution,
 };
 
@@ -93,11 +93,8 @@ impl QuantityLpCont {
     /// * `solution` - A sequence of visits for every vessel, given as a RoutingSolution
     /// * `problmem` - The underlying problem
     /// * `M` - A `HashMap` with the nodes in the problem as keys, and the number of visits to each node according to the given `solution` as values
-    pub fn paths(
-        solution: &RoutingSolution,
-        problem: &Problem,
-        M: &HashMap<usize, usize>,
-    ) -> HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>> {
+    pub fn paths(solution: &RoutingSolution) -> Vec<Vec<(NodeIndex, VisitIndex)>> {
+        let problem = solution.problem();
         // hash map vesselindex, visit -> rank
         let mut ranks = HashMap::new();
         for n in 0..problem.nodes().len() {
@@ -127,16 +124,13 @@ impl QuantityLpCont {
             .iter()
             .enumerate()
             .map(|(vessel_idx, plan)| {
-                (
-                    vessel_idx,
-                    plan.iter()
-                        .map(|visit| {
-                            let n = visit.node;
-                            let m = *ranks.get(&(vessel_idx, *visit)).unwrap();
-                            (n, m)
-                        })
-                        .collect::<Vec<_>>(),
-                )
+                plan.iter()
+                    .map(|visit| {
+                        let n = visit.node;
+                        let m = *ranks.get(&(vessel_idx, *visit)).unwrap();
+                        (n, m)
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect()
 
@@ -169,7 +163,11 @@ impl QuantityLpCont {
 
     /// Configure the model such that it is ready to solve for the given solution
     /// This can perhaps be done quicker if we update only relevant variables and constraints when changes are made to the solution
-    pub fn configure(&mut self, solution: &RoutingSolution) -> grb::Result<()> {
+    pub fn configure(
+        &mut self,
+        solution: &RoutingSolution,
+        paths: &Vec<Vec<(usize, usize)>>,
+    ) -> grb::Result<()> {
         let problem = solution.problem();
         // clear model of current variables and constraints
         Self::clear_model(&mut self.model)?;
@@ -185,7 +183,7 @@ impl QuantityLpCont {
         });
 
         // update the paths according to the given solution
-        let paths = Self::paths(solution, problem, &M);
+        //let paths = Self::paths(solution, problem, &M);
 
         trace!("paths: {:?}", paths);
 
@@ -213,7 +211,8 @@ impl QuantityLpCont {
 
     /// Solves the model for the given `solution` and returns the optimized variables in the Python exposed Pyclass `F64VariablesCont`
     pub fn py_solve(&mut self, solution: &RoutingSolution) -> grb::Result<F64VariablesCont> {
-        self.configure(solution)?;
+        let paths = Self::paths(solution);
+        self.configure(solution, &paths)?;
 
         self.model.optimize()?;
 
@@ -227,19 +226,40 @@ impl QuantityLpCont {
     }
 
     /// Solves the model for the given solution and returns the optimized variables
-    pub fn solve(&mut self, solution: &RoutingSolution) -> grb::Result<&Variables> {
-        self.configure(solution)?;
+    pub fn solve(
+        &mut self,
+        solution: &RoutingSolution,
+        paths: &Vec<Vec<(usize, usize)>>,
+    ) -> grb::Result<()> {
+        //let paths = Self::paths(solution);
+        self.configure(solution, &paths)?;
         self.model.optimize()?;
-        Ok(&self.vars)
+        Ok(())
     }
 
     /// Returns the optimized arrival times of the given `solution`.
     /// First, the linear program is solved using continuous time, and then the final time variables are rounded up to the closest integer.
     pub fn get_visit_times(&mut self, solution: &RoutingSolution) -> grb::Result<Vec<Vec<usize>>> {
-        let problem = solution.problem();
-        let variables = self.solve(solution)?;
+        let paths = Self::paths(solution);
+        self.solve(solution, &paths)?;
 
-        // the optimized continous arrival variables
+        //let t: Vec<Vec<Var>> = variables.t.iter().cloned().collect();
+        let res = paths
+            .iter()
+            .map(|path| {
+                path.iter()
+                    .map(|(i, m)| {
+                        f64::ceil(
+                            self.model
+                                .get_obj_attr(attr::X, &self.vars.t[*i][*m])
+                                .unwrap(),
+                        ) as usize
+                    })
+                    .collect()
+            })
+            .collect();
+
+        /* // the optimized continous arrival variables
         let t: Vec<Vec<Var>> = variables.t.iter().cloned().collect();
 
         // counter for every node, used to index the right arrival variable
@@ -263,7 +283,7 @@ impl QuantityLpCont {
                     res[v].push(calculated_visit_time);
                 }
             }
-        }
+        } */
 
         Ok(res)
     }
@@ -422,7 +442,7 @@ impl QuantityLpCont {
     fn load_constraints(
         model: &mut Model,
         problem: &Problem,
-        paths: &HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>>,
+        paths: &Vec<Vec<(NodeIndex, VisitIndex)>>,
         l: &[Vec<Vec<Var>>],
         x: &[Vec<Vec<Var>>],
     ) -> grb::Result<()> {
@@ -432,14 +452,14 @@ impl QuantityLpCont {
         // balancing
         for (v, p) in iproduct!(0..V, 0..P) {
             // v doesn't perform any visits, continue
-            if paths.get(&v).unwrap().is_empty() {
+            if paths.get(v).unwrap().is_empty() {
                 continue;
             }
 
             let initial_load = problem.vessels()[v].initial_inventory()[p];
 
             // node and call number of first visit
-            let (i, m) = (paths.get(&v).unwrap()[0].0, paths.get(&v).unwrap()[0].1);
+            let (i, m) = (paths.get(v).unwrap()[0].0, paths.get(v).unwrap()[0].1);
 
             let kind = problem.nodes()[i].r#type();
 
@@ -449,7 +469,7 @@ impl QuantityLpCont {
             model.add_constr(&format!("init_load_{}_{}", v, p), c!(lhs == rhs))?;
 
             // set the load for the remaining visits
-            for win in paths.get(&v).unwrap().windows(2) {
+            for win in paths.get(v).unwrap().windows(2) {
                 let (i, m) = win[0];
                 let (j, n) = win[1];
                 let next_kind = problem.nodes()[j].r#type();
@@ -462,7 +482,7 @@ impl QuantityLpCont {
 
         // bound the load to never exceed the capacity of the vessel
         for v in 0..V {
-            for (i, m) in paths.get(&v).unwrap() {
+            for (i, m) in paths.get(v).unwrap() {
                 let lhs = (0..P).map(|p| l[*i][*m][p]).grb_sum();
                 let rhs = problem.vessels()[v].capacity();
                 model.add_constr(&format!("bound_load_{}_{}_{}", i, m, v), c!(lhs <= rhs))?;
@@ -491,7 +511,7 @@ impl QuantityLpCont {
     fn time_constraints(
         model: &mut Model,
         problem: &Problem,
-        paths: &HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>>,
+        paths: &Vec<Vec<(NodeIndex, VisitIndex)>>,
         delay: f64,
         x: &[Vec<Vec<Var>>],
         t: &[Vec<Var>],
@@ -502,7 +522,7 @@ impl QuantityLpCont {
         for (v, p) in iproduct!(0..V, 0..P) {
             let vessel = &problem.vessels()[v];
             // if the vessel does not have a path, continue
-            let path = paths.get(&v).unwrap();
+            let path = paths.get(v).unwrap();
             for win in path.windows(2) {
                 let (i, m) = win[0];
                 let (j, n) = win[1];
@@ -523,7 +543,7 @@ impl QuantityLpCont {
             }
 
             // bound the last visit to be before the end of the planning period
-            let last = paths.get(&v).unwrap().iter().last();
+            let last = paths.get(v).unwrap().iter().last();
             if let Some((i, m)) = last {
                 model.add_constr(
                     &format!("upper_bound_time_{}_{}_{}", v, i, m),
