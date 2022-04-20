@@ -85,6 +85,8 @@ impl QuantityLpCont {
     /// Calculates the path through a graph of visits for every vessel.
     /// A visit is represented as (i,m), where i is the node index and m indicates that it is the m'th visit at node i
     ///
+    /// The paths are constructed such that a vessel visiting node (i,m) is visit number m to port i if all vessels were to sail
+    /// their plans as quickly as possible. Meaning that no loading or unloading time is taken into account
     /// ## Arguments
     ///
     /// * `solution` - A sequence of visits for every vessel, given as a RoutingSolution
@@ -95,10 +97,54 @@ impl QuantityLpCont {
         problem: &Problem,
         M: &HashMap<usize, usize>,
     ) -> HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>> {
-        // helper to hold the number of visits assigned a vessel
+        // hash map vesselindex, visit -> rank
+        let mut ranks = HashMap::new();
+        for n in 0..problem.nodes().len() {
+            let mut earliest_visit_times = Vec::new();
+            for (vessel_idx, plan) in solution.iter().enumerate() {
+                let vessel = &problem.vessels()[vessel_idx];
+                let mut t = vessel.available_from();
+                for vis in 0..plan.len() {
+                    let visit = plan[vis];
+                    if visit.node == n {
+                        earliest_visit_times.push((vessel_idx, visit, t));
+                    }
+                    if vis < plan.len() - 1 {
+                        t += problem.travel_time(visit.node, plan[vis + 1].node, vessel);
+                    }
+                }
+            }
+            earliest_visit_times.sort_by(|a, b| a.2.cmp(&b.2));
+            earliest_visit_times.into_iter().enumerate().for_each(
+                |(rank, (vessel_idx, visit, _))| {
+                    ranks.insert((vessel_idx, visit), rank);
+                },
+            );
+        }
+
+        solution
+            .iter()
+            .enumerate()
+            .map(|(vessel_idx, plan)| {
+                (
+                    vessel_idx,
+                    plan.iter()
+                        .map(|visit| {
+                            let n = visit.node;
+                            let m = *ranks.get(&(vessel_idx, *visit)).unwrap();
+                            (n, m)
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect()
+
+        /* // helper to hold the number of visits assigned a vessel
         let mut _b = (0..problem.nodes().len())
             .map(|n| *M.get(&n).unwrap())
             .collect::<Vec<_>>();
+
+        // vessel:[(visit,time)]
 
         // go through the solution and decrease the number of remaining visits along the way
         solution
@@ -117,7 +163,7 @@ impl QuantityLpCont {
                         .collect(),
                 )
             })
-            .collect()
+            .collect() */
     }
 
     /// Configure the model such that it is ready to solve for the given solution
@@ -429,6 +475,7 @@ impl QuantityLpCont {
     ///
     /// * Set up the relation between the time of the scheduled visits for each vessel
     /// * Bound the time of the last visit to not exceed the duration of the planning period
+    /// * Set the time of the origin visits to be the time the vessels become available
     ///
     /// ## Arguments
     ///
@@ -480,6 +527,13 @@ impl QuantityLpCont {
                     c!(t[*i][*m] <= T),
                 )?;
             }
+
+            // set the initial visit times to the time period in which the vessels become available
+            let first = path.get(0).unwrap();
+            model.add_constr(
+                &format!("set time of initial visit"),
+                c!(t[first.0][first.1] == vessel.available_from()),
+            )?;
         }
 
         Ok(())
