@@ -1206,11 +1206,7 @@ impl AddSmart {
             let closest_in_time = plan
                 .iter()
                 .enumerate()
-                .min_by(|a, b| {
-                    let a = isize::abs(a.1.time as isize - time as isize);
-                    let b = isize::abs(b.1.time as isize - time as isize);
-                    a.cmp(&b)
-                })
+                .min_by_key(|x| isize::abs(x.1.time as isize - time as isize))
                 .unwrap();
 
             // check that neither the previous, current, nor the next visit is at the given node
