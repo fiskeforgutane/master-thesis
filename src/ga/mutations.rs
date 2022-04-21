@@ -209,14 +209,13 @@ impl Mutation for Twerk {
     }
 }
 
-#[pyclass]
 #[derive(Debug, Clone)]
 pub enum RedCostMode {
     /// Performs only one iteration where it updates the upper bounds of a random subset of visits
     /// that look promising to expand
     Mutate,
     /// Several iterations where it iteratively seeks to improve the soution by expanding visits
-    LocalSerach,
+    LocalSerach(usize),
 }
 
 /// This mutation exploits the dual solution of the quantities LP to direct the search towards a hopefulle better solution.
@@ -241,8 +240,8 @@ impl RedCost {
         RedCost { mode, max_visits }
     }
     /// Returns a RedCost with mode set to local search
-    pub fn red_cost_local_search(max_visits: usize) -> Self {
-        let mode = RedCostMode::LocalSerach;
+    pub fn red_cost_local_search(max_visits: usize, iterations: usize) -> Self {
+        let mode = RedCostMode::LocalSerach(iterations);
 
         RedCost { mode, max_visits }
     }
@@ -379,8 +378,8 @@ impl RedCost {
         // select random vessel to search for a index where the visit can be extended
         let v = rand.gen_range(0..problem.vessels().len());
 
-        // If the chosen vessel has no visits return
-        if solution[v].len() < 1 {
+        // If the chosen vessel has no visits return, only origin is considered no visits
+        if solution[v].len() <= 1 {
             return;
         }
         // number of visits to alter
@@ -513,7 +512,11 @@ impl Mutation for RedCost {
         let rand = &mut rand::thread_rng();
         match self.mode {
             RedCostMode::Mutate => Self::iterate(self.max_visits, rand, problem, solution),
-            RedCostMode::LocalSerach => todo!(),
+            RedCostMode::LocalSerach(iters) => {
+                for _ in 0..iters {
+                    Self::iterate(self.max_visits, rand, problem, solution);
+                }
+            }
         }
         trace!("FINISHED RED COST MUTATION")
     }
@@ -636,6 +639,11 @@ impl Mutation for IntraSwap {
         let v = rand.gen_range(0..problem.vessels().len());
         let mut mutator = solution.mutate();
         let plan = &mut mutator[v].mutate();
+
+        // if the plan does not contain any visits other than origin, return
+        if plan.len() <= 1 {
+            return;
+        }
 
         // select two random visits to swap - exclude the origin
         let v1 = rand.gen_range(1..plan.len());
@@ -859,6 +867,10 @@ impl Mutation for InterSwap {
         let vessel2 = rand.gen_range(0..solution.len());
 
         if vessel1 == vessel2 {
+            return;
+        }
+        // if any of the vessels do not have a visit other than origin, return
+        if solution[vessel1].len() <= 1 || solution[vessel2].len() <= 1 {
             return;
         }
 
