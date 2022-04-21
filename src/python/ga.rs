@@ -3,6 +3,7 @@ use crate::ga;
 use crate::ga::chromosome::InitRoutingSolution;
 use crate::ga::fitness::Weighted;
 use crate::ga::mutations::AddRandom;
+use crate::ga::mutations::AddSmart;
 use crate::ga::mutations::Bounce;
 use crate::ga::mutations::BounceMode;
 use crate::ga::mutations::DistanceReduction;
@@ -189,6 +190,13 @@ impl Mutation for TimeSetterWrapper {
 pub fn time_setter(delay: f64) -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(TimeSetterWrapper::new(delay))),
+    }
+}
+
+#[pyfunction]
+pub fn add_smart() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(AddSmart {})),
     }
 }
 
