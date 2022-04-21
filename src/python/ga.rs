@@ -11,6 +11,7 @@ use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
 use crate::ga::mutations::RemoveRandom;
+use crate::ga::mutations::TimeSetter;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
 use crate::ga::mutations::TwoOptMode;
@@ -35,6 +36,7 @@ use crate::problem::Problem;
 use crate::python::Solution;
 use crate::solution::Delivery;
 use crate::solution::Visit;
+use log::trace;
 use pyo3::prelude::*;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -157,6 +159,36 @@ pub fn two_opt_intra() -> PyMut {
 pub fn inter_swap() -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(InterSwap {})),
+    }
+}
+
+pub struct TimeSetterWrapper {
+    inner: Arc<Mutex<TimeSetter>>,
+}
+
+impl TimeSetterWrapper {
+    pub fn new(delay: f64) -> TimeSetterWrapper {
+        let res = TimeSetterWrapper {
+            inner: Arc::new(Mutex::new(TimeSetter::new(delay).unwrap())),
+        };
+        trace!("wrapper succesfully built");
+        res
+    }
+}
+
+// careful
+unsafe impl Send for TimeSetterWrapper {}
+
+impl Mutation for TimeSetterWrapper {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        self.inner.lock().unwrap().apply(problem, solution)
+    }
+}
+
+#[pyfunction]
+pub fn time_setter(delay: f64) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(TimeSetterWrapper::new(delay))),
     }
 }
 
