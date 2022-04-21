@@ -55,11 +55,8 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(distance_reduction, m)?)?;
     m.add_function(wrap_pyfunction!(add_random, m)?)?;
     m.add_function(wrap_pyfunction!(remove_random, m)?)?;
-<<<<<<< HEAD
     m.add_function(wrap_pyfunction!(add_smart, m)?)?;
-=======
     m.add_function(wrap_pyfunction!(time_setter, m)?)?;
->>>>>>> 50fcea38fc5cd361d2b0e6baba8763a73eb913a0
 
     // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;
