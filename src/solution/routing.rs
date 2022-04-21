@@ -529,6 +529,7 @@ impl RoutingSolution {
         self.cache.solved.set(false);
         self.cache.violation.set(None);
         self.cache.cost.set(None);
+        self.cache.revenue.set(None);
     }
 }
 

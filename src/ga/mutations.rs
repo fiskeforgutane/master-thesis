@@ -80,9 +80,7 @@ impl Mutation for AddRandom {
                 if plan.binary_search_by_key(&t, |v| v.time).is_err() {
                     let mut solution = solution.mutate();
                     let mut plan = solution[v].mutate();
-                    plan.push(Visit { node, time });
-                    // fix the plan such that the newly added visit comes in sorted order
-                    plan.fix();
+                    plan.push(Visit { node, time: t });
                     return;
                 }
             }
@@ -1039,6 +1037,11 @@ impl Mutation for BestMove {
 }
 
 impl BestMove {
+    pub fn new() -> Self {
+        BestMove {
+            rand: rand::thread_rng(),
+        }
+    }
     /// Calculates the distance removed from the plan if a visit is removed
     fn decreased_distance(
         &self,
@@ -1071,6 +1074,14 @@ impl BestMove {
 
 pub struct VesselSwap {
     rand: ThreadRng,
+}
+
+impl VesselSwap {
+    pub fn new() -> Self {
+        Self {
+            rand: rand::thread_rng(),
+        }
+    }
 }
 
 impl Mutation for VesselSwap {

@@ -192,6 +192,13 @@ pub fn pix() -> PyRecombination {
 }
 
 #[pyfunction]
+pub fn recomb_stochastic(probability: f64, recombination: PyRecombination) -> PyRecombination {
+    PyRecombination {
+        inner: Arc::new(Mutex::new(Stochastic::new(probability, recombination))),
+    }
+}
+
+#[pyfunction]
 pub fn recomb_chain(mutations: Vec<PyRecombination>) -> PyRecombination {
     let nop = || PyRecombination {
         inner: Arc::new(Mutex::new(Nop)),
@@ -336,7 +343,7 @@ impl PyGA {
         self.inner.lock().unwrap().epoch()
     }
 
-    pub fn population(&self) -> Vec<(Vec<Vec<Visit>>, F64Variables, f64)> {
+    pub fn population(&self) -> Vec<(Vec<Vec<Visit>>, F64Variables, f64, (f64, f64, f64, f64))> {
         let ga = self.inner.lock().unwrap();
         let problem = &ga.problem;
         ga.population
@@ -355,7 +362,14 @@ impl PyGA {
 
                 let v = F64Variables { w, x, s, l };
 
-                (routing, v, ga.fitness.of(problem, solution))
+                let obj = (
+                    solution.warp() as f64,
+                    solution.violation(),
+                    solution.revenue(),
+                    solution.cost(),
+                );
+
+                (routing, v, ga.fitness.of(problem, solution), obj)
             })
             .collect::<Vec<_>>()
     }
