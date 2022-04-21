@@ -3,6 +3,7 @@ use crate::ga;
 use crate::ga::chromosome::InitRoutingSolution;
 use crate::ga::fitness::Weighted;
 use crate::ga::mutations::AddRandom;
+use crate::ga::mutations::AddSmart;
 use crate::ga::mutations::Bounce;
 use crate::ga::mutations::BounceMode;
 use crate::ga::mutations::DistanceReduction;
@@ -157,6 +158,13 @@ pub fn two_opt_intra() -> PyMut {
 pub fn inter_swap() -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(InterSwap {})),
+    }
+}
+
+#[pyfunction]
+pub fn add_smart() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(AddSmart {})),
     }
 }
 
