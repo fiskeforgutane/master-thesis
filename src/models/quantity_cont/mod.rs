@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use grb::{attr, c, expr::GurobiSum, Constr, Model, Var};
+use grb::{attr, c, expr::GurobiSum, param, Constr, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
 

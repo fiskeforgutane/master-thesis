@@ -2,16 +2,18 @@ use crate::ga;
 
 use crate::ga::chromosome::InitRoutingSolution;
 use crate::ga::fitness::Weighted;
+use crate::ga::mutations::AddRandom;
 use crate::ga::mutations::Bounce;
+use crate::ga::mutations::BounceMode;
 use crate::ga::mutations::DistanceReduction;
 use crate::ga::mutations::DistanceReductionMode;
 use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
+use crate::ga::mutations::RemoveRandom;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
 use crate::ga::mutations::TwoOptMode;
-use crate::ga::mutations::{BounceMode, RedCostMode};
 use crate::ga::parent_selection;
 use crate::ga::Chain;
 use crate::ga::Fitness;
@@ -80,14 +82,18 @@ pub fn twerk() -> PyMut {
 }
 
 #[pyfunction]
-pub fn red_cost(mode: RedCostMode, max_visits: usize) -> PyMut {
-    match mode {
-        RedCostMode::Mutate => PyMut {
-            inner: Arc::new(Mutex::new(RedCost::red_cost_mutation(max_visits))),
-        },
-        RedCostMode::LocalSerach => PyMut {
-            inner: Arc::new(Mutex::new(RedCost::red_cost_local_search(max_visits))),
-        },
+pub fn red_cost_mutation(max_visits: usize) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(RedCost::red_cost_mutation(max_visits))),
+    }
+}
+
+#[pyfunction]
+pub fn local_search_red_cost(max_visits: usize, iterations: usize) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(RedCost::red_cost_local_search(
+            max_visits, iterations,
+        ))),
     }
 }
 
@@ -123,6 +129,20 @@ pub fn two_opt_local(time_limit: u64, epsilon: f64) -> PyMut {
         inner: Arc::new(Mutex::new(TwoOpt::new(TwoOptMode::LocalSerach(
             time_limit, epsilon,
         )))),
+    }
+}
+
+#[pyfunction]
+pub fn add_random() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(AddRandom::new())),
+    }
+}
+
+#[pyfunction]
+pub fn remove_random() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(RemoveRandom::new())),
     }
 }
 
