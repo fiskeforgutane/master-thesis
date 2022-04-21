@@ -12,6 +12,7 @@ use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
 use crate::ga::mutations::RemoveRandom;
+use crate::ga::mutations::TimeSetter;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
 use crate::ga::mutations::TwoOptMode;
@@ -36,6 +37,7 @@ use crate::problem::Problem;
 use crate::python::Solution;
 use crate::solution::Delivery;
 use crate::solution::Visit;
+use log::trace;
 use pyo3::prelude::*;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -161,6 +163,36 @@ pub fn inter_swap() -> PyMut {
     }
 }
 
+pub struct TimeSetterWrapper {
+    inner: Arc<Mutex<TimeSetter>>,
+}
+
+impl TimeSetterWrapper {
+    pub fn new(delay: f64) -> TimeSetterWrapper {
+        let res = TimeSetterWrapper {
+            inner: Arc::new(Mutex::new(TimeSetter::new(delay).unwrap())),
+        };
+        trace!("wrapper succesfully built");
+        res
+    }
+}
+
+// careful
+unsafe impl Send for TimeSetterWrapper {}
+
+impl Mutation for TimeSetterWrapper {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        self.inner.lock().unwrap().apply(problem, solution)
+    }
+}
+
+#[pyfunction]
+pub fn time_setter(delay: f64) -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(TimeSetterWrapper::new(delay))),
+    }
+}
+
 #[pyfunction]
 pub fn add_smart() -> PyMut {
     PyMut {
@@ -196,6 +228,13 @@ pub struct PyRecombination {
 pub fn pix() -> PyRecombination {
     PyRecombination {
         inner: Arc::new(Mutex::new(PIX)),
+    }
+}
+
+#[pyfunction]
+pub fn recomb_stochastic(probability: f64, recombination: PyRecombination) -> PyRecombination {
+    PyRecombination {
+        inner: Arc::new(Mutex::new(Stochastic::new(probability, recombination))),
     }
 }
 
@@ -344,7 +383,7 @@ impl PyGA {
         self.inner.lock().unwrap().epoch()
     }
 
-    pub fn population(&self) -> Vec<(Vec<Vec<Visit>>, F64Variables, f64)> {
+    pub fn population(&self) -> Vec<(Vec<Vec<Visit>>, F64Variables, f64, (f64, f64, f64, f64))> {
         let ga = self.inner.lock().unwrap();
         let problem = &ga.problem;
         ga.population
@@ -363,7 +402,14 @@ impl PyGA {
 
                 let v = F64Variables { w, x, s, l };
 
-                (routing, v, ga.fitness.of(problem, solution))
+                let obj = (
+                    solution.warp() as f64,
+                    solution.violation(),
+                    solution.revenue(),
+                    solution.cost(),
+                );
+
+                (routing, v, ga.fitness.of(problem, solution), obj)
             })
             .collect::<Vec<_>>()
     }

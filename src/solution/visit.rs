@@ -4,7 +4,7 @@ use crate::problem::{NodeIndex, Problem, TimeIndex};
 
 /// A `Visit` is a visit to a `node` at a specific `time`.
 #[pyclass]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
 pub struct Visit {
     #[pyo3(get)]
     /// The node we're visiting.

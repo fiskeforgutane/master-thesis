@@ -19,6 +19,7 @@ impl TransportationSolver {
         info!("Building transportation model for product {}", product);
 
         let mut model = Model::new(&format!("transport_model_{}", product))?;
+        model.set_param(grb::param::OutputFlag, 0)?;
 
         // Disable console output
         model.set_param(param::OutputFlag, 0)?;

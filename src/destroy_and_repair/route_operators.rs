@@ -1,6 +1,30 @@
-use crate::problem::{NodeIndex, Problem};
-use crate::route_pool::Route;
+use crate::problem::{NodeIndex, Problem, Quantity};
 use rand::prelude::*;
+
+#[derive(Clone, Debug)]
+/// A Route is defined as a path for a vehicle starting and ending in a production nodex
+pub struct Route {
+    nodes: Vec<NodeIndex>,
+    quantities: Vec<Vec<Quantity>>,
+}
+
+impl Route {
+    pub fn get_nodes(&self) -> &Vec<NodeIndex> {
+        &self.nodes
+    }
+
+    pub fn get_nodes_mut(&mut self) -> &mut Vec<NodeIndex> {
+        &mut self.nodes
+    }
+
+    pub fn add_node(&mut self, node: NodeIndex) {
+        self.nodes.push(node);
+    }
+
+    pub fn get_quantities(&self) -> &Vec<Vec<Quantity>> {
+        &self.quantities
+    }
+}
 
 pub trait RemoveNode {
     /// Performs some operation on a route in order to create a new route

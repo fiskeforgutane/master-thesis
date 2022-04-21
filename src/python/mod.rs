@@ -105,6 +105,15 @@ impl Problem {
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
     }
 
+    pub fn json(&self) -> PyResult<String> {
+        serde_json::to_string_pretty(self).map_err(pyerr)
+    }
+
+    #[staticmethod]
+    pub fn from_json(string: &str) -> PyResult<Problem> {
+        serde_json::from_str(string).map_err(pyerr)
+    }
+
     pub fn __str__(&self) -> String {
         format!("{:#?}", self)
     }

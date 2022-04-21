@@ -80,9 +80,7 @@ impl Mutation for AddRandom {
                 if plan.binary_search_by_key(&t, |v| v.time).is_err() {
                     let mut solution = solution.mutate();
                     let mut plan = solution[v].mutate();
-                    plan.push(Visit { node, time });
-                    // fix the plan such that the newly added visit comes in sorted order
-                    plan.fix();
+                    plan.push(Visit { node, time: t });
                     return;
                 }
             }
@@ -1039,6 +1037,11 @@ impl Mutation for BestMove {
 }
 
 impl BestMove {
+    pub fn new() -> Self {
+        BestMove {
+            rand: rand::thread_rng(),
+        }
+    }
     /// Calculates the distance removed from the plan if a visit is removed
     fn decreased_distance(
         &self,
@@ -1073,6 +1076,14 @@ pub struct VesselSwap {
     rand: ThreadRng,
 }
 
+impl VesselSwap {
+    pub fn new() -> Self {
+        Self {
+            rand: rand::thread_rng(),
+        }
+    }
+}
+
 impl Mutation for VesselSwap {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
         trace!("Applying VesselSwap to {:?}", solution);
@@ -1103,6 +1114,7 @@ impl TimeSetter {
     ///
     /// * `delay` - The mandatory delay that is added between visits for a vessel. A nonzero value will hopefully make the output from the continuous model fit a discrete time representation better.
     pub fn new(delay: f64) -> grb::Result<TimeSetter> {
+        trace!("Creating time setter mutation");
         let quants_lp = QuantityLpCont::new(delay)?;
         Ok(TimeSetter { quants_lp })
     }
@@ -1114,14 +1126,16 @@ impl Mutation for TimeSetter {
         trace!("Applying TimeSetter to {:?}", solution);
 
         let new_times = self.quants_lp.get_visit_times(&solution);
+        trace!("new times: {:?}", new_times);
 
         match new_times {
             Ok(times) => {
                 let mutator = &mut solution.mutate();
                 for vessel_idx in 0..times.len() {
+                    let plan_mut = &mut mutator[vessel_idx].mutate();
                     for visit_idx in 0..times[vessel_idx].len() {
                         let new_time = times[vessel_idx][visit_idx];
-                        let visit = &mut mutator[vessel_idx].mutate()[visit_idx];
+                        let mut visit = plan_mut[visit_idx];
                         // change arrival time
                         visit.time = new_time;
                     }

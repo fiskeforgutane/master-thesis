@@ -2,11 +2,13 @@ use std::collections::HashMap;
 
 use grb::{attr, c, expr::GurobiSum, param, Constr, Model, Var};
 use itertools::{iproduct, Itertools};
+use log::trace;
 use pyo3::pyclass;
+use rand::{prelude::SliceRandom, thread_rng};
 
 use crate::{
     models::utils::AddVars,
-    problem::{NodeIndex, NodeType, Problem, VesselIndex},
+    problem::{NodeIndex, NodeType, Problem},
     solution::routing::RoutingSolution,
 };
 
@@ -69,8 +71,8 @@ impl QuantityLpCont {
     /// * `delay` - The mandatory delay that is added between visits for a vessel. A nonzero value will hopefully make the output from the continuous model fit a discrete time representation better.
     pub fn new(delay: f64) -> grb::Result<QuantityLpCont> {
         let mut model = Model::new(&format!("cont quant model"))?;
-        // Disable console output
-        model.set_param(param::OutputFlag, 0)?;
+        model.set_param(grb::param::OutputFlag, 0)?;
+
         let vars = Variables {
             w: Vec::new(),
             x: Vec::new(),
@@ -85,44 +87,66 @@ impl QuantityLpCont {
     /// Calculates the path through a graph of visits for every vessel.
     /// A visit is represented as (i,m), where i is the node index and m indicates that it is the m'th visit at node i
     ///
+    /// The paths are constructed such that a vessel visiting node (i,m) is visit number m to port i if all vessels were to sail
+    /// their plans as quickly as possible. Meaning that no loading or unloading time is taken into account.
+    /// Ties are handled by shuffling before sorting
     /// ## Arguments
     ///
     /// * `solution` - A sequence of visits for every vessel, given as a RoutingSolution
-    /// * `problmem` - The underlying problem
-    /// * `M` - A `HashMap` with the nodes in the problem as keys, and the number of visits to each node according to the given `solution` as values
-    pub fn paths(
-        solution: &RoutingSolution,
-        problem: &Problem,
-        M: &HashMap<usize, usize>,
-    ) -> HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>> {
-        // helper to hold the number of visits assigned a vessel
-        let mut _b = (0..problem.nodes().len())
-            .map(|n| *M.get(&n).unwrap())
-            .collect::<Vec<_>>();
+    pub fn paths(solution: &RoutingSolution) -> Vec<Vec<(NodeIndex, VisitIndex)>> {
+        let problem = solution.problem();
+        // hash map vesselindex, visit -> rank
+        let mut ranks = HashMap::new();
+        for n in 0..problem.nodes().len() {
+            let mut earliest_visit_times = Vec::new();
+            for (vessel_idx, plan) in solution.iter().enumerate() {
+                let vessel = &problem.vessels()[vessel_idx];
+                let mut t = vessel.available_from();
+                for vis in 0..plan.len() {
+                    let visit = plan[vis];
+                    if visit.node == n {
+                        earliest_visit_times.push((vessel_idx, visit, t));
+                    }
+                    if vis < plan.len() - 1 {
+                        t += problem.travel_time(visit.node, plan[vis + 1].node, vessel);
+                    }
+                }
+            }
+            // shuffle to handle ties stochastically
+            let mut rng = thread_rng();
+            earliest_visit_times.shuffle(&mut rng);
 
-        // go through the solution and decrease the number of remaining visits along the way
+            // sort by visit time and add rank
+            earliest_visit_times.sort_by_key(|x| x.2);
+            earliest_visit_times.into_iter().enumerate().for_each(
+                |(rank, (vessel_idx, visit, _))| {
+                    ranks.insert((vessel_idx, visit), rank);
+                },
+            );
+        }
+
         solution
             .iter()
             .enumerate()
-            .map(|(vessel, plan)| {
-                (
-                    vessel,
-                    plan.iter()
-                        .map(|visit| {
-                            let n = visit.node;
-                            let res = (n, M.get(&n).unwrap() - _b[n]);
-                            _b[n] -= 1;
-                            res
-                        })
-                        .collect(),
-                )
+            .map(|(vessel_idx, plan)| {
+                plan.iter()
+                    .map(|visit| {
+                        let n = visit.node;
+                        let m = ranks[&(vessel_idx, *visit)];
+                        (n, m)
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect()
     }
 
     /// Configure the model such that it is ready to solve for the given solution
     /// This can perhaps be done quicker if we update only relevant variables and constraints when changes are made to the solution
-    pub fn configure(&mut self, solution: &RoutingSolution) -> grb::Result<()> {
+    pub fn configure(
+        &mut self,
+        solution: &RoutingSolution,
+        paths: &Vec<Vec<(usize, usize)>>,
+    ) -> grb::Result<()> {
         let problem = solution.problem();
         // clear model of current variables and constraints
         Self::clear_model(&mut self.model)?;
@@ -138,7 +162,9 @@ impl QuantityLpCont {
         });
 
         // update the paths according to the given solution
-        let paths = Self::paths(solution, problem, &M);
+        //let paths = Self::paths(solution, problem, &M);
+
+        trace!("paths: {:?}", paths);
 
         // set new variables
         self.vars = Self::create_vars(&mut self.model, problem, &M)?;
@@ -164,7 +190,8 @@ impl QuantityLpCont {
 
     /// Solves the model for the given `solution` and returns the optimized variables in the Python exposed Pyclass `F64VariablesCont`
     pub fn py_solve(&mut self, solution: &RoutingSolution) -> grb::Result<F64VariablesCont> {
-        self.configure(solution)?;
+        let paths = Self::paths(solution);
+        self.configure(solution, &paths)?;
 
         self.model.optimize()?;
 
@@ -178,43 +205,34 @@ impl QuantityLpCont {
     }
 
     /// Solves the model for the given solution and returns the optimized variables
-    pub fn solve(&mut self, solution: &RoutingSolution) -> grb::Result<&Variables> {
-        self.configure(solution)?;
+    pub fn solve(
+        &mut self,
+        solution: &RoutingSolution,
+        paths: &Vec<Vec<(usize, usize)>>,
+    ) -> grb::Result<()> {
+        //let paths = Self::paths(solution);
+        self.configure(solution, &paths)?;
         self.model.optimize()?;
-        Ok(&self.vars)
+        Ok(())
     }
 
     /// Returns the optimized arrival times of the given `solution`.
     /// First, the linear program is solved using continuous time, and then the final time variables are rounded up to the closest integer.
     pub fn get_visit_times(&mut self, solution: &RoutingSolution) -> grb::Result<Vec<Vec<usize>>> {
-        let problem = solution.problem();
-        let variables = self.solve(solution)?;
+        let paths = Self::paths(solution);
+        self.solve(solution, &paths)?;
 
-        // the optimized continous arrival variables
-        let t: Vec<Vec<Var>> = variables.t.iter().cloned().collect();
-
-        // counter for every node, used to index the right arrival variable
-        let mut counter = vec![0; problem.nodes().len()];
-        let mut res: Vec<Vec<usize>> = Vec::new();
-
-        for (v, plan) in solution.iter().enumerate() {
-            for visit in plan {
-                // the nodeindex
-                let i = visit.node;
-                let count = counter[i];
-                counter[i] += 1;
-                let calculated_visit_time =
-                    f64::ceil(self.model.get_obj_attr(attr::X, &t[i][count])?) as usize;
-
-                // push new arrival time if the correct inner vector exists, otherwise, create the inner vector and push
-                if let Some(x) = res.get_mut(v) {
-                    x.push(calculated_visit_time);
-                } else {
-                    res.push(Vec::new());
-                    res[v].push(calculated_visit_time);
-                }
-            }
-        }
+        let res = paths
+            .iter()
+            .map(|path| {
+                path.iter()
+                    .map(|(i, m)| {
+                        let value = self.model.get_obj_attr(attr::X, &self.vars.t[*i][*m])?;
+                        Ok(f64::ceil(value) as usize)
+                    })
+                    .collect()
+            })
+            .collect::<grb::Result<Vec<Vec<usize>>>>()?;
 
         Ok(res)
     }
@@ -373,7 +391,7 @@ impl QuantityLpCont {
     fn load_constraints(
         model: &mut Model,
         problem: &Problem,
-        paths: &HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>>,
+        paths: &Vec<Vec<(NodeIndex, VisitIndex)>>,
         l: &[Vec<Vec<Var>>],
         x: &[Vec<Vec<Var>>],
     ) -> grb::Result<()> {
@@ -383,14 +401,14 @@ impl QuantityLpCont {
         // balancing
         for (v, p) in iproduct!(0..V, 0..P) {
             // v doesn't perform any visits, continue
-            if paths.get(&v).unwrap().is_empty() {
+            if paths[v].is_empty() {
                 continue;
             }
 
             let initial_load = problem.vessels()[v].initial_inventory()[p];
 
             // node and call number of first visit
-            let (i, m) = (paths.get(&v).unwrap()[0].0, paths.get(&v).unwrap()[0].1);
+            let (i, m) = paths[v][0];
 
             let kind = problem.nodes()[i].r#type();
 
@@ -400,7 +418,7 @@ impl QuantityLpCont {
             model.add_constr(&format!("init_load_{}_{}", v, p), c!(lhs == rhs))?;
 
             // set the load for the remaining visits
-            for win in paths.get(&v).unwrap().windows(2) {
+            for win in paths[v].windows(2) {
                 let (i, m) = win[0];
                 let (j, n) = win[1];
                 let next_kind = problem.nodes()[j].r#type();
@@ -413,7 +431,7 @@ impl QuantityLpCont {
 
         // bound the load to never exceed the capacity of the vessel
         for v in 0..V {
-            for (i, m) in paths.get(&v).unwrap() {
+            for (i, m) in &paths[v] {
                 let lhs = (0..P).map(|p| l[*i][*m][p]).grb_sum();
                 let rhs = problem.vessels()[v].capacity();
                 model.add_constr(&format!("bound_load_{}_{}_{}", i, m, v), c!(lhs <= rhs))?;
@@ -429,6 +447,7 @@ impl QuantityLpCont {
     ///
     /// * Set up the relation between the time of the scheduled visits for each vessel
     /// * Bound the time of the last visit to not exceed the duration of the planning period
+    /// * Set the time of the origin visits to be the time the vessels become available
     ///
     /// ## Arguments
     ///
@@ -441,7 +460,7 @@ impl QuantityLpCont {
     fn time_constraints(
         model: &mut Model,
         problem: &Problem,
-        paths: &HashMap<VesselIndex, Vec<(NodeIndex, VisitIndex)>>,
+        paths: &Vec<Vec<(NodeIndex, VisitIndex)>>,
         delay: f64,
         x: &[Vec<Vec<Var>>],
         t: &[Vec<Var>],
@@ -452,10 +471,12 @@ impl QuantityLpCont {
         for (v, p) in iproduct!(0..V, 0..P) {
             let vessel = &problem.vessels()[v];
             // if the vessel does not have a path, continue
-            let path = paths.get(&v).unwrap();
+            let path = &paths[v];
             for win in path.windows(2) {
                 let (i, m) = win[0];
                 let (j, n) = win[1];
+
+                let epsilon = if i == j { 1.0 } else { 0.0 };
 
                 // unloading rate as time per quantity
                 let time_per_quant = 1.0 / (problem.nodes()[i].max_loading_amount() as f64);
@@ -468,18 +489,25 @@ impl QuantityLpCont {
 
                 model.add_constr(
                     &format!("time_{v}_{i}_{m}_{j}_{n}"),
-                    c!(t[j][n] == t[i][m] + visit_time + sail_time + delay),
+                    c!(t[j][n] == t[i][m] + visit_time + sail_time + delay + epsilon),
                 )?;
             }
 
-            // bound the last visit to be before the end of the planning period
-            let last = paths.get(&v).unwrap().iter().last();
+            // bound the last visit to be before the end of the planning period, time steps are counted from 0
+            let last = paths[v].iter().last();
             if let Some((i, m)) = last {
                 model.add_constr(
                     &format!("upper_bound_time_{}_{}_{}", v, i, m),
-                    c!(t[*i][*m] <= T),
+                    c!(t[*i][*m] <= T - 1),
                 )?;
             }
+
+            // set the initial visit times to the time period in which the vessels become available
+            let (node, visit) = path[0];
+            model.add_constr(
+                &format!("set time of initial visit"),
+                c!(t[node][visit] == vessel.available_from()),
+            )?;
         }
 
         Ok(())
