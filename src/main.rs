@@ -27,8 +27,8 @@ pub fn run_ga(path: &str, epochs: usize) {
 
     let mut ga = GeneticAlgorithm::new(
         problem.clone(),
-        100, // population size
-        100, // child count
+        200, // population size
+        200, // child count
         InitRoutingSolution,
         parent_selection::Tournament::new(3).unwrap(),
         Stochastic::new(0.10, PIX),
@@ -62,9 +62,9 @@ pub fn run_ga(path: &str, epochs: usize) {
                 mutations::TwoOpt::new(TwoOptMode::LocalSerach(100, 1e-3))
             ) /*Stochastic::new(0.05, mutations::VesselSwap::new())*/
         ),
-        survival_selection::Elite(1, survival_selection::Proportionate(|x| 1.0 / (1.0 + x))),
+        survival_selection::Elite(3, survival_selection::Proportionate(|x| 1.0 / (1.0 + x))),
         fitness::Weighted {
-            warp: 1e7,
+            warp: 1e8,
             violation: 1e4,
             revenue: -1.0,
             cost: 1.0,
@@ -72,8 +72,8 @@ pub fn run_ga(path: &str, epochs: usize) {
     );
 
     let fitness = fitness::Weighted {
-        warp: 1e6,
-        violation: 1e3,
+        warp: 1e8,
+        violation: 1e4,
         revenue: -1.0,
         cost: 1.0,
     };
@@ -94,5 +94,5 @@ pub fn run_ga(path: &str, epochs: usize) {
 
 pub fn main() {
     println!("Hello world!");
-    run_ga("mirplib/LR1_1_DR1_3_VC1_V7a.json", 100000)
+    run_ga("mirplib/t60/LR2_22_DR3_333_VC4_V17a.json", 100000)
 }
