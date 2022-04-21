@@ -117,7 +117,7 @@ impl QuantityLpCont {
             earliest_visit_times.shuffle(&mut rng);
 
             // sort by visit time and add rank
-            earliest_visit_times.sort_by(|a, b| a.2.cmp(&b.2));
+            earliest_visit_times.sort_by_key(|x| x.2);
             earliest_visit_times.into_iter().enumerate().for_each(
                 |(rank, (vessel_idx, visit, _))| {
                     ranks.insert((vessel_idx, visit), rank);
@@ -132,7 +132,7 @@ impl QuantityLpCont {
                 plan.iter()
                     .map(|visit| {
                         let n = visit.node;
-                        let m = *ranks.get(&(vessel_idx, *visit)).unwrap();
+                        let m = ranks[&(vessel_idx, *visit)];
                         (n, m)
                     })
                     .collect::<Vec<_>>()
@@ -401,14 +401,14 @@ impl QuantityLpCont {
         // balancing
         for (v, p) in iproduct!(0..V, 0..P) {
             // v doesn't perform any visits, continue
-            if paths.get(v).unwrap().is_empty() {
+            if paths[v].is_empty() {
                 continue;
             }
 
             let initial_load = problem.vessels()[v].initial_inventory()[p];
 
             // node and call number of first visit
-            let (i, m) = (paths.get(v).unwrap()[0].0, paths.get(v).unwrap()[0].1);
+            let (i, m) = paths[v][0];
 
             let kind = problem.nodes()[i].r#type();
 
@@ -418,7 +418,7 @@ impl QuantityLpCont {
             model.add_constr(&format!("init_load_{}_{}", v, p), c!(lhs == rhs))?;
 
             // set the load for the remaining visits
-            for win in paths.get(v).unwrap().windows(2) {
+            for win in paths[v].windows(2) {
                 let (i, m) = win[0];
                 let (j, n) = win[1];
                 let next_kind = problem.nodes()[j].r#type();
@@ -431,7 +431,7 @@ impl QuantityLpCont {
 
         // bound the load to never exceed the capacity of the vessel
         for v in 0..V {
-            for (i, m) in paths.get(v).unwrap() {
+            for (i, m) in &paths[v] {
                 let lhs = (0..P).map(|p| l[*i][*m][p]).grb_sum();
                 let rhs = problem.vessels()[v].capacity();
                 model.add_constr(&format!("bound_load_{}_{}_{}", i, m, v), c!(lhs <= rhs))?;
@@ -471,7 +471,7 @@ impl QuantityLpCont {
         for (v, p) in iproduct!(0..V, 0..P) {
             let vessel = &problem.vessels()[v];
             // if the vessel does not have a path, continue
-            let path = paths.get(v).unwrap();
+            let path = &paths[v];
             for win in path.windows(2) {
                 let (i, m) = win[0];
                 let (j, n) = win[1];
@@ -494,7 +494,7 @@ impl QuantityLpCont {
             }
 
             // bound the last visit to be before the end of the planning period, time steps are counted from 0
-            let last = paths.get(v).unwrap().iter().last();
+            let last = paths[v].iter().last();
             if let Some((i, m)) = last {
                 model.add_constr(
                     &format!("upper_bound_time_{}_{}_{}", v, i, m),
@@ -503,10 +503,10 @@ impl QuantityLpCont {
             }
 
             // set the initial visit times to the time period in which the vessels become available
-            let first = path.get(0).unwrap();
+            let (node, visit) = path[0];
             model.add_constr(
                 &format!("set time of initial visit"),
-                c!(t[first.0][first.1] == vessel.available_from()),
+                c!(t[node][visit] == vessel.available_from()),
             )?;
         }
 
