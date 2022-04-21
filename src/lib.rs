@@ -4,7 +4,6 @@ pub mod models;
 pub mod problem;
 pub mod python;
 pub mod quants;
-pub mod route_pool;
 pub mod solution;
 pub mod utils;
 
