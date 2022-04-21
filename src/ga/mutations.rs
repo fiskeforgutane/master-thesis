@@ -1,6 +1,6 @@
-use std::{cmp::Ordering, collections::HashSet, time::Instant};
-
 use grb::{attr, Status};
+
+use std::{collections::HashSet, time::Instant};
 
 use float_ord::FloatOrd;
 use itertools::Itertools;
@@ -11,7 +11,7 @@ use rand::prelude::*;
 use crate::{
     ga::Mutation,
     models::{quantity::QuantityLp, quantity_cont::QuantityLpCont},
-    problem::{Node, NodeIndex, NodeType, Problem, TimeIndex, Vessel, VesselIndex},
+    problem::{Node, NodeIndex, NodeType, Problem, ProductIndex, TimeIndex, Vessel, VesselIndex},
     solution::{
         routing::{Plan, PlanMut, RoutingSolution},
         Visit,
@@ -1147,34 +1147,24 @@ impl AddSmart {
         let lp = solution.quantities();
         let w = &lp.vars.w;
 
-        let get = |var: &grb::Var, model: &grb::Model| -> f64 {
-            model
+        let get = |var: &grb::Var| -> f64 {
+            lp.model
                 .get_obj_attr(grb::attr::X, var)
                 .expect("failed to retrieve variable value")
         };
 
-        let comparer = |a: (usize, usize, usize, usize),
-                        b: (usize, usize, usize, usize),
-                        model: &grb::Model|
-         -> Option<Ordering> {
-            let (t, n, _, p) = (a.0, a.1, a.2, a.2);
-            let (t1, n1, _, p1) = (b.0, b.1, b.2, b.3);
-            let first = get(&w[t][n][p], &model);
-            let second = get(&w[t1][n1][p1], &model);
-
-            f64::abs(first).partial_cmp(&f64::abs(second))
+        let key = |&(t, n, _, p): &(TimeIndex, NodeIndex, VesselIndex, ProductIndex)| {
+            FloatOrd(get(&w[t][n][p]).abs())
         };
 
-        let max_violation_key = QuantityLp::active(solution)
-            .max_by(|a, b| comparer(*a, *b, &lp.model).unwrap())
-            .unwrap();
+        let max_violation_key = QuantityLp::active(solution).max_by_key(key).unwrap();
 
         let (time, node, _, product) = max_violation_key.into();
 
         // backtrack to find the time period in which the violation started
         let violation_start = (0..time)
             .rev()
-            .find_or_last(|t| f64::abs(get(&w[*t][node][product], &lp.model)) <= 1e-5)
+            .find_or_last(|t| f64::abs(get(&w[*t][node][product])) <= 1e-5)
             .unwrap();
 
         (node, violation_start)
@@ -1212,10 +1202,14 @@ impl AddSmart {
             // check that neither the previous, current, nor the next visit is at the given node
             let range = (0.max(closest_in_time.0 as isize - 1) as usize)
                 ..(plan.len() - 1).min(closest_in_time.0 + 1);
+            let mut flag = false;
             for visit_idx in range {
                 if plan[visit_idx].node == node {
-                    continue;
+                    flag = true
                 }
+            }
+            if flag {
+                continue;
             }
 
             // add the vessel and the distance to the node at the time
@@ -1223,12 +1217,8 @@ impl AddSmart {
             vessels.push((v, dist));
         }
 
-        let closest = vessels.iter().min_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
-        match closest {
-            Some(x) => Some(x.0),
-            None => None,
-        }
+        let closest = vessels.iter().min_by_key(|x| FloatOrd(x.1));
+        closest.map(|(v, _)| *v)
     }
 }
 
@@ -1246,7 +1236,10 @@ impl Mutation for AddSmart {
                 // fix the plan
                 plan.fix();
             }
-            None => todo!(),
+            None => {
+                warn!("AddSmart found no closest vessel");
+                return;
+            }
         }
     }
 }
