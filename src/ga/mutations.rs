@@ -1,4 +1,4 @@
-use std::{collections::HashSet, time::Instant};
+use std::{cmp::Ordering, collections::HashSet, time::Instant};
 
 use grb::{attr, Status};
 
@@ -10,8 +10,8 @@ use rand::prelude::*;
 
 use crate::{
     ga::Mutation,
-    models::quantity_cont::QuantityLpCont,
-    problem::{Node, NodeType, Problem, Vessel, VesselIndex},
+    models::{quantity::QuantityLp, quantity_cont::QuantityLpCont},
+    problem::{Node, NodeIndex, NodeType, Problem, TimeIndex, Vessel, VesselIndex},
     solution::{
         routing::{Plan, PlanMut, RoutingSolution},
         Visit,
@@ -1128,6 +1128,125 @@ impl Mutation for TimeSetter {
                 }
             }
             Err(_) => return,
+        }
+    }
+}
+
+/// Mutation that exploits the output for the quantity model to eliminate shortages. This is done in two steps.
+/// 1. Identify the node experiencing the single largest shortage.
+/// 2. Try to eliminate this shortage by adding a visit to this node prior to the shortage. To choose the vessel to perform the visit we select among those not visiting the node in the relevant
+/// time interval, and pick the one that is closest to the node.
+pub struct AddSmart;
+
+impl AddSmart {
+    /// Returns the node experiencing the most significant violation throughout the time period, as well as the time period prior to when this violation started
+    ///
+    /// # Arguments
+    /// * `solution` - The routing solution that should be investigated
+    pub fn most_significant_violation(solution: &RoutingSolution) -> (NodeIndex, TimeIndex) {
+        let lp = solution.quantities();
+        let w = &lp.vars.w;
+
+        let get = |var: &grb::Var, model: &grb::Model| -> f64 {
+            model
+                .get_obj_attr(grb::attr::X, var)
+                .expect("failed to retrieve variable value")
+        };
+
+        let comparer = |a: (usize, usize, usize, usize),
+                        b: (usize, usize, usize, usize),
+                        model: &grb::Model|
+         -> Option<Ordering> {
+            let (t, n, _, p) = (a.0, a.1, a.2, a.2);
+            let (t1, n1, _, p1) = (b.0, b.1, b.2, b.3);
+            let first = get(&w[t][n][p], &model);
+            let second = get(&w[t1][n1][p1], &model);
+
+            f64::abs(first).partial_cmp(&f64::abs(second))
+        };
+
+        let max_violation_key = QuantityLp::active(solution)
+            .max_by(|a, b| comparer(*a, *b, &lp.model).unwrap())
+            .unwrap();
+
+        let (time, node, _, product) = max_violation_key.into();
+
+        // backtrack to find the time period in which the violation started
+        let violation_start = (0..time)
+            .rev()
+            .find_or_last(|t| f64::abs(get(&w[*t][node][product], &lp.model)) <= 1e-5)
+            .unwrap();
+
+        (node, violation_start)
+    }
+
+    /// Retrieves the vessel that is closest to the given node at the given time.
+    /// The returned vessel does not visit the node either in its next or prior visit.
+    /// If all vessels visit this node in the previous or next visit, it returns None
+    ///
+    /// # Arguments
+    /// * `problem` - The underlying problem
+    /// * `solution` - The routing solution to investigate
+    /// * `node` - The index of the node to visit
+    /// * `time` - The time period in which the node should be visited
+    pub fn find_closest_vessel(
+        problem: &Problem,
+        solution: &RoutingSolution,
+        node: NodeIndex,
+        time: TimeIndex,
+    ) -> Option<VesselIndex> {
+        let mut vessels = Vec::new();
+        for v in 0..problem.vessels().len() {
+            let plan = &solution[v];
+            // find the visit in the plan closest in time
+            let closest_in_time = plan
+                .iter()
+                .enumerate()
+                .min_by(|a, b| {
+                    let a = isize::abs(a.1.time as isize - time as isize);
+                    let b = isize::abs(b.1.time as isize - time as isize);
+                    a.cmp(&b)
+                })
+                .unwrap();
+
+            // check that neither the previous, current, nor the next visit is at the given node
+            let range = (0.max(closest_in_time.0 as isize - 1) as usize)
+                ..(plan.len() - 1).min(closest_in_time.0 + 1);
+            for visit_idx in range {
+                if plan[visit_idx].node == node {
+                    continue;
+                }
+            }
+
+            // add the vessel and the distance to the node at the time
+            let dist = problem.distance(closest_in_time.1.node, node);
+            vessels.push((v, dist));
+        }
+
+        let closest = vessels.iter().min_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        match closest {
+            Some(x) => Some(x.0),
+            None => None,
+        }
+    }
+}
+
+impl Mutation for AddSmart {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        let (node, time) = Self::most_significant_violation(solution);
+        let closest_vessel = Self::find_closest_vessel(problem, solution, node, time);
+
+        match closest_vessel {
+            Some(v) => {
+                let mutator = &mut solution.mutate();
+                // get the plan of the vessel
+                let plan = &mut mutator[v].mutate();
+                plan.push(Visit { node, time });
+                // fix the plan
+                plan.fix();
+            }
+            None => todo!(),
         }
     }
 }
