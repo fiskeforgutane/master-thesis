@@ -1,4 +1,3 @@
-use rand::{self, SeedableRng};
 use std::sync::Arc;
 pub mod ga;
 pub mod models;
@@ -20,7 +19,7 @@ use crate::problem::Problem;
 
 pub fn run_ga(path: &str, epochs: usize) {
     let file = std::fs::File::open(path).unwrap();
-    let mut reader = std::io::BufReader::new(file);
+    let reader = std::io::BufReader::new(file);
 
     let problem: Problem = serde_json::from_reader(reader).unwrap();
     let problem = Arc::new(problem);
