@@ -1203,7 +1203,7 @@ impl AddSmart {
         let mut vessels = Vec::new();
         for v in 0..problem.vessels().len() {
             // if the vessel it not available, continue
-            if problem.vessels()[v].available_from() <= time {
+            if time <= problem.vessels()[v].available_from() {
                 continue;
             }
 
