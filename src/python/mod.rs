@@ -105,6 +105,10 @@ impl Problem {
             .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
     }
 
+    pub fn solution_from_json(&self, string: &str) -> PyResult<Vec<Vec<Visit>>> {
+        serde_json::from_str(string).map_err(pyerr)
+    }
+
     pub fn json(&self) -> PyResult<String> {
         serde_json::to_string_pretty(self).map_err(pyerr)
     }

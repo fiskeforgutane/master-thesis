@@ -7,6 +7,7 @@ use std::{ops::Deref, sync::Arc};
 use itertools::Itertools;
 use log::trace;
 use pyo3::pyclass;
+use serde::{Deserialize, Serialize};
 
 use crate::models::quantity::{QuantityLp, Variables};
 use crate::problem::{Cost, Inventory, Problem, Product, Quantity, VesselIndex};
@@ -15,7 +16,7 @@ use crate::solution::Visit;
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
 /// There are no restrictions on the ordering of the visits.
 #[pyclass]
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Plan {
     /// The origin visit of this plan
     origin: Visit,
