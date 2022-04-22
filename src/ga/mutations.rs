@@ -1186,6 +1186,7 @@ impl AddSmart {
 
     /// Retrieves the vessel that is closest to the given node at the given time.
     /// The returned vessel does not visit the node either in its next or prior visit.
+    /// The vessel must also be availble
     /// If all vessels visit this node in the previous or next visit, it returns None
     ///
     /// # Arguments
@@ -1201,6 +1202,11 @@ impl AddSmart {
     ) -> Option<VesselIndex> {
         let mut vessels = Vec::new();
         for v in 0..problem.vessels().len() {
+            // if the vessel it not available, continue
+            if problem.vessels()[v].available_from() <= time {
+                continue;
+            }
+
             let plan = &solution[v];
             // find the visit in the plan closest in time
             let closest_in_time = plan
