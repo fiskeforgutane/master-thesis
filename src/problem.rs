@@ -155,7 +155,7 @@ impl Problem {
             false => vessel.travel_unit_cost(),
         };
 
-        self.travel_time(from, to, vessel) as f64 * unit_cost
+        self.distance(from, to) * unit_cost
     }
 
     /// Return the `origin` visit of a `vessel`
