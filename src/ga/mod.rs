@@ -16,9 +16,29 @@ pub use traits::*;
 
 use crate::{problem::Problem, solution::routing::RoutingSolution};
 
+#[derive(Debug, Clone)]
+pub struct Config<PS, R, M, S, F> {
+    /// The problem specification
+    pub problem: Arc<Problem>,
+    /// Size of population (equal to population.len())
+    pub population_size: usize,
+    /// Number of children to generate before selecting
+    pub child_count: usize,
+    /// Select a parent for reproduction from the current population
+    pub parent_selection: PS,
+    /// Recombine two individuals into one or several offsprings
+    pub recombination: R,
+    /// Mutate an offspring
+    pub mutation: M,
+    /// Select the next population based on the parents and children
+    pub selection: S,
+    /// The fitness function of the genetic algorithm
+    pub fitness: F,
+}
+
 /// A general implementation of a genetic algorithm.
 pub struct GeneticAlgorithm<PS, R, M, S, F> {
-    /// The Multi-Depot Vehicle Routing Problem specification
+    /// The problem specification
     pub problem: Arc<Problem>,
     /// The current population of solution candidates
     pub population: Vec<RoutingSolution>,
