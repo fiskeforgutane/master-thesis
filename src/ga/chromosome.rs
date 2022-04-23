@@ -74,6 +74,8 @@ impl Chromosome {
             })
             .collect();
 
+        println!("Node types: {:?}", node_types);
+
         // Serve all orders in chronological order
         for order in &initial_orders {
             // Select a random serve time between the opening and closing of the order's serving window
@@ -124,6 +126,8 @@ impl Chromosome {
             let chosen = scores.iter().filter(
                 |v| v.1 == high_score
             ).choose(&mut rng).unwrap().0;
+
+            println!("Scores: {:?}   :::    Chosen: {:?}", scores, chosen);
 
             chromosome
                 .get_mut(chosen)
