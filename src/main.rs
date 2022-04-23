@@ -117,7 +117,7 @@ pub fn run_ga(path: &str, epochs: usize) {
 pub fn main() {
     println!("Hello world!");
     run_ga(
-        "/Users/akselborgen/master-playground/mirplib-rs/t120/LR1_1_DR1_3_VC1_V7a.json",
+        "/Users/sjurwold/Documents/NTNU/TIO4905/master/master-playground/mirplib-rs/t60/LR1_1_DR1_4_VC3_V8a.json",
         100000,
     )
 }

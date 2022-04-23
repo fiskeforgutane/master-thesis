@@ -244,6 +244,11 @@ impl Compartment {
 
 #[pymethods]
 impl Chromosome {
+    #[new]
+    pub fn new_py(problem: &Problem) -> PyResult<Chromosome> {
+        Chromosome::new(problem).map_err(pyerr)
+    }
+
     pub fn __str__(&self) -> String {
         format!("{:#?}", self)
     }
