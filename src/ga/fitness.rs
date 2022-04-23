@@ -20,6 +20,11 @@ impl Fitness for Weighted {
         let revenue = solution.revenue();
         let cost = solution.cost();
 
-        warp * self.warp + violation * self.violation + cost * self.cost + revenue * self.revenue
+        (warp * self.warp
+            + violation * self.violation
+            + cost * self.cost
+            + revenue * self.revenue
+            + 100000.0)
+            .ln()
     }
 }
