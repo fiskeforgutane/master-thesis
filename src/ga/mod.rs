@@ -9,7 +9,10 @@ pub mod recombinations;
 pub mod survival_selection;
 pub mod traits;
 
-use std::{sync::Arc, thread::JoinHandle};
+use std::{
+    sync::{mpsc::TryRecvError, Arc},
+    thread::JoinHandle,
+};
 
 use log::{info, trace};
 pub use traits::*;
@@ -90,12 +93,14 @@ where
                 let mut ga = GeneticAlgorithm::new(init, config);
 
                 loop {
-                    match rx.recv_timeout(std::time::Duration::from_millis(100)) {
+                    match rx.try_recv() {
                         // TODO: do something
                         Ok(MTS::Terminate) => return (),
                         Ok(MTS::Echo) => stm.send(STM::Ack).unwrap(),
-                        // If we timeout, there is simply no message available for us
-                        Err(_) => (),
+                        // If there is nothing awaiting processing, we will just continue to the GA epoch
+                        Err(TryRecvError::Empty) => (),
+                        // This should not happen
+                        Err(TryRecvError::Disconnected) => panic!("master tx disconnected"),
                     }
                     ga.epoch();
                 }
@@ -115,11 +120,14 @@ where
 
 impl<PS, R, M, S, F> Drop for ConcurrentGA<PS, R, M, S, F> {
     fn drop(&mut self) {
-        for tx in self.txs {
-            tx.send(MTS::Terminate);
+        for tx in &self.txs {
+            tx.send(MTS::Terminate).expect("sending failed");
         }
 
-        for handle in self.handles {
+        // We need the join handles by value
+        let handles = std::mem::replace(&mut self.handles, Vec::new());
+
+        for handle in handles {
             handle.join().expect("worker thread panic");
         }
     }
