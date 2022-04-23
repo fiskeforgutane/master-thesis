@@ -333,8 +333,8 @@ pub fn solve_quantities(
 ) -> PyResult<F64Variables> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
-    lp.configure(&solution).map_err(pyerr)?;
     lp.set_semicont(semicont);
+    lp.configure(&solution).map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
     Ok(res)
 }
