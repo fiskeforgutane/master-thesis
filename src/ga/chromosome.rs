@@ -79,6 +79,63 @@ impl Chromosome {
             // Select a random serve time between the opening and closing of the order's serving window
             let serve_time = rng.gen_range(order.open()..(order.close() + 1));
 
+            /*
+            Idea: rank the vessels based on a set of factors.
+            Factors:
+                1. If the last visit of the vessel was to the same node
+                2. If both the current order and the last serving of the vessel were to production nodes
+                3. If the vessel isn't serving another order at or after the serve time
+                4. If the vessel can make it to the order in time for the serving time
+            */
+
+            let mut scores = vessels.iter().map(
+                |v| {
+                    let mut score = 0; 
+
+                    if chromosome.get(v.index()).unwrap().last().unwrap().node != order.node() {
+                        score += 8;
+                    }
+                    
+                    match problem.nodes().get(chromosome.get(v.index()).unwrap().last().unwrap().node).unwrap().r#type() {
+                        crate::problem::NodeType::Consumption => score += 4,
+                        crate::problem::NodeType::Production =>
+                            match problem.nodes().get(order.node()).unwrap().r#type() {
+                                crate::problem::NodeType::Consumption => score += 4,
+                                crate::problem::NodeType::Production => ()
+                            },
+                    }
+
+                    if avail_from[&v.index()].1 < serve_time {
+                        score += 2;
+                    }
+
+                    if avail_from[&v.index()].1 + problem.travel_time(avail_from[&v.index()].0, order.node(), v) <= serve_time {
+                        score += 1;
+                    }
+
+                    (v.index(), score)
+                }
+            ).collect::<Vec<_>>();
+
+            scores.sort_by_key(|k| k.1);
+            scores.reverse();
+            let high_score = scores[0].1;
+
+            let chosen = scores.iter().filter(
+                |v| v.1 == high_score
+            ).choose(&mut rng).unwrap().0;
+
+            chromosome
+                .get_mut(chosen)
+                .unwrap()
+                .push(Visit::new(problem, order.node(), serve_time).unwrap());
+
+            avail_from.insert(chosen, (order.node(), serve_time + 1));
+        }
+
+        Ok(Self { chromosome })
+
+            /*
             // To avoid multiple consequtive production site visits, if the current order is to a production site, all
             // vessels currently located at a production node are filtered
             let possible_vessel_ids: Vec<VesselIndex> = match problem.nodes().get(order.node()).unwrap().r#type() {
@@ -139,9 +196,9 @@ impl Chromosome {
             }
         }
 
-        Ok(Self { chromosome })
+         */
     }
-    
+
     pub fn get_chromosome(&self) -> &Vec<Vec<Visit>> {
         &self.chromosome
     }
