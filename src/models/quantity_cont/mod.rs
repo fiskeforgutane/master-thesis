@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use grb::{attr, c, expr::GurobiSum, param, Constr, Model, Var};
+use grb::{attr, c, expr::GurobiSum, Constr, Model, Var};
 use itertools::{iproduct, Itertools};
 use log::trace;
 use pyo3::pyclass;
@@ -476,6 +476,7 @@ impl QuantityLpCont {
                 let (i, m) = win[0];
                 let (j, n) = win[1];
 
+                // force the vessel to use at most one time period when two consecutive visits are to the same node
                 let epsilon = if i == j { 1.0 } else { 0.0 };
 
                 // unloading rate as time per quantity
@@ -487,9 +488,12 @@ impl QuantityLpCont {
                 // sailing time from i to j
                 let sail_time = problem.travel_time(i, j, vessel);
 
+                // allow loading/unloading in the same period as leaving for the next port
+                let adjuster = if sail_time > 0 { 1.0 } else { 0.0 };
+
                 model.add_constr(
                     &format!("time_{v}_{i}_{m}_{j}_{n}"),
-                    c!(t[j][n] == t[i][m] + visit_time + sail_time + delay + epsilon),
+                    c!(t[j][n] == t[i][m] + visit_time + sail_time + delay + epsilon - adjuster),
                 )?;
             }
 
