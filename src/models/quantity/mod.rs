@@ -15,6 +15,7 @@ pub struct Variables {
     pub x: Vec<Vec<Vec<Vec<Var>>>>,
     pub s: Vec<Vec<Vec<Var>>>,
     pub l: Vec<Vec<Vec<Var>>>,
+    pub b: Vec<Vec<Vec<Var>>>,
 }
 
 #[pyclass]
@@ -33,6 +34,7 @@ pub struct QuantityLp {
     pub model: Model,
     pub vars: Variables,
     pub semicont: bool,
+    pub berth: bool,
 }
 
 impl QuantityLp {
@@ -141,6 +143,39 @@ impl QuantityLp {
         Ok(())
     }
 
+    fn berth_capacity(
+        model: &mut Model,
+        problem: &Problem,
+        x: &[Vec<Vec<Vec<Var>>>],
+        t: usize,
+        n: usize,
+        v: usize,
+        p: usize,
+        b: &[Vec<Vec<Var>>],
+    ) -> grb::Result<()> {
+        for (node, time) in iproduct!(0..n, 0..t) {
+            let berth_cap = problem.nodes()[n].port_capacity()[time];
+            model.add_constr(
+                &format!("berth_{}_{}", node, time),
+                c!(b[node][time].iter().grb_sum() <= berth_cap),
+            )?;
+        }
+
+        for (node, time, vessel) in iproduct!(0..n, 0..t, 0..v) {
+            let kind = problem.nodes()[n].r#type();
+            let big_m = match kind {
+                NodeType::Consumption => problem.nodes()[n].max_loading_amount(),
+                NodeType::Production => (0..p).map(|p| problem.nodes()[n].capacity()[p]).sum(),
+            };
+            model.add_constr(
+                &format!("force_berth_{}_{}_{}", node, time, vessel),
+                c!(x[time][node][vessel].iter().grb_sum() <= big_m * b[node][time][vessel]),
+            )?;
+        }
+
+        Ok(())
+    }
+
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
             NodeType::Consumption => -1.0,
@@ -163,19 +198,22 @@ impl QuantityLp {
         let x = (t, n, v, p).cont(&mut model, "x")?;
         let s = (t, n, p).free(&mut model, "s")?;
         let l = (t, v, p).cont(&mut model, "l")?;
+        let b = (t, n, v).cont(&mut model, "b")?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
         QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, t, n, v, p)?;
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
+        QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
 
         let obj = w.iter().flatten().flatten().grb_sum();
         model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
             model,
-            vars: Variables { w, x, s, l },
+            vars: Variables { w, x, s, l, b },
             semicont: false,
+            berth: false,
         })
     }
 
@@ -207,13 +245,17 @@ impl QuantityLp {
             })
     }
 
-    // set variable type for x-variable
-    pub fn set_semicont(&mut self, semicont: bool) {
-        self.semicont = semicont;
-    }
-
     /// Set up the model to be ready to solve quantities for `solution`.
-    pub fn configure(&mut self, solution: &RoutingSolution) -> grb::Result<()> {
+    pub fn configure(
+        &mut self,
+        solution: &RoutingSolution,
+        semicont: bool,
+        berth: bool,
+    ) -> grb::Result<()> {
+        self.semicont = semicont;
+
+        self.berth = berth;
+
         // By default: disable `all` variables
         let model = &self.model;
         let problem = solution.problem();
@@ -241,6 +283,17 @@ impl QuantityLp {
         model.set_obj_attr_batch(
             grb::attr::VType,
             Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
+        )?;
+
+        let vtype = match self.semicont {
+            true => grb::VarType::Binary,
+            false => grb::VarType::Continuous,
+        };
+
+        // set variable type
+        model.set_obj_attr_batch(
+            grb::attr::VType,
+            Self::active(solution).map(|(t, n, v, _)| (self.vars.b[t][n][v], vtype)),
         )?;
 
         // set lower bound
