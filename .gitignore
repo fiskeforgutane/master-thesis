@@ -4,3 +4,6 @@ Cargo.lock
 **/.DS_Store
 *gurobi.log
 *.lp
+*.ipynb
+mirplib/**
+solutions/**
