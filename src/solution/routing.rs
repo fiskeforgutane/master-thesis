@@ -348,7 +348,7 @@ impl RoutingSolution {
             let first = Visit { node, time };
             let end = plan.last().map(|v| Visit {
                 node: v.node,
-                time: self.problem.timesteps(),
+                time: self.problem.timesteps() - 1,
             });
 
             assert!(plan.first() == Some(&first));

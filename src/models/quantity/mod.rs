@@ -201,7 +201,7 @@ impl QuantityLp {
                     let rate = problem.nodes()[v1.node].min_unloading_amount();
                     let max_loading_time = (vessel.capacity() / rate).ceil() as usize;
 
-                    (v1.time..departure_time.min(v1.time + max_loading_time))
+                    (v1.time..=departure_time.min(v1.time + max_loading_time))
                         .flat_map(move |t| (0..p).map(move |p| (t, v1.node, v, p)))
                 })
             })

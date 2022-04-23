@@ -326,9 +326,14 @@ pub fn initial_orders(problem: &Problem) -> PyResult<Vec<Order>> {
 }
 
 #[pyfunction]
-pub fn solve_quantities(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<F64Variables> {
+pub fn solve_quantities(
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+    semicont: bool,
+) -> PyResult<F64Variables> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
+    lp.set_semicont(semicont);
     lp.configure(&solution).map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
     Ok(res)
