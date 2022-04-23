@@ -38,8 +38,6 @@ pub struct Config<PS, R, M, S, F> {
 
 /// A general implementation of a genetic algorithm.
 pub struct GeneticAlgorithm<PS, R, M, S, F> {
-    /// The problem specification
-    pub problem: Arc<Problem>,
     /// The current population of solution candidates
     pub population: Vec<RoutingSolution>,
     /// Will contain the generated population of children
@@ -47,21 +45,8 @@ pub struct GeneticAlgorithm<PS, R, M, S, F> {
     /// Will house the next generation of solution candidates, selected from (population, parent_population, child_population)
     next_population: Vec<RoutingSolution>,
 
-    /// Size of population (equal to population.len())
-    pub population_size: usize,
-    /// Number of children to generate before selecting
-    pub child_count: usize,
-
-    /// Select a parent for reproduction from the current population
-    pub parent_selection: PS,
-    /// Recombine two individuals into one or several offsprings
-    pub recombination: R,
-    /// Mutate an offspring
-    pub mutation: M,
-    /// Select the next population based on the parents and children
-    pub selection: S,
-    /// The fitness function of the genetic algorithm
-    pub fitness: F,
+    /// The configuration of the GA
+    pub config: Config<PS, R, M, S, F>,
 }
 
 impl<PS, R, M, S, F> GeneticAlgorithm<PS, R, M, S, F>
@@ -108,17 +93,19 @@ where
         let dummy = population.first().unwrap().clone();
 
         GeneticAlgorithm {
-            problem,
             population,
             child_population: vec![dummy.clone(); child_count],
             next_population: vec![dummy; population_size],
-            population_size,
-            child_count,
-            parent_selection,
-            recombination,
-            mutation,
-            selection,
-            fitness,
+            config: Config {
+                problem,
+                population_size,
+                child_count,
+                parent_selection,
+                recombination,
+                mutation,
+                selection,
+                fitness,
+            },
         }
     }
 
@@ -128,7 +115,7 @@ where
         let mut best_z = std::f64::INFINITY;
 
         for solution in &self.population {
-            let z = self.fitness.of(&self.problem, solution);
+            let z = self.config.fitness.of(&self.config.problem, solution);
             if z < best_z {
                 best = solution;
                 best_z = z;
@@ -140,29 +127,29 @@ where
 
     pub fn epoch(&mut self) {
         trace!("Start of epoch");
-        let problem = &self.problem;
-        let fitness = &self.fitness;
+        let problem = &self.config.problem;
+        let fitness = &self.config.fitness;
         let population = &mut self.population;
         let children = &mut self.child_population;
         let next = &mut self.next_population;
         // This could potentially be reused, but I don't think it's worth it.
-        let mut parents = Vec::with_capacity(self.child_count);
+        let mut parents = Vec::with_capacity(self.config.child_count);
 
         // Initialize the parent selection with the current population
         trace!("Initializing parent selection");
-        self.parent_selection.init(
+        self.config.parent_selection.init(
             population
                 .iter()
-                .map(|x| self.fitness.of(problem, x))
+                .map(|x| self.config.fitness.of(problem, x))
                 .collect(),
         );
 
-        assert!(self.child_count == children.len());
+        assert!(self.config.child_count == children.len());
 
         trace!("Selecting parents");
         // Sample `child_count` parents from the parent selection strategy, which will be the base for offsprings
-        for i in 0..self.child_count {
-            let p = &population[self.parent_selection.sample()];
+        for i in 0..self.config.child_count {
+            let p = &population[self.config.parent_selection.sample()];
             parents.push(p);
             children[i].clone_from(p);
         }
@@ -173,20 +160,20 @@ where
         for w in children.chunks_exact_mut(2) {
             if let [left, right] = w {
                 trace!("Applying recombination");
-                self.recombination.apply(problem, left, right);
+                self.config.recombination.apply(problem, left, right);
                 trace!("Applying mutation to left");
-                self.mutation.apply(problem, left);
+                self.config.mutation.apply(problem, left);
                 trace!("Applying mutation to right");
-                self.mutation.apply(problem, right);
+                self.config.mutation.apply(problem, right);
                 trace!("finished with recomb and mutations")
             }
         }
 
         // After having generated the parents and children, we will select the new population based on it
-        assert!(self.population_size == next.len());
+        assert!(self.config.population_size == next.len());
         // TODO: actually use feasibility of problem (currently just set to `true`).
         trace!("Selecting survivors");
-        self.selection.select_survivors(
+        self.config.selection.select_survivors(
             |x: &RoutingSolution| fitness.of(problem, x),
             population,
             &parents,

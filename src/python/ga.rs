@@ -385,7 +385,7 @@ impl PyGA {
 
     pub fn population(&self) -> Vec<(Vec<Vec<Visit>>, F64Variables, f64, (f64, f64, f64, f64))> {
         let ga = self.inner.lock().unwrap();
-        let problem = &ga.problem;
+        let problem = &ga.config.problem;
         ga.population
             .iter()
             .map(|solution| {
@@ -409,7 +409,7 @@ impl PyGA {
                     solution.cost(),
                 );
 
-                (routing, v, ga.fitness.of(problem, solution), obj)
+                (routing, v, ga.config.fitness.of(problem, solution), obj)
             })
             .collect::<Vec<_>>()
     }
