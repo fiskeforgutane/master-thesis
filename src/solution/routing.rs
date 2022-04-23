@@ -93,8 +93,8 @@ impl Plan {
             first.unwrap().node
         );
         assert!(first.map(|&v| v == origin).unwrap_or(false));
+        
         // Enforce that there is at least one time step between consecutive visits
-
         assert!(sorted
             .iter()
             .tuple_windows()

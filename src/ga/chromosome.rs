@@ -1,5 +1,6 @@
 use pyo3::pyclass;
 use rand::{prelude::IteratorRandom, Rng};
+use serde::ser;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
@@ -74,12 +75,13 @@ impl Chromosome {
             })
             .collect();
 
-        println!("Node types: {:?}", node_types);
-
         // Serve all orders in chronological order
         for order in &initial_orders {
             // Select a random serve time between the opening and closing of the order's serving window
-            let serve_time = rng.gen_range(order.open()..(order.close() + 1));
+            let mut serve_time = rng.gen_range(order.open()..(order.close() + 1));
+
+            //println!("Serve time: {}", serve_time);
+            //println!("Vessels available from: {:?}", avail_from);
 
             /*
             Idea: rank the vessels based on a set of factors.
@@ -93,6 +95,14 @@ impl Chromosome {
             let mut scores = vessels.iter().map(
                 |v| {
                     let mut score = 0; 
+
+                    if serve_time <= v.available_from() + 1 {
+                        score -= 64;
+                    }
+
+                    if serve_time <= avail_from[&v.index()].1 + 1 {
+                        score -= 32;
+                    }
 
                     if chromosome.get(v.index()).unwrap().last().unwrap().node != order.node() {
                         score += 8;
@@ -127,14 +137,20 @@ impl Chromosome {
                 |v| v.1 == high_score
             ).choose(&mut rng).unwrap().0;
 
-            println!("Scores: {:?}   :::    Chosen: {:?}", scores, chosen);
+            //println!("Scores: {:?}    :::    Chosen: {:?}", scores, chosen);
+
+            if high_score < 0 {
+                serve_time = std::cmp::min(problem.timesteps(), avail_from[&chosen].1 + problem.travel_time(avail_from[&chosen].0, order.node(), &vessels[chosen]) + 1);
+                avail_from.insert(chosen, (order.node(), serve_time));
+            }
+            else {
+                avail_from.insert(chosen, (order.node(), serve_time + 1));
+            }
 
             chromosome
                 .get_mut(chosen)
                 .unwrap()
                 .push(Visit::new(problem, order.node(), serve_time).unwrap());
-
-            avail_from.insert(chosen, (order.node(), serve_time + 1));
         }
 
         Ok(Self { chromosome })
