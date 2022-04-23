@@ -366,15 +366,17 @@ impl PyGA {
     ) -> Self {
         PyGA {
             inner: Arc::new(Mutex::new(GeneticAlgorithm::new(
-                Arc::new(problem),
-                population_size,
-                child_count,
                 InitRoutingSolution,
-                parent_selection,
-                recombination,
-                mutation,
-                selection,
-                fitness,
+                ga::Config {
+                    problem: Arc::new(problem),
+                    population_size,
+                    child_count,
+                    parent_selection,
+                    recombination,
+                    mutation,
+                    selection,
+                    fitness,
+                },
             ))),
         }
     }

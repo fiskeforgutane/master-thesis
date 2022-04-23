@@ -28,51 +28,56 @@ pub fn run_ga(path: &str, epochs: usize) {
     let problem = Arc::new(problem);
 
     let mut ga = GeneticAlgorithm::new(
-        problem.clone(),
-        100, // population size
-        100, // child count
         InitRoutingSolution,
-        parent_selection::Tournament::new(3).unwrap(),
-        Stochastic::new(0.10, PIX),
-        chain!(
-            Stochastic::new(0.03, mutations::AddRandom::new()),
-            Stochastic::new(0.03, mutations::RemoveRandom::new()),
-            // Stochastic::new(0.05, mutations::BestMove::new()),
-            /*Stochastic::new(
-                0.05,
-                mutations::DistanceReduction::new(mutations::DistanceReductionMode::All)
+        ga::Config {
+            problem: problem.clone(),
+            population_size: 100,
+            child_count: 100,
+            parent_selection: parent_selection::Tournament::new(3).unwrap(),
+            recombination: Stochastic::new(0.10, PIX),
+            mutation: chain!(
+                Stochastic::new(0.03, mutations::AddRandom::new()),
+                Stochastic::new(0.03, mutations::RemoveRandom::new()),
+                // Stochastic::new(0.05, mutations::BestMove::new()),
+                /*Stochastic::new(
+                    0.05,
+                    mutations::DistanceReduction::new(mutations::DistanceReductionMode::All)
+                ),
+                Stochastic::new(
+                    0.05,
+                    mutations::DistanceReduction::new(mutations::DistanceReductionMode::Random)
+                ),*/
+                Stochastic::new(0.03, mutations::InterSwap),
+                Stochastic::new(0.03, mutations::IntraSwap),
+                Stochastic::new(0.03, mutations::RedCost::red_cost_mutation(10)),
+                //Stochastic::new(0.05, mutations::RedCost::red_cost_local_search(10)),
+                // Stochastic::new(0.05, mutations::TimeSetter::new(0.5).unwrap()),
+                Stochastic::new(0.03, mutations::Twerk::everybody()),
+                Stochastic::new(0.03, mutations::Twerk::some_random_person()),
+                Stochastic::new(0.03, mutations::TwoOpt::new(TwoOptMode::IntraRandom)),
+                Stochastic::new(
+                    0.00,
+                    mutations::TwoOpt::new(TwoOptMode::LocalSerach(100, 1e-3))
+                ), /*Stochastic::new(0.05, mutations::VesselSwap::new())*/
+                Stochastic::new(0.03, mutations::TimeSetter::new(0.4).unwrap()),
+                Stochastic::new(0.03, mutations::TimeSetter::new(0.0).unwrap()), // Stochastic::new(0.05, mutations::AddSmart)
+                Stochastic::new(0.03, mutations::Bounce::new(3, mutations::BounceMode::All)),
+                Stochastic::new(
+                    0.03,
+                    mutations::Bounce::new(3, mutations::BounceMode::Random)
+                ),
+                Stochastic::new(0.03, mutations::AddSmart)
             ),
-            Stochastic::new(
-                0.05,
-                mutations::DistanceReduction::new(mutations::DistanceReductionMode::Random)
-            ),*/
-            Stochastic::new(0.03, mutations::InterSwap),
-            Stochastic::new(0.03, mutations::IntraSwap),
-            Stochastic::new(0.03, mutations::RedCost::red_cost_mutation(10)),
-            //Stochastic::new(0.05, mutations::RedCost::red_cost_local_search(10)),
-            // Stochastic::new(0.05, mutations::TimeSetter::new(0.5).unwrap()),
-            Stochastic::new(0.03, mutations::Twerk::everybody()),
-            Stochastic::new(0.03, mutations::Twerk::some_random_person()),
-            Stochastic::new(0.03, mutations::TwoOpt::new(TwoOptMode::IntraRandom)),
-            Stochastic::new(
-                0.00,
-                mutations::TwoOpt::new(TwoOptMode::LocalSerach(100, 1e-3))
-            ), /*Stochastic::new(0.05, mutations::VesselSwap::new())*/
-            Stochastic::new(0.03, mutations::TimeSetter::new(0.4).unwrap()),
-            Stochastic::new(0.03, mutations::TimeSetter::new(0.0).unwrap()), // Stochastic::new(0.05, mutations::AddSmart)
-            Stochastic::new(0.03, mutations::Bounce::new(3, mutations::BounceMode::All)),
-            Stochastic::new(
-                0.03,
-                mutations::Bounce::new(3, mutations::BounceMode::Random)
+            selection: survival_selection::Elite(
+                1,
+                survival_selection::Proportionate(|x| 1.0 / (1.0 + x)),
             ),
-            Stochastic::new(0.03, mutations::AddSmart)
-        ),
-        survival_selection::Elite(1, survival_selection::Proportionate(|x| 1.0 / (1.0 + x))),
-        fitness::Weighted {
-            warp: 1e8,
-            violation: 1e4,
-            revenue: -1.0,
-            cost: 1.0,
+            fitness: fitness::Weighted {
+                warp: 1e8,
+                violation: 1e4,
+                revenue: -1.0,
+                cost: 1.0,
+            },
         },
     );
 

@@ -58,54 +58,35 @@ where
     F: Fitness,
 {
     /// Constructs a new GeneticAlgorithm with the given configuration.
-    pub fn new<I>(
-        problem: Arc<Problem>,
-        population_size: usize,
-        child_count: usize,
-        initialization: I,
-        parent_selection: PS,
-        recombination: R,
-        mutation: M,
-        selection: S,
-        fitness: F,
-    ) -> Self
+    pub fn new<I>(initialization: I, config: Config<PS, R, M, S, F>) -> Self
     where
         I: initialization::Initialization<Out = RoutingSolution>,
     {
         trace!("Initializing population");
-        let population = (0..population_size)
-            .map(|_| initialization.new(problem.clone()))
+        let population = (0..config.population_size)
+            .map(|_| initialization.new(config.problem.clone()))
             .collect::<Vec<_>>();
 
         // We need a strictly positive population size for this to make sense
-        assert!(population_size > 0);
+        assert!(config.population_size > 0);
         // We also need to generate `at least` as many children as there are parents, since we'll swapping the populations
-        assert!(child_count >= population_size);
+        assert!(config.child_count >= config.population_size);
         // Check validity that each initial individual has the correct number of vehicles
         assert!(population
             .iter()
-            .all(|x| x.len() == problem.vessels().len()));
+            .all(|x| x.len() == config.problem.vessels().len()));
         // Check that all individuals point to the exact same `problem`
         assert!(population
             .iter()
-            .all(|x| std::ptr::eq(x.problem(), &*problem)));
+            .all(|x| std::ptr::eq(x.problem(), &*config.problem)));
         // It doesn't matter what solution we use for `child_population` and `next_population`
         let dummy = population.first().unwrap().clone();
 
         GeneticAlgorithm {
             population,
-            child_population: vec![dummy.clone(); child_count],
-            next_population: vec![dummy; population_size],
-            config: Config {
-                problem,
-                population_size,
-                child_count,
-                parent_selection,
-                recombination,
-                mutation,
-                selection,
-                fitness,
-            },
+            child_population: vec![dummy.clone(); config.child_count],
+            next_population: vec![dummy; config.population_size],
+            config,
         }
     }
 
