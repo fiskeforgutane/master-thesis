@@ -154,22 +154,22 @@ impl QuantityLp {
         b: &[Vec<Vec<Var>>],
     ) -> grb::Result<()> {
         for (node, time) in iproduct!(0..n, 0..t) {
-            let berth_cap = problem.nodes()[n].port_capacity()[time];
+            let berth_cap = problem.nodes()[node].port_capacity()[time];
             model.add_constr(
                 &format!("berth_{}_{}", node, time),
-                c!(b[node][time].iter().grb_sum() <= berth_cap),
+                c!(b[time][node].iter().grb_sum() <= berth_cap),
             )?;
         }
 
         for (node, time, vessel) in iproduct!(0..n, 0..t, 0..v) {
-            let kind = problem.nodes()[n].r#type();
+            let kind = problem.nodes()[node].r#type();
             let big_m = match kind {
-                NodeType::Consumption => problem.nodes()[n].max_loading_amount(),
-                NodeType::Production => (0..p).map(|p| problem.nodes()[n].capacity()[p]).sum(),
+                NodeType::Consumption => problem.nodes()[node].max_loading_amount(),
+                NodeType::Production => (0..p).map(|p| problem.nodes()[node].capacity()[p]).sum(),
             };
             model.add_constr(
                 &format!("force_berth_{}_{}_{}", node, time, vessel),
-                c!(x[time][node][vessel].iter().grb_sum() <= big_m * b[node][time][vessel]),
+                c!(x[time][node][vessel].iter().grb_sum() <= big_m * b[time][node][vessel]),
             )?;
         }
 
