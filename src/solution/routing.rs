@@ -376,7 +376,7 @@ impl RoutingSolution {
         let cache = &self.cache;
         if !cache.solved.get() {
             let mut lp = self.cache.quantity.borrow_mut();
-            lp.configure(self).expect("configure failed");
+            lp.configure(self, false, false).expect("configure failed");
             lp.solve().expect("solve failed");
             self.cache.solved.set(true);
         }
@@ -392,13 +392,10 @@ impl RoutingSolution {
         // we will need to invalidate the caches.
         self.invalidate_caches();
 
-        let old = self.cache.quantity.borrow().semicont;
-        // Set the QuantityLp to use semicont for the x variables
-        self.cache.quantity.get_mut().semicont = true;
-        // Force evaluation (i.e. solve MILP)
-        let _ = self.quantities();
-        // Restore the old preference w.r.t semicont or not
-        self.cache.quantity.get_mut().semicont = old;
+        let mut lp = self.cache.quantity.borrow_mut();
+        lp.configure(self, true, true).expect("configure failed");
+        lp.solve().expect("solve failed");
+        self.cache.solved.set(true);
     }
 
     /// Retrieve a reference to the variables of the quantity assignment LP.
