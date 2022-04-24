@@ -128,6 +128,21 @@ impl QuantityLp {
             model.add_constr(&name, c!(lhs == rhs))?;
         }
 
+        for v in 0..v {
+            let t = problem.timesteps();
+            let vessel = &problem.vessels()[v];
+            let used = (0..p).map(|p| l[t][v][p]).grb_sum();
+            let i = |i: usize| Self::multiplier(problem.nodes()[i].r#type());
+            let end_supply = iproduct!(0..n, 0..p)
+                .map(|(n, p)| i(n) * x[t][n][v][p])
+                .grb_sum();
+            model.add_constr(
+                &format!("l_end"),
+                c!(used.clone() + end_supply.clone() <= vessel.capacity()),
+            )?;
+            model.add_constr(&format!("l_end_lower_bound"), c!(used + end_supply >= 0.0))?;
+        }
+
         Ok(())
     }
 
