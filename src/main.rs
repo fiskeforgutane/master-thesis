@@ -94,9 +94,9 @@ pub fn run_ga(path: &str, epochs: usize) {
         );
 
         if i % 100 == 0 {
-            let folder = path.replace("/", "-").replace(".json", "");
-            let _ = std::fs::create_dir_all(&format!("solutions/{}", folder));
-            let file = std::fs::File::create(&format!("solutions/{}/{}.json", folder, i)).unwrap();
+            //let folder = "solutions"; path.replace("/", "-").replace(".json", "");
+            //let _ = std::fs::create_dir_all(&format!("solutions", folder));
+            let file = std::fs::File::create(&format!("solutions-{}.json", i)).unwrap();
 
             let visits: Vec<&[Visit]> = best.iter().map(|plan| &plan[..]).collect();
             serde_json::to_writer(file, &visits).expect("writing failed");
@@ -192,8 +192,8 @@ pub fn run_island_ga(path: &str, epochs: usize) {
 
 pub fn main() {
     println!("Hello world!");
-    run_island_ga(
-        "/Users/akselborgen/master-playground/mirplib-rs/t60/LR1_1_DR1_3_VC1_V7a.json",
+    run_ga(
+        "C:\\Users\\andertb\\master-playground\\mirplib-rs\\t60\\LR1_1_DR1_3_VC1_V7a.json",
         100000,
     )
 }
