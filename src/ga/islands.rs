@@ -216,9 +216,7 @@ impl<PS, R, M, S, F> Drop for IslandGA<PS, R, M, S, F> {
         }
 
         // We need the join handles by value
-        let handles = std::mem::replace(&mut self.handles, Vec::new());
-
-        for handle in handles {
+        for handle in std::mem::replace(&mut self.handles, Vec::new()) {
             handle.join().expect("worker thread panic");
         }
     }
