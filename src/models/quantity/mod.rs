@@ -82,6 +82,17 @@ impl QuantityLp {
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
 
+        // add one constraint to
+        for (n, p) in iproduct!(0..n, 0..p) {
+            let t = problem.timesteps() - 1;
+            let node = &problem.nodes()[n];
+            let i = Self::multiplier(node.r#type());
+            let external = (0..v).map(|v| x[t][n][v][p]).grb_sum();
+            let internal = node.inventory_changes()[t][p];
+            let constr = c!(s[t][n][p] + internal - i * external <= node.capacity()[p]);
+            model.add_constr(&format!("s_end_{:?}", (n, p)), constr)?;
+        }
+
         Ok(())
     }
 
