@@ -1,5 +1,5 @@
 use float_ord::FloatOrd;
-use rand::{self, SeedableRng};
+use rand;
 use std::sync::Arc;
 pub mod ga;
 pub mod models;
@@ -11,75 +11,60 @@ pub mod utils;
 use crate::ga::{
     chromosome::InitRoutingSolution,
     fitness::{self},
-    mutations::{self, TwoOptMode},
+    mutations::{
+        AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
+        TimeSetter, Twerk, TwoOpt, TwoOptMode,
+    },
     parent_selection,
     recombinations::PIX,
     survival_selection, Fitness, GeneticAlgorithm, Stochastic,
 };
 
 use crate::problem::Problem;
+use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
 
 pub fn run_ga(path: &str, epochs: usize) {
     let file = std::fs::File::open(path).unwrap();
-    let mut reader = std::io::BufReader::new(file);
+    let reader = std::io::BufReader::new(file);
 
     let problem: Problem = serde_json::from_reader(reader).unwrap();
     let problem = Arc::new(problem);
 
-    let mut ga = GeneticAlgorithm::new(
-        InitRoutingSolution,
-        ga::Config {
-            problem: problem.clone(),
-            population_size: 100,
-            child_count: 100,
-            parent_selection: parent_selection::Tournament::new(3).unwrap(),
-            recombination: Stochastic::new(0.10, PIX),
-            mutation: chain!(
-                Stochastic::new(0.03, mutations::AddRandom::new()),
-                Stochastic::new(0.03, mutations::RemoveRandom::new()),
-                // Stochastic::new(0.05, mutations::BestMove::new()),
-                /*Stochastic::new(
-                    0.05,
-                    mutations::DistanceReduction::new(mutations::DistanceReductionMode::All)
-                ),
-                Stochastic::new(
-                    0.05,
-                    mutations::DistanceReduction::new(mutations::DistanceReductionMode::Random)
-                ),*/
-                Stochastic::new(0.03, mutations::InterSwap),
-                Stochastic::new(0.03, mutations::IntraSwap),
-                Stochastic::new(0.03, mutations::RedCost::red_cost_mutation(10)),
-                //Stochastic::new(0.05, mutations::RedCost::red_cost_local_search(10)),
-                // Stochastic::new(0.05, mutations::TimeSetter::new(0.5).unwrap()),
-                Stochastic::new(0.03, mutations::Twerk::everybody()),
-                Stochastic::new(0.03, mutations::Twerk::some_random_person()),
-                Stochastic::new(0.03, mutations::TwoOpt::new(TwoOptMode::IntraRandom)),
-                Stochastic::new(
-                    0.00,
-                    mutations::TwoOpt::new(TwoOptMode::LocalSerach(100, 1e-3))
-                ), /*Stochastic::new(0.05, mutations::VesselSwap::new())*/
-                Stochastic::new(0.03, mutations::TimeSetter::new(0.4).unwrap()),
-                Stochastic::new(0.03, mutations::TimeSetter::new(0.0).unwrap()), // Stochastic::new(0.05, mutations::AddSmart)
-                Stochastic::new(0.03, mutations::Bounce::new(3, mutations::BounceMode::All)),
-                Stochastic::new(
-                    0.03,
-                    mutations::Bounce::new(3, mutations::BounceMode::Random)
-                ),
-                Stochastic::new(0.03, mutations::AddSmart)
-            ),
-            selection: survival_selection::Elite(
-                1,
-                survival_selection::Proportionate(|x| 1.0 / (1.0 + x)),
-            ),
-            fitness: fitness::Weighted {
-                warp: 1e8,
-                violation: 1e4,
-                revenue: -1.0,
-                cost: 1.0,
-            },
+    let config = ga::Config {
+        problem: problem.clone(),
+        population_size: 100,
+        child_count: 100,
+        parent_selection: parent_selection::Tournament::new(3).unwrap(),
+        recombination: Stochastic::new(0.10, PIX),
+        mutation: chain!(
+            Stochastic::new(0.03, AddRandom::new()),
+            Stochastic::new(0.03, RemoveRandom::new()),
+            Stochastic::new(0.03, InterSwap),
+            Stochastic::new(0.03, IntraSwap),
+            Stochastic::new(0.03, RedCost::red_cost_mutation(10)),
+            Stochastic::new(0.03, Twerk::everybody()),
+            Stochastic::new(0.03, Twerk::some_random_person()),
+            Stochastic::new(0.03, TwoOpt::new(TwoOptMode::IntraRandom)),
+            Stochastic::new(0.03, TimeSetter::new(0.4).unwrap()),
+            Stochastic::new(0.03, TimeSetter::new(0.0).unwrap()), // Stochastic::new(0.05, mutations::AddSmart)
+            Stochastic::new(0.03, Bounce::new(3, BounceMode::All)),
+            Stochastic::new(0.03, Bounce::new(3, BounceMode::Random)),
+            Stochastic::new(0.03, AddSmart)
+        ),
+        selection: survival_selection::Elite(
+            1,
+            survival_selection::Proportionate(|x| 1.0 / (1.0 + x)),
+        ),
+        fitness: fitness::Weighted {
+            warp: 1e8,
+            violation: 1e4,
+            revenue: -1.0,
+            cost: 1.0,
         },
-    );
+    };
+
+    let mut ga = GeneticAlgorithm::new(InitRoutingSolution, config);
 
     let fitness = fitness::Weighted {
         warp: 1e8,
@@ -116,6 +101,90 @@ pub fn run_ga(path: &str, epochs: usize) {
             let visits: Vec<&[Visit]> = best.iter().map(|plan| &plan[..]).collect();
             serde_json::to_writer(file, &visits).expect("writing failed");
         }
+    }
+}
+
+pub fn run_island_ga(path: &str, epochs: usize) {
+    let file = std::fs::File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+
+    let problem: Problem = serde_json::from_reader(reader).unwrap();
+    let problem = Arc::new(problem);
+    let closure_problem = problem.clone();
+
+    let config = move || ga::Config {
+        problem: closure_problem.clone(),
+        population_size: 100,
+        child_count: 100,
+        parent_selection: parent_selection::Tournament::new(3).unwrap(),
+        recombination: Stochastic::new(0.10, PIX),
+        mutation: chain!(
+            Stochastic::new(0.03, AddRandom::new()),
+            Stochastic::new(0.03, RemoveRandom::new()),
+            Stochastic::new(0.03, InterSwap),
+            Stochastic::new(0.03, IntraSwap),
+            Stochastic::new(0.03, RedCost::red_cost_mutation(10)),
+            Stochastic::new(0.03, Twerk::everybody()),
+            Stochastic::new(0.03, Twerk::some_random_person()),
+            Stochastic::new(0.03, TwoOpt::new(TwoOptMode::IntraRandom)),
+            Stochastic::new(0.03, TimeSetter::new(0.4).unwrap()),
+            Stochastic::new(0.03, TimeSetter::new(0.0).unwrap()), // Stochastic::new(0.05, mutations::AddSmart)
+            Stochastic::new(0.03, Bounce::new(3, BounceMode::All)),
+            Stochastic::new(0.03, Bounce::new(3, BounceMode::Random)),
+            Stochastic::new(0.03, AddSmart)
+        ),
+        selection: survival_selection::Elite(
+            1,
+            survival_selection::Proportionate(|x| 1.0 / (1.0 + x)),
+        ),
+        fitness: fitness::Weighted {
+            warp: 1e8,
+            violation: 1e4,
+            revenue: -1.0,
+            cost: 1.0,
+        },
+    };
+
+    let islands = std::thread::available_parallelism().unwrap().get();
+    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, islands);
+
+    let fitness = fitness::Weighted {
+        warp: 1e8,
+        violation: 1e4,
+        revenue: -1.0,
+        cost: 1.0,
+    };
+
+    loop {
+        let epochs = ga.epochs();
+        let best = RoutingSolution::new(
+            problem.clone(),
+            ga.best()
+                .0
+                .iter()
+                .map(|plan| plan.iter().cloned().collect())
+                .collect(),
+        );
+
+        println!(
+            "{:>010}: F = {}. warp = {}, violation = {}, revenue = {}, cost = {}; (worst fitness = N/A)",
+            epochs,
+            fitness.of(&problem, &best),
+            best.warp(),
+            best.violation(),
+            best.revenue(),
+            best.cost(),
+            //worst_fitness.0
+        );
+        /*
+        if i % 100 == 0 {
+            let folder = path.replace("/", "-").replace(".json", "");
+            let _ = std::fs::create_dir_all(&format!("solutions/{}", folder));
+            let file = std::fs::File::create(&format!("solutions/{}/{}.json", folder, i)).unwrap();
+
+            let visits: Vec<&[Visit]> = best.iter().map(|plan| &plan[..]).collect();
+            serde_json::to_writer(file, &visits).expect("writing failed");
+        }*/
     }
 }
 

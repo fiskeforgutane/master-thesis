@@ -1,5 +1,5 @@
 use std::{
-    sync::{mpsc::TryRecvError, Arc, Mutex, MutexGuard},
+    sync::{atomic::AtomicU64, mpsc::TryRecvError, Arc, Mutex, MutexGuard},
     thread::JoinHandle,
 };
 
@@ -47,6 +47,8 @@ pub struct IslandGA<PS, R, M, S, F> {
     rx: std::sync::mpsc::Receiver<Stm>,
     /// The best individual ever recorded across all islands.
     best: Arc<Mutex<(ThinSolution, f64)>>,
+    /// The total number of epochs done across all islands
+    total_epochs: Arc<AtomicU64>,
     // TODO:
     // The latest population for each island
     // populations: Vec<Arc<Mutex<Vec<ThinSolution>>>>,
@@ -54,12 +56,11 @@ pub struct IslandGA<PS, R, M, S, F> {
 
 impl<PS, R, M, S, F> IslandGA<PS, R, M, S, F>
 where
-    PS: ParentSelection + Send + 'static,
-    R: Recombination + Send + 'static,
-    M: Mutation + Send + 'static,
-    S: SurvivalSelection + Send + 'static,
-    F: Fitness + Send + 'static,
-    Config<PS, R, M, S, F>: Clone + Send + 'static,
+    PS: ParentSelection,
+    R: Recombination,
+    M: Mutation,
+    S: SurvivalSelection,
+    F: Fitness + Clone,
 {
     /// The number of islands
     pub fn island_count(&self) -> usize {
@@ -67,27 +68,37 @@ where
     }
 
     /// Construct and start a new island GA.
-    pub fn new<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
+    pub fn new<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static, Func>(
         init: I,
-        config: Config<PS, R, M, S, F>,
+        config: Func,
         count: usize,
-    ) -> Self {
+    ) -> Self
+    where
+        Func: Send + Fn() -> Config<PS, R, M, S, F> + 'static + Clone,
+    {
         let (tx, rx) = std::sync::mpsc::channel::<Stm>();
         let mut handles = Vec::with_capacity(count);
         let mut txs = Vec::with_capacity(count);
+        let total_epochs = Arc::new(AtomicU64::new(0));
+        let problem = config.clone()().problem;
+
         let best = Arc::new(Mutex::new((
-            RoutingSolution::empty(config.problem.clone()).to_vec(),
+            RoutingSolution::empty(problem.clone()).to_vec(),
             std::f64::INFINITY,
         )));
 
         for i in 0..count {
-            let (init, config, stm) = (init.clone(), config.clone(), tx.clone());
+            let (init, stm) = (init.clone(), tx.clone());
             let (tx, rx) = std::sync::mpsc::channel::<Mts>();
+            let total_epochs = total_epochs.clone();
             let mutex = best.clone();
+            let config = config.clone();
 
             handles.push(std::thread::spawn(move || {
+                let config = config();
                 let problem = config.problem.clone();
-                let mut ga = GeneticAlgorithm::new(init, config.clone());
+                let fitness = config.fitness.clone();
+                let mut ga = GeneticAlgorithm::new(init, config);
 
                 loop {
                     match rx.try_recv() {
@@ -121,8 +132,12 @@ where
                         Err(TryRecvError::Disconnected) => panic!("master tx disconnected"),
                     }
                     ga.epoch();
+                    // Increment the number of epochs done
+                    total_epochs.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                    // Update the best individual, if a new best is found.
                     let island_best = ga.best_individual();
-                    let island_fitness = config.fitness.of(&config.problem, island_best);
+                    let island_fitness = fitness.of(&problem, island_best);
                     let mut best = mutex.lock().unwrap();
 
                     if island_fitness <= best.1 {
@@ -135,12 +150,18 @@ where
         }
 
         Self {
-            config,
+            config: config(),
             handles,
             txs,
             rx,
             best,
+            total_epochs,
         }
+    }
+
+    /// The number of epochs done across all islands
+    pub fn epochs(&self) -> u64 {
+        self.total_epochs.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Returns the current best solution

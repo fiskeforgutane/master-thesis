@@ -5,6 +5,7 @@ use crate::problem::Vessel;
 
 use super::{Problem, Recombination, RoutingSolution};
 
+#[derive(Debug, Clone)]
 pub struct PIX;
 
 impl Recombination for PIX {
