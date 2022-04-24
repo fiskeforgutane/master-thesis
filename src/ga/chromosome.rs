@@ -27,6 +27,7 @@ impl Initialization for Init {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct InitRoutingSolution;
 
 impl Initialization for InitRoutingSolution {

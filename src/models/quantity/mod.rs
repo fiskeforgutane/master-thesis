@@ -211,7 +211,12 @@ impl QuantityLp {
 
     pub fn new(problem: &Problem) -> grb::Result<Self> {
         let mut model = Model::new(&format!("quantities"))?;
+        // Disable output logging.
         model.set_param(grb::param::OutputFlag, 0)?;
+        // Use primal simplex, instead of the default concurrent solver. Reason: we will use multiple concurrent GAs
+        model.set_param(grb::param::Method, 0)?;
+        // Restrict to one thread. Also due to using concurrent GAs.
+        model.set_param(grb::param::Threads, 1)?;
 
         let t = problem.timesteps();
         let n = problem.nodes().len();

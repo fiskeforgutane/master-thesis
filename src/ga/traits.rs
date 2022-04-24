@@ -99,6 +99,7 @@ where
 }
 
 /// Applies a mutation stochastically with probability `p`
+#[derive(Debug, Clone)]
 pub struct Stochastic<M>(pub f64, pub M, StdRng);
 
 impl<M> Stochastic<M> {

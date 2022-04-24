@@ -283,6 +283,11 @@ impl Deref for RoutingSolution {
 }
 
 impl RoutingSolution {
+    pub fn empty(problem: Arc<Problem>) -> Self {
+        let routes = vec![Vec::new(); problem.vessels().len()];
+        RoutingSolution::new(problem, routes)
+    }
+
     pub fn new(problem: Arc<Problem>, routes: Vec<Vec<Visit>>) -> Self {
         // We won't bother returning a result from this, since it'll probably just be .unwrapped() anyways
         if routes.len() != problem.vessels().len() {
