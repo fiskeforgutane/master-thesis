@@ -417,11 +417,6 @@ impl RoutingSolution {
         cached.get().unwrap()
     }
 
-    /// Retrieve a reference to the variables of the quantity assignment LP.
-    pub fn variables(&self) -> Ref<'_, Variables> {
-        Ref::map(self.quantities(), |lp| &lp.vars)
-    }
-
     /// The total inventory violation (excess + shortage) for the entire planning period
     pub fn violation(&self) -> Quantity {
         let cached = &self.cache.violation;
