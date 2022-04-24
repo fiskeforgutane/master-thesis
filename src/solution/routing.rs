@@ -383,6 +383,7 @@ impl RoutingSolution {
         let mut lp = self.cache.quantity.borrow_mut();
         lp.configure(self, false, false).expect("configure failed");
         lp.solve().expect("solve failed");
+        std::mem::drop(lp);
 
         cache.quantity.borrow()
     }
