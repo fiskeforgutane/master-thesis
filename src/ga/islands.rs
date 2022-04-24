@@ -143,6 +143,7 @@ where
 
                     if island_fitness <= best.1 {
                         best.0.clone_from_slice(&island_best[..]);
+                        best.1 = island_fitness;
                     }
                 }
             }));
