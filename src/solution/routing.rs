@@ -234,9 +234,7 @@ impl Clone for RoutingSolution {
             routes: self.routes.clone(),
             cache: Cache {
                 warp: self.cache.warp.clone(),
-                quantity: Rc::new(RefCell::new(
-                    QuantityLp::new(self.problem()).expect("cloning failed for routing solution"),
-                )),
+                quantity: self.cache.quantity.clone(),
                 violation: Cell::new(None),
                 cost: Cell::new(None),
                 revenue: Cell::new(None),
