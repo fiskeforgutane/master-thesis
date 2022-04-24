@@ -284,7 +284,8 @@ impl Deref for RoutingSolution {
 
 impl RoutingSolution {
     pub fn empty(problem: Arc<Problem>) -> Self {
-        RoutingSolution::new(problem, vec![Vec::new(); problem.vessels().len()])
+        let routes = vec![Vec::new(); problem.vessels().len()];
+        RoutingSolution::new(problem, routes)
     }
 
     pub fn new(problem: Arc<Problem>, routes: Vec<Vec<Visit>>) -> Self {
