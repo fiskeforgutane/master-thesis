@@ -3,16 +3,14 @@ pub mod mutations;
 pub mod chromosome;
 pub mod fitness;
 pub mod initialization;
+pub mod islands;
 pub mod parent_selection;
 pub mod penalizers;
 pub mod recombinations;
 pub mod survival_selection;
 pub mod traits;
 
-use std::{
-    sync::{mpsc::TryRecvError, Arc},
-    thread::JoinHandle,
-};
+use std::sync::Arc;
 
 use log::{info, trace};
 pub use traits::*;
@@ -40,99 +38,6 @@ pub struct Config<PS, R, M, S, F> {
     /// The fitness function of the genetic algorithm
     pub fitness: F,
 }
-
-pub enum Strategy {
-    Islands,
-    Shared,
-}
-
-/// Master-to-slave message
-pub enum MTS {
-    Terminate,
-    Echo,
-}
-/// Slave-to-master message
-pub enum STM {
-    Ack,
-}
-
-pub struct ConcurrentGA<PS, R, M, S, F> {
-    /// The config used for each GA instance
-    pub config: Config<PS, R, M, S, F>,
-    /// The handle of each spawned thread
-    handles: Vec<JoinHandle<()>>,
-    /// Transmitter-end of channels to each spawned thread
-    txs: Vec<std::sync::mpsc::Sender<MTS>>,
-    /// Receiver-end of the transmitter channel which each spawned thread has available.
-    rx: std::sync::mpsc::Receiver<STM>,
-}
-
-impl<PS, R, M, S, F> ConcurrentGA<PS, R, M, S, F>
-where
-    PS: ParentSelection + Send + 'static,
-    R: Recombination + Send + 'static,
-    M: Mutation + Send + 'static,
-    S: SurvivalSelection + Send + 'static,
-    F: Fitness + Send + 'static,
-    Config<PS, R, M, S, F>: Clone + Send + 'static,
-{
-    pub fn new<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
-        init: I,
-        config: Config<PS, R, M, S, F>,
-        count: usize,
-    ) -> Self {
-        let (tx, rx) = std::sync::mpsc::channel::<STM>();
-        let mut handles = Vec::with_capacity(count);
-        let mut txs = Vec::with_capacity(count);
-
-        for _ in 0..count {
-            let (init, config, stm) = (init.clone(), config.clone(), tx.clone());
-            let (tx, rx) = std::sync::mpsc::channel::<MTS>();
-
-            handles.push(std::thread::spawn(move || {
-                let mut ga = GeneticAlgorithm::new(init, config);
-
-                loop {
-                    match rx.try_recv() {
-                        // TODO: do something
-                        Ok(MTS::Terminate) => return (),
-                        Ok(MTS::Echo) => stm.send(STM::Ack).unwrap(),
-                        // If there is nothing awaiting processing, we will just continue to the GA epoch
-                        Err(TryRecvError::Empty) => (),
-                        // This should not happen
-                        Err(TryRecvError::Disconnected) => panic!("master tx disconnected"),
-                    }
-                    ga.epoch();
-                }
-            }));
-
-            txs.push(tx);
-        }
-
-        Self {
-            config,
-            handles,
-            txs,
-            rx,
-        }
-    }
-}
-
-impl<PS, R, M, S, F> Drop for ConcurrentGA<PS, R, M, S, F> {
-    fn drop(&mut self) {
-        for tx in &self.txs {
-            tx.send(MTS::Terminate).expect("sending failed");
-        }
-
-        // We need the join handles by value
-        let handles = std::mem::replace(&mut self.handles, Vec::new());
-
-        for handle in handles {
-            handle.join().expect("worker thread panic");
-        }
-    }
-}
-
 /// A general implementation of a genetic algorithm.
 pub struct GeneticAlgorithm<PS, R, M, S, F> {
     /// The current population of solution candidates
@@ -157,7 +62,7 @@ where
     /// Constructs a new GeneticAlgorithm with the given configuration.
     pub fn new<I>(initialization: I, config: Config<PS, R, M, S, F>) -> Self
     where
-        I: initialization::Initialization<Out = RoutingSolution>,
+        I: Initialization<Out = RoutingSolution>,
     {
         trace!("Initializing population");
         let population = (0..config.population_size)
