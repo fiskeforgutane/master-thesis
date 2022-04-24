@@ -55,7 +55,7 @@ impl QuantityLp {
             model.add_constr(name, c!(s[0][n][p] == s0))?;
         }
 
-        for (t, n, p) in iproduct!(0..t, 0..n, 0..p) {
+        for (t, n, p) in iproduct!(0..=t, 0..n, 0..p) {
             let node = &problem.nodes()[n];
             // Whether to enable/disable upper and lower soft constraint, respectively
             let (u, l): (f64, f64) = match node.r#type() {
@@ -73,7 +73,7 @@ impl QuantityLp {
             model.add_constr(&format!("s_lb_{:?}", (t, n, p)), c_lb)?;
         }
 
-        for (t, n, p) in iproduct!(1..t, 0..n, 0..p) {
+        for (t, n, p) in iproduct!(1..=t, 0..n, 0..p) {
             let node = &problem.nodes()[n];
             let i = Self::multiplier(node.r#type());
             let external = (0..v).map(|v| x[t - 1][n][v][p]).grb_sum();
@@ -82,6 +82,8 @@ impl QuantityLp {
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
 
+        
+        /* 
         // add one constraint to
         for (n, p) in iproduct!(0..n, 0..p) {
             let t = problem.timesteps() - 1;
@@ -92,6 +94,8 @@ impl QuantityLp {
             let constr = c!(s[t][n][p] + internal - i * external <= node.capacity()[p]);
             model.add_constr(&format!("s_end_{:?}", (n, p)), constr)?;
         }
+        */
+        
 
         Ok(())
     }
@@ -112,7 +116,7 @@ impl QuantityLp {
             model.add_constr(&name, c!(l[0][v][p] == initial))?;
         }
 
-        for (t, v) in iproduct!(0..t, 0..v) {
+        for (t, v) in iproduct!(0..=t, 0..v) {
             let vessel = &problem.vessels()[v];
             let name = format!("l_ub_{:?}", (t, v));
             let used = (0..p).map(|p| l[t][v][p]).grb_sum();
@@ -120,7 +124,7 @@ impl QuantityLp {
             model.add_constr(&name, c!(used <= vessel.capacity()))?;
         }
 
-        for (t, v, p) in iproduct!(1..t, 0..v, 0..p) {
+        for (t, v, p) in iproduct!(1..=t, 0..v, 0..p) {
             let i = |i: usize| Self::multiplier(problem.nodes()[i].r#type());
             let name = format!("l_bal_{:?}", (t, v, p));
             let lhs = l[t][v][p];
@@ -128,8 +132,9 @@ impl QuantityLp {
             model.add_constr(&name, c!(lhs == rhs))?;
         }
 
+        /* 
         for v in 0..v {
-            let t = problem.timesteps();
+            let t = problem.timesteps()-1;
             let vessel = &problem.vessels()[v];
             let used = (0..p).map(|p| l[t][v][p]).grb_sum();
             let i = |i: usize| Self::multiplier(problem.nodes()[i].r#type());
@@ -141,7 +146,7 @@ impl QuantityLp {
                 c!(used.clone() + end_supply.clone() <= vessel.capacity()),
             )?;
             model.add_constr(&format!("l_end_lower_bound"), c!(used + end_supply >= 0.0))?;
-        }
+        */
 
         Ok(())
     }
@@ -225,10 +230,10 @@ impl QuantityLp {
 
         // Inventory violation for nodes. Note that this is either excess or shortage,
         // depending on whether it is a production node or a consumption node.
-        let w = (t, n, p).cont(&mut model, "w")?;
+        let w = (t+1, n, p).cont(&mut model, "w")?;
         let x = (t, n, v, p).cont(&mut model, "x")?;
-        let s = (t, n, p).free(&mut model, "s")?;
-        let l = (t, v, p).cont(&mut model, "l")?;
+        let s = (t+1, n, p).free(&mut model, "s")?;
+        let l = (t+1, v, p).cont(&mut model, "l")?;
         let b = (t, n, v).cont(&mut model, "b")?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
