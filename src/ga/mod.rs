@@ -164,6 +164,10 @@ where
             next,
         );
 
+        // Note: if someone has injected extra individuals into the population (e.g. due to migration in islanding)
+        // the size of the population will be more than the configured size. These need to be removed.
+        population.truncate(self.config.population_size);
+
         // And then we'll switch to the new generation
         std::mem::swap(population, next);
         let best = population
