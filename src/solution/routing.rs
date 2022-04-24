@@ -2,6 +2,7 @@ use std::cell::{Cell, Ref, RefCell};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::DerefMut;
+use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
 use itertools::Itertools;
@@ -196,7 +197,7 @@ pub struct Cache {
     warp: Cell<Option<usize>>,
     /// The quantity LP associated with this plan. This is the thing that
     /// will determine (optimal) quantities given the current set of routes.
-    quantity: RefCell<QuantityLp>,
+    quantity: Rc<RefCell<QuantityLp>>,
     /// The total inventory violations (excess/shortage)
     violation: Cell<Option<Quantity>>,
     /// The total cost of the solution.
@@ -233,9 +234,9 @@ impl Clone for RoutingSolution {
             routes: self.routes.clone(),
             cache: Cache {
                 warp: self.cache.warp.clone(),
-                quantity: RefCell::new(
+                quantity: Rc::new(RefCell::new(
                     QuantityLp::new(self.problem()).expect("cloning failed for routing solution"),
-                ),
+                )),
                 violation: Cell::new(None),
                 cost: Cell::new(None),
                 revenue: Cell::new(None),
@@ -289,7 +290,7 @@ impl RoutingSolution {
     pub fn new_with_model(
         problem: Arc<Problem>,
         routes: Vec<Vec<Visit>>,
-        model: RefCell<QuantityLp>,
+        model: Rc<RefCell<QuantityLp>>,
     ) -> Self {
         // We won't bother returning a result from this, since it'll probably just be .unwrapped() anyways
         if routes.len() != problem.vessels().len() {
@@ -316,7 +317,7 @@ impl RoutingSolution {
     }
 
     pub fn new(problem: Arc<Problem>, routes: Vec<Vec<Visit>>) -> Self {
-        let model = RefCell::new(QuantityLp::new(&problem).unwrap());
+        let model = Rc::new(RefCell::new(QuantityLp::new(&problem).unwrap()));
         Self::new_with_model(problem, routes, model)
     }
 
