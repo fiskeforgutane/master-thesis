@@ -271,6 +271,7 @@ impl Clone for RoutingSolution {
         self.cache.solved = Cell::new(false);
         self.cache.violation = source.cache.violation.clone();
         self.cache.cost = source.cache.cost.clone();
+        self.cache.revenue = source.cache.revenue.clone();
     }
 }
 
