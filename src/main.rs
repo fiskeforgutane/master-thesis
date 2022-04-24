@@ -146,7 +146,7 @@ pub fn run_island_ga(path: &str, epochs: usize) {
     };
 
     let islands = std::thread::available_parallelism().unwrap().get();
-    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, islands);
+    let ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 2);
 
     let fitness = fitness::Weighted {
         warp: 1e8,
@@ -176,6 +176,8 @@ pub fn run_island_ga(path: &str, epochs: usize) {
             best.cost(),
             //worst_fitness.0
         );
+
+        std::thread::sleep(std::time::Duration::from_millis(10_000));
         /*
         if i % 100 == 0 {
             let folder = path.replace("/", "-").replace(".json", "");
@@ -190,8 +192,8 @@ pub fn run_island_ga(path: &str, epochs: usize) {
 
 pub fn main() {
     println!("Hello world!");
-    run_ga(
-        "/Users/akselborgen/master-playground/mirplib-rs/t120/LR1_1_DR1_3_VC1_V7a.json",
+    run_island_ga(
+        "/Users/akselborgen/master-playground/mirplib-rs/t60/LR1_1_DR1_3_VC1_V7a.json",
         100000,
     )
 }

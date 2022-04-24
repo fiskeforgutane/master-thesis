@@ -131,6 +131,7 @@ where
                         // This should not happen
                         Err(TryRecvError::Disconnected) => panic!("master tx disconnected"),
                     }
+                    println!("Slave {} running epoch", i);
                     ga.epoch();
                     // Increment the number of epochs done
                     total_epochs.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
