@@ -197,8 +197,6 @@ pub struct Cache {
     /// The quantity LP associated with this plan. This is the thing that
     /// will determine (optimal) quantities given the current set of routes.
     quantity: RefCell<QuantityLp>,
-    /// Whether the LP model has been solved for the current solution
-    solved: Cell<bool>,
     /// The total inventory violations (excess/shortage)
     violation: Cell<Option<Quantity>>,
     /// The total cost of the solution.
@@ -238,7 +236,6 @@ impl Clone for RoutingSolution {
                 quantity: RefCell::new(
                     QuantityLp::new(self.problem()).expect("cloning failed for routing solution"),
                 ),
-                solved: Cell::new(false),
                 violation: Cell::new(None),
                 cost: Cell::new(None),
                 revenue: Cell::new(None),
@@ -268,7 +265,6 @@ impl Clone for RoutingSolution {
         // which is basically everything except the LP itself
         self.invalidate_caches();
         self.cache.warp = source.cache.warp.clone();
-        self.cache.solved = Cell::new(false);
         self.cache.violation = source.cache.violation.clone();
         self.cache.cost = source.cache.cost.clone();
         self.cache.revenue = source.cache.revenue.clone();
@@ -303,7 +299,6 @@ impl RoutingSolution {
         let cache = Cache {
             warp: Cell::default(),
             quantity: model,
-            solved: Cell::new(false),
             violation: Cell::new(None),
             cost: Cell::new(None),
             revenue: Cell::new(None),
@@ -373,12 +368,6 @@ impl RoutingSolution {
         })
     }
 
-    /// Retrieve the amount of time warp in this solution. Time warp occurs when two visits at different nodes are
-    /// too close apart in time, such that it is impossible to go from one of them to the other in time.
-    pub fn warp(&self) -> usize {
-        self.cache.warp.get().unwrap_or_else(|| self.update_warp())
-    }
-
     /// Access a mutator for this RoutingSolution. This ensures that any caches are always updated
     /// as needed, but no more.
     pub fn mutate(&mut self) -> RoutingSolutionMut<'_> {
@@ -390,12 +379,9 @@ impl RoutingSolution {
     pub fn quantities(&self) -> Ref<'_, QuantityLp> {
         // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
-        if !cache.solved.get() {
-            let mut lp = self.cache.quantity.borrow_mut();
-            lp.configure(self, false, false).expect("configure failed");
-            lp.solve().expect("solve failed");
-            self.cache.solved.set(true);
-        }
+        let mut lp = self.cache.quantity.borrow_mut();
+        lp.configure(self, false, false).expect("configure failed");
+        lp.solve().expect("solve failed");
 
         cache.quantity.borrow()
     }
@@ -403,7 +389,7 @@ impl RoutingSolution {
     /// Force an exact solution for the quantities delivered.
     /// This will use semicont variables for the amount delivered, turning the quantity
     /// assignment from an LP to a MILP. This can take a considerable amount of time to solve
-    pub fn exact(&mut self) {
+    pub fn exact(&mut self) -> Ref<'_, QuantityLp> {
         // This will trigger a (possibly) different quantity assignment, so
         // we will need to invalidate the caches.
         self.invalidate_caches();
@@ -411,7 +397,22 @@ impl RoutingSolution {
         let mut lp = self.cache.quantity.borrow_mut();
         lp.configure(self, true, true).expect("configure failed");
         lp.solve().expect("solve failed");
-        self.cache.solved.set(true);
+
+        self.cache.quantity.borrow()
+    }
+
+    /// Force an evaluation for the quantites delivered using the inexact model.
+
+    /// Retrieve the amount of time warp in this solution. Time warp occurs when two visits at different nodes are
+    /// too close apart in time, such that it is impossible to go from one of them to the other in time.
+    pub fn warp(&self) -> usize {
+        let cached = &self.cache.warp;
+
+        if cached.get().is_none() {
+            self.update();
+        }
+
+        cached.get().unwrap()
     }
 
     /// Retrieve a reference to the variables of the quantity assignment LP.
@@ -421,89 +422,34 @@ impl RoutingSolution {
 
     /// The total inventory violation (excess + shortage) for the entire planning period
     pub fn violation(&self) -> Quantity {
-        let cache = &self.cache;
-
-        match cache.violation.get() {
-            Some(violation) => violation,
-            // Solve the LP (if needed) and retrieve the objective function value.
-            None => {
-                let obj = self.quantities().model.get_attr(grb::attr::ObjVal).unwrap();
-                cache.violation.set(Some(obj));
-                obj
-            }
+        let cached = &self.cache.violation;
+        if cached.get().is_none() {
+            self.update();
         }
+
+        cached.get().unwrap()
     }
 
     /// Retrieves the total cost for the deliveries done by the solution.
     /// Note: if there are several consecutive `Visit`s to the same node, we will only incur
     /// a port fee on the first visit.
     pub fn cost(&self) -> Cost {
-        if let Some(cost) = self.cache.cost.get() {
-            return cost;
+        let cached = &self.cache.cost;
+        if cached.get().is_none() {
+            self.update();
         }
 
-        let problem = self.problem();
-        let lp = self.quantities();
-        let load = &lp.vars.l;
-        let p = problem.count::<Product>();
-        let mut inventory = Inventory::zeroed(p).unwrap();
-        let cost = self
-            .iter_with_origin()
-            .enumerate()
-            .map(|(v, plan)| {
-                plan.tuple_windows()
-                    .map(|(v1, v2)| {
-                        // NOTE: the time might be an off-by-one error
-                        // NOTE2: might consider batching this Gurobi call.
-                        let t = v2.time;
-                        for p in 0..p {
-                            inventory[p] =
-                                lp.model.get_obj_attr(grb::attr::X, &load[t][v][p]).unwrap();
-                        }
-
-                        let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
-                        let port_fee = problem.nodes()[v2.node].port_fee();
-
-                        travel + port_fee
-                    })
-                    .sum::<f64>()
-            })
-            .sum::<f64>();
-
-        self.cache.cost.set(Some(cost));
-
-        cost
+        cached.get().unwrap()
     }
 
     /// Retrieve the total revenue for the amount delivered by in the solution
     pub fn revenue(&self) -> Cost {
-        let cache = &self.cache;
-
-        match cache.revenue.get() {
-            Some(revenue) => revenue,
-            None => {
-                // We need to retrieve the solution variables, and loop over the ones
-                // that are non-zero to determine the revenue
-                let lp = self.quantities();
-                let x = &lp.vars.x;
-                let nodes = self.problem().nodes();
-                let variables = lp
-                    .model
-                    .get_obj_attr_batch(
-                        grb::attr::X,
-                        QuantityLp::active(self).map(|(t, n, v, p)| x[t][n][v][p]),
-                    )
-                    .expect("retrieving variable values failed");
-
-                let revenue = QuantityLp::active(self)
-                    .zip_eq(&variables)
-                    .map(|((_, n, _, _), quantity)| nodes[n].revenue() * quantity)
-                    .sum();
-
-                cache.revenue.set(Some(revenue));
-                revenue
-            }
+        let cached = &self.cache.revenue;
+        if cached.get().is_none() {
+            self.update();
         }
+
+        cached.get().unwrap()
     }
 
     /// Recycle this solution into a new fresh one with no content.
@@ -543,10 +489,81 @@ impl RoutingSolution {
         warp
     }
 
+    fn update_violation(&self, quantities: &QuantityLp) -> f64 {
+        let obj = quantities.model.get_attr(grb::attr::ObjVal).unwrap();
+        self.cache.violation.set(Some(obj));
+        obj
+    }
+
+    fn update_cost(&self, quantities: &QuantityLp) -> f64 {
+        let problem = self.problem();
+        let lp = quantities;
+        let load = &lp.vars.l;
+        let p = problem.count::<Product>();
+        let mut inventory = Inventory::zeroed(p).unwrap();
+        let cost = self
+            .iter_with_origin()
+            .enumerate()
+            .map(|(v, plan)| {
+                plan.tuple_windows()
+                    .map(|(v1, v2)| {
+                        // NOTE: the time might be an off-by-one error
+                        // NOTE2: might consider batching this Gurobi call.
+                        let t = v2.time;
+                        for p in 0..p {
+                            inventory[p] =
+                                lp.model.get_obj_attr(grb::attr::X, &load[t][v][p]).unwrap();
+                        }
+
+                        let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
+                        let port_fee = problem.nodes()[v2.node].port_fee();
+
+                        travel + port_fee
+                    })
+                    .sum::<f64>()
+            })
+            .sum::<f64>();
+
+        self.cache.cost.set(Some(cost));
+
+        cost
+    }
+
+    fn update_revenue(&self, quantities: &QuantityLp) -> Cost {
+        // We need to retrieve the solution variables, and loop over the ones
+        // that are non-zero to determine the revenue
+        let lp = quantities;
+        let x = &lp.vars.x;
+        let nodes = self.problem().nodes();
+        let variables = lp
+            .model
+            .get_obj_attr_batch(
+                grb::attr::X,
+                QuantityLp::active(self).map(|(t, n, v, p)| x[t][n][v][p]),
+            )
+            .expect("retrieving variable values failed");
+
+        let revenue = QuantityLp::active(self)
+            .zip_eq(&variables)
+            .map(|((_, n, _, _), quantity)| nodes[n].revenue() * quantity)
+            .sum();
+
+        self.cache.revenue.set(Some(revenue));
+        revenue
+    }
+
+    /// Recalculate all the cached values
+    fn update(&self) {
+        let quantities = self.quantities();
+        self.update_cost(&quantities);
+        self.update_revenue(&quantities);
+        self.update_violation(&quantities);
+        self.update_warp();
+    }
+
     /// Invalidate all the cached values on this object (objective function values, etc.)
     fn invalidate_caches(&self) {
         self.cache.warp.set(None);
-        self.cache.solved.set(false);
         self.cache.violation.set(None);
         self.cache.cost.set(None);
         self.cache.revenue.set(None);
