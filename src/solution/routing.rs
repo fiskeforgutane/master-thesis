@@ -289,7 +289,12 @@ impl RoutingSolution {
         RoutingSolution::new(problem, routes)
     }
 
-    pub fn new(problem: Arc<Problem>, routes: Vec<Vec<Visit>>) -> Self {
+    /// Construct a new RoutingSolution with a RefCell to the given QuantityLp
+    pub fn new_with_model(
+        problem: Arc<Problem>,
+        routes: Vec<Vec<Visit>>,
+        model: RefCell<QuantityLp>,
+    ) -> Self {
         // We won't bother returning a result from this, since it'll probably just be .unwrapped() anyways
         if routes.len() != problem.vessels().len() {
             panic!("#r = {} != V = {}", routes.len(), problem.vessels().len());
@@ -297,7 +302,7 @@ impl RoutingSolution {
 
         let cache = Cache {
             warp: Cell::default(),
-            quantity: RefCell::new(QuantityLp::new(&problem).unwrap()),
+            quantity: model,
             solved: Cell::new(false),
             violation: Cell::new(None),
             cost: Cell::new(None),
@@ -313,6 +318,11 @@ impl RoutingSolution {
             problem,
             cache,
         }
+    }
+
+    pub fn new(problem: Arc<Problem>, routes: Vec<Vec<Visit>>) -> Self {
+        let model = RefCell::new(QuantityLp::new(&problem).unwrap());
+        Self::new_with_model(problem, routes, model)
     }
 
     pub fn problem(&self) -> &Problem {
