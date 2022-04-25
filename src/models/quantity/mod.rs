@@ -80,7 +80,10 @@ impl QuantityLp {
             let i = Self::multiplier(node.r#type());
             let external = (0..v).map(|v| x[t - 1][n][v][p]).grb_sum();
             let internal = node.inventory_changes()[t - 1][p];
-            let spot = a[t][n][p];
+            let spot = a
+                .get(t)
+                .map(|at| 1.0 * at[n][p])
+                .unwrap_or(0.0 * a[0][0][0]);
             let constr = c!(s[t][n][p] == s[t - 1][n][p] + internal - i * (external + spot));
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
@@ -246,9 +249,26 @@ impl QuantityLp {
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
 
+        // This should probably be taken from the problem instance
+        let discount: f64 = 0.999;
+
         let violation = w.iter().flatten().flatten().grb_sum();
-        let spot = a.iter().flatten().flatten().grb_sum();
-        model.set_objective(violation + 0.5 * spot, grb::ModelSense::Minimize)?;
+        // We discount later uses of the spot market; effectively making it desirable to perform spot operations as late as possible
+        let spot = iproduct!(0..t, 0..n, 0..p)
+            .map(|(t, n, p)| a[t][n][p] * discount.powi(t as i32))
+            .grb_sum();
+
+        // We use an increasing weight to prefer early deliveries.
+        // The purpose of this is to "avoid" many small deliveries versus one larger one, even though it
+        // doesn't really matter for the solution itself.
+        let revenue = iproduct!(0..t, 0..n, 0..v, 0..p)
+            .map(|(t, n, v, p)| {
+                problem.nodes()[n].revenue() * x[t][n][v][p] * discount.recip().powi(t as i32)
+            })
+            .grb_sum();
+
+        let obj = violation + 0.5 * spot - 1e-6 * revenue;
+        model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
             model,
