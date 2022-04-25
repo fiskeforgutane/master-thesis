@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use grb::{c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
@@ -212,6 +214,30 @@ impl QuantityLp {
         Ok(())
     }
 
+    fn load_restrictions(
+        model: &mut Model,
+        problem: &Problem,
+        s: &[Vec<Vec<Var>>],
+        v: usize,
+        t: usize,
+        p: usize,
+    ) -> grb::Result<()> {
+        for (vessel, time) in iproduct!(0..v, 0..t) {
+            // leave production fully loaded
+            let lhs = (0..p).map(|product| s[time][vessel][product]).grb_sum();
+            // set rhs initially to 0.0
+            let rhs = 0.0;
+            model.add_constr(&format!("TravelAtCap_{}_{}", vessel, time), c!(lhs >= rhs))?;
+
+            // arrive at production empty
+            // set rhs initially to capacity
+            let rhs = problem.vessels()[v].capacity();
+            model.add_constr(&format!("TravelEmpty_{}_{}", vessel, time), c!(lhs <= rhs))?;
+        }
+
+        Ok(())
+    }
+
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
             NodeType::Consumption => -1.0,
@@ -248,6 +274,7 @@ impl QuantityLp {
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
+        QuantityLp::load_restrictions(&mut model, problem, &s, v, t, p)?;
 
         // This should probably be taken from the problem instance
         let discount: f64 = 0.999;
@@ -312,6 +339,7 @@ impl QuantityLp {
         solution: &RoutingSolution,
         semicont: bool,
         berth: bool,
+        load_restrictions: bool,
     ) -> grb::Result<()> {
         self.semicont = semicont;
 
@@ -368,6 +396,28 @@ impl QuantityLp {
             grb::attr::UB,
             Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
         )?;
+
+        if load_restrictions {
+            let timesteps = solution.problem().timesteps();
+            let kind = |n: usize| solution.problem().nodes()[n].r#type();
+
+            let production_keys = Self::active(solution)
+                .filter_map(|(t, n, v, p)| match kind(n) {
+                    NodeType::Consumption => None,
+                    NodeType::Production => Some((t, n, v, p)),
+                })
+                .collect::<HashSet<(usize, usize, usize, usize)>>();
+
+            // identify arrivals
+            let arrivals = production_keys
+                .iter()
+                .filter(|(t, n, v, p)| match t {
+                    0 => false,
+                    _ => production_keys.contains(&(t - 1, *n, *v, *p)),
+                })
+                .map(|e| *e)
+                .collect::<Vec<(usize, usize, usize, usize)>>();
+        }
 
         Ok(())
     }
