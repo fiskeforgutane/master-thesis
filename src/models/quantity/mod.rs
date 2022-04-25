@@ -86,19 +86,6 @@ impl QuantityLp {
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
 
-        /*
-        // add one constraint to
-        for (n, p) in iproduct!(0..n, 0..p) {
-            let t = problem.timesteps() - 1;
-            let node = &problem.nodes()[n];
-            let i = Self::multiplier(node.r#type());
-            let external = (0..v).map(|v| x[t][n][v][p]).grb_sum();
-            let internal = node.inventory_changes()[t][p];
-            let constr = c!(s[t][n][p] + internal - i * external <= node.capacity()[p]);
-            model.add_constr(&format!("s_end_{:?}", (n, p)), constr)?;
-        }
-        */
-
         Ok(())
     }
 
@@ -133,22 +120,6 @@ impl QuantityLp {
             let rhs = l[t - 1][v][p] + (0..n).map(|n| i(n) * x[t - 1][n][v][p]).grb_sum();
             model.add_constr(&name, c!(lhs == rhs))?;
         }
-
-        /*
-        for v in 0..v {
-            let t = problem.timesteps()-1;
-            let vessel = &problem.vessels()[v];
-            let used = (0..p).map(|p| l[t][v][p]).grb_sum();
-            let i = |i: usize| Self::multiplier(problem.nodes()[i].r#type());
-            let end_supply = iproduct!(0..n, 0..p)
-                .map(|(n, p)| i(n) * x[t][n][v][p])
-                .grb_sum();
-            model.add_constr(
-                &format!("l_end"),
-                c!(used.clone() + end_supply.clone() <= vessel.capacity()),
-            )?;
-            model.add_constr(&format!("l_end_lower_bound"), c!(used + end_supply >= 0.0))?;
-        */
 
         Ok(())
     }
