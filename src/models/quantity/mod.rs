@@ -1,3 +1,5 @@
+use std::fmt::Result;
+
 use grb::{c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
@@ -82,8 +84,7 @@ impl QuantityLp {
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
 
-        
-        /* 
+        /*
         // add one constraint to
         for (n, p) in iproduct!(0..n, 0..p) {
             let t = problem.timesteps() - 1;
@@ -95,7 +96,6 @@ impl QuantityLp {
             model.add_constr(&format!("s_end_{:?}", (n, p)), constr)?;
         }
         */
-        
 
         Ok(())
     }
@@ -132,7 +132,7 @@ impl QuantityLp {
             model.add_constr(&name, c!(lhs == rhs))?;
         }
 
-        /* 
+        /*
         for v in 0..v {
             let t = problem.timesteps()-1;
             let vessel = &problem.vessels()[v];
@@ -207,6 +207,36 @@ impl QuantityLp {
         Ok(())
     }
 
+    fn alpha_limits(
+        model: &mut Model,
+        problem: &Problem,
+        a: Vec<Vec<Vec<Var>>>,
+        t: usize,
+        n: usize,
+        p: usize,
+    ) -> grb::Result<()> {
+        // Restrict the amount of alpha we can use in any particular time period.
+        for n in 0..n {
+            // Limit on the use of the spot market per time step, and across the planning horizon.
+            // TODO: add limits to the problem
+            let period_limit: f64 = 0.0;
+            let limit: f64 = 0.0;
+            // Limit of alpha usage per time step
+            for t in 0..n {
+                model.add_constr(
+                    &format!("alpha_period_ub_{}_{}", t, n),
+                    c!(a[t][n].iter().grb_sum() <= period_limit),
+                );
+            }
+
+            // Limit for alpha usage across all time steps
+            let sum = (0..t).flat_map(|t| a[t][n].iter()).grb_sum();
+            model.add_constr(&format!("alpha_ub_{}", n), c!(sum <= limit));
+        }
+
+        Ok(())
+    }
+
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
             NodeType::Consumption => -1.0,
@@ -230,17 +260,19 @@ impl QuantityLp {
 
         // Inventory violation for nodes. Note that this is either excess or shortage,
         // depending on whether it is a production node or a consumption node.
-        let w = (t+1, n, p).cont(&mut model, "w")?;
+        let w = (t + 1, n, p).cont(&mut model, "w")?;
         let x = (t, n, v, p).cont(&mut model, "x")?;
-        let s = (t+1, n, p).free(&mut model, "s")?;
-        let l = (t+1, v, p).cont(&mut model, "l")?;
+        let s = (t + 1, n, p).free(&mut model, "s")?;
+        let l = (t + 1, v, p).cont(&mut model, "l")?;
         let b = (t, n, v).cont(&mut model, "b")?;
+        let a = (t, n, p).cont(&mut model, "a")?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
         QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, t, n, v, p)?;
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
+        QuantityLp::alpha_limits(&mut model, problem, a, t, n, p);
 
         let obj = w.iter().flatten().flatten().grb_sum();
         model.set_objective(obj, grb::ModelSense::Minimize)?;
