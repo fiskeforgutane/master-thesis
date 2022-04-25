@@ -16,6 +16,7 @@ pub struct Variables {
     pub s: Vec<Vec<Vec<Var>>>,
     pub l: Vec<Vec<Vec<Var>>>,
     pub b: Vec<Vec<Vec<Var>>>,
+    pub a: Vec<Vec<Vec<Var>>>,
 }
 
 #[pyclass]
@@ -44,6 +45,7 @@ impl QuantityLp {
         s: &[Vec<Vec<Var>>],
         w: &[Vec<Vec<Var>>],
         x: &[Vec<Vec<Vec<Var>>>],
+        a: &[Vec<Vec<Var>>],
         t: usize,
         n: usize,
         v: usize,
@@ -78,24 +80,10 @@ impl QuantityLp {
             let i = Self::multiplier(node.r#type());
             let external = (0..v).map(|v| x[t - 1][n][v][p]).grb_sum();
             let internal = node.inventory_changes()[t - 1][p];
-            let constr = c!(s[t][n][p] == s[t - 1][n][p] + internal - i * external);
+            let spot = a[t][n][p];
+            let constr = c!(s[t][n][p] == s[t - 1][n][p] + internal - i * (external + spot));
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
-
-        
-        /* 
-        // add one constraint to
-        for (n, p) in iproduct!(0..n, 0..p) {
-            let t = problem.timesteps() - 1;
-            let node = &problem.nodes()[n];
-            let i = Self::multiplier(node.r#type());
-            let external = (0..v).map(|v| x[t][n][v][p]).grb_sum();
-            let internal = node.inventory_changes()[t][p];
-            let constr = c!(s[t][n][p] + internal - i * external <= node.capacity()[p]);
-            model.add_constr(&format!("s_end_{:?}", (n, p)), constr)?;
-        }
-        */
-        
 
         Ok(())
     }
@@ -131,22 +119,6 @@ impl QuantityLp {
             let rhs = l[t - 1][v][p] + (0..n).map(|n| i(n) * x[t - 1][n][v][p]).grb_sum();
             model.add_constr(&name, c!(lhs == rhs))?;
         }
-
-        /* 
-        for v in 0..v {
-            let t = problem.timesteps()-1;
-            let vessel = &problem.vessels()[v];
-            let used = (0..p).map(|p| l[t][v][p]).grb_sum();
-            let i = |i: usize| Self::multiplier(problem.nodes()[i].r#type());
-            let end_supply = iproduct!(0..n, 0..p)
-                .map(|(n, p)| i(n) * x[t][n][v][p])
-                .grb_sum();
-            model.add_constr(
-                &format!("l_end"),
-                c!(used.clone() + end_supply.clone() <= vessel.capacity()),
-            )?;
-            model.add_constr(&format!("l_end_lower_bound"), c!(used + end_supply >= 0.0))?;
-        */
 
         Ok(())
     }
@@ -207,6 +179,36 @@ impl QuantityLp {
         Ok(())
     }
 
+    fn alpha_limits(
+        model: &mut Model,
+        problem: &Problem,
+        a: &[Vec<Vec<Var>>],
+        t: usize,
+        n: usize,
+    ) -> grb::Result<()> {
+        // Restrict the amount of alpha we can use in any particular time period.
+        for n in 0..n {
+            let node = &problem.nodes()[n];
+
+            // Limit of alpha usage per time step
+            for t in 0..n {
+                model.add_constr(
+                    &format!("alpha_period_ub_{}_{}", t, n),
+                    c!(a[t][n].iter().grb_sum() <= node.spot_market_limit_per_time()),
+                )?;
+            }
+
+            // Limit for alpha usage across all time steps
+            let sum = (0..t).flat_map(|t| a[t][n].iter()).grb_sum();
+            model.add_constr(
+                &format!("alpha_ub_{}", n),
+                c!(sum <= node.spot_market_limit()),
+            )?;
+        }
+
+        Ok(())
+    }
+
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
             NodeType::Consumption => -1.0,
@@ -230,24 +232,27 @@ impl QuantityLp {
 
         // Inventory violation for nodes. Note that this is either excess or shortage,
         // depending on whether it is a production node or a consumption node.
-        let w = (t+1, n, p).cont(&mut model, "w")?;
+        let w = (t + 1, n, p).cont(&mut model, "w")?;
         let x = (t, n, v, p).cont(&mut model, "x")?;
-        let s = (t+1, n, p).free(&mut model, "s")?;
-        let l = (t+1, v, p).cont(&mut model, "l")?;
+        let s = (t + 1, n, p).free(&mut model, "s")?;
+        let l = (t + 1, v, p).cont(&mut model, "l")?;
         let b = (t, n, v).cont(&mut model, "b")?;
+        let a = (t, n, p).cont(&mut model, "a")?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
-        QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, t, n, v, p)?;
+        QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, &a, t, n, v, p)?;
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
+        QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
 
-        let obj = w.iter().flatten().flatten().grb_sum();
-        model.set_objective(obj, grb::ModelSense::Minimize)?;
+        let violation = w.iter().flatten().flatten().grb_sum();
+        let spot = a.iter().flatten().flatten().grb_sum();
+        model.set_objective(violation + 0.5 * spot, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
             model,
-            vars: Variables { w, x, s, l, b },
+            vars: Variables { w, x, s, l, b, a },
             semicont: false,
             berth: false,
         })
@@ -367,5 +372,60 @@ impl QuantityLp {
 
         let v = F64Variables { w, x, s, l };
         Ok(v)
+    }
+
+    /// Fixes the semicont and integer variables and converts the MIP to an LP
+    /// Model is updated, but not optimized
+    pub fn fix(&mut self) -> grb::Result<()> {
+        let fix_var = |var| -> grb::Result<()> {
+            let value = self
+                .model
+                .get_obj_attr(grb::attr::X, var)
+                .expect("failed to retrieve variable value");
+
+            self.model.set_obj_attr(grb::attr::LB, var, value)?;
+            self.model.set_obj_attr(grb::attr::UB, var, value)?;
+            self.model
+                .set_obj_attr(grb::attr::VType, var, grb::VarType::Continuous)?;
+            Ok(())
+        };
+
+        // fix all semicont
+        for var in self.vars.x.iter().flatten().flatten().flatten() {
+            fix_var(var)?;
+        }
+
+        // fix all integer
+        for var in self.vars.b.iter().flatten().flatten() {
+            fix_var(var)?;
+        }
+
+        self.model.update()?;
+
+        Ok(())
+    }
+
+    /// Fixes the semicont and integer variables and converts the LP to a MIP
+    /// Model is updated, but not optimized
+    pub fn unfix(&mut self) -> grb::Result<()> {
+        let unfix_var = |var: &grb::Var, vtype: grb::VarType| -> grb::Result<()> {
+            self.model.set_obj_attr(grb::attr::LB, var, 0.0)?;
+            self.model.set_obj_attr(grb::attr::UB, var, f64::INFINITY)?;
+            self.model.set_obj_attr(grb::attr::VType, var, vtype)?;
+            Ok(())
+        };
+        // unfix all semicont
+        for var in self.vars.x.iter().flatten().flatten().flatten() {
+            unfix_var(var, grb::VarType::SemiCont)?;
+        }
+
+        // unfix all integer
+        for var in self.vars.b.iter().flatten().flatten() {
+            unfix_var(var, grb::VarType::Binary)?;
+        }
+
+        self.model.update()?;
+
+        Ok(())
     }
 }

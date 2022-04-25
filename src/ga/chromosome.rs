@@ -1,10 +1,14 @@
 use pyo3::pyclass;
-use rand::{prelude::{IteratorRandom, SliceRandom}, Rng};
-use serde::ser;
-use std::{collections::HashMap, sync::Arc};
+use rand::{
+    prelude::{IteratorRandom, SliceRandom},
+    Rng,
+};
+
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use crate::{
-    problem::{Problem, VesselIndex, Vessel},
+    models::quantity::QuantityLp,
+    problem::{Problem, Vessel},
     quants::{self, Order},
     solution::{routing::RoutingSolution, Visit},
 };
@@ -23,7 +27,7 @@ pub struct Init;
 impl Initialization for Init {
     type Out = Chromosome;
 
-    fn new(&self, problem: Arc<Problem>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, _: Rc<RefCell<QuantityLp>>) -> Self::Out {
         Chromosome::new(&problem).unwrap()
     }
 }
@@ -34,9 +38,9 @@ pub struct InitRoutingSolution;
 impl Initialization for InitRoutingSolution {
     type Out = RoutingSolution;
 
-    fn new(&self, problem: Arc<Problem>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
         let routes = Chromosome::new(&problem).unwrap().chromosome;
-        RoutingSolution::new(problem, routes)
+        RoutingSolution::new_with_model(problem, routes, quantities)
     }
 }
 
@@ -51,7 +55,7 @@ impl Chromosome {
 
         let mut rng = rand::thread_rng();
 
-        // Initialize the chromosome with a visit for each vessel at its origin with the visit time set to 
+        // Initialize the chromosome with a visit for each vessel at its origin with the visit time set to
         // the time period it becomes available
         let mut chromosome: Vec<Vec<Visit>> = (0..vessels.len())
             .map(|v| {
@@ -65,16 +69,6 @@ impl Chromosome {
             .iter()
             .map(|vessel| (vessel.index(), (vessel.origin(), vessel.available_from())))
             .collect::<HashMap<_, _>>();
-        
-        // Binary indicator indicating if the nodes are a consumption or production node
-        let node_types: Vec<u64> = problem
-            .nodes()
-            .iter()
-            .map(|n| match n.r#type() {
-                crate::problem::NodeType::Consumption => 1,
-                crate::problem::NodeType::Production => 0,
-            })
-            .collect();
 
         // Serve all orders in chronological order
         for order in &initial_orders {
@@ -84,15 +78,20 @@ impl Chromosome {
             // Idea: alternate between production sites and consumption sites as far as this is possible
             let order_node_type = problem.nodes().get(order.node()).unwrap().r#type();
 
-            // We want the vessels that are currently on the opposite node type of the current order, that 
+            // We want the vessels that are currently on the opposite node type of the current order, that
             // are available before the closing of the order
-            let available_vessels: Vec<&Vessel> = vessels.iter().filter(
-                |v| {
-                    (problem.nodes().get(avail_from[&v.index()].0).unwrap().r#type() != order_node_type)
-                    &&
-                    (avail_from[&v.index()].1 < order.close())
-                }
-            ).collect::<Vec<_>>();
+            let available_vessels: Vec<&Vessel> = vessels
+                .iter()
+                .filter(|v| {
+                    (problem
+                        .nodes()
+                        .get(avail_from[&v.index()].0)
+                        .unwrap()
+                        .r#type()
+                        != order_node_type)
+                        && (avail_from[&v.index()].1 < order.close())
+                })
+                .collect::<Vec<_>>();
 
             // If some vessels fullfils the abovementioned criteria
             if available_vessels.len() > 0 {
@@ -106,43 +105,43 @@ impl Chromosome {
                     .get_mut(chosen)
                     .unwrap()
                     .push(Visit::new(problem, order.node(), serve_time).unwrap());
-            }
-            else {
+            } else {
                 // If no vessels fullfils the above criteria, the next step depends on the node type
                 match order_node_type {
                     crate::problem::NodeType::Consumption => {
                         // We want to ensure that the chosen vessel isn't currently at the same node as the order node
-                        // and we also want to ensure that the vessel becomes available before the order time window 
+                        // and we also want to ensure that the vessel becomes available before the order time window
                         // closes
-                        let chosen_vessel = vessels.iter().filter(
-                            |v| {
+                        let chosen_vessel = vessels
+                            .iter()
+                            .filter(|v| {
                                 (avail_from[&v.index()].0 != order.node())
-                                &&
-                                (avail_from[&v.index()].1 < order.close())
-                            }
-                        ).choose(&mut rng);
-                        
+                                    && (avail_from[&v.index()].1 < order.close())
+                            })
+                            .choose(&mut rng);
+
                         // If a vessel is available, use it, otherwise skip the order
                         match chosen_vessel {
                             Some(v) => {
-                                let serve_time = rng.gen_range(avail_from[&v.index()].1 + 1..(order.close() + 1));
+                                let serve_time = rng
+                                    .gen_range(avail_from[&v.index()].1 + 1..(order.close() + 1));
 
                                 avail_from.insert(v.index(), (order.node(), serve_time + 1));
 
                                 chromosome
                                     .get_mut(v.index())
                                     .unwrap()
-                                    .push(Visit::new(problem, order.node(), serve_time).unwrap());                                
-                            },
+                                    .push(Visit::new(problem, order.node(), serve_time).unwrap());
+                            }
                             None => (),
                         }
-                    },
+                    }
                     // If two consecutive productions node is unavoidable, skip the order
                     crate::problem::NodeType::Production => (),
                 }
             }
         }
-            
+
         Ok(Self { chromosome })
     }
 
@@ -151,9 +150,7 @@ impl Chromosome {
     }
 }
 
-
-
-/* 
+/*
 
 ************** RANKING BASED ***************************
     //println!("Serve time: {}", serve_time);
@@ -170,7 +167,7 @@ impl Chromosome {
 
     let mut scores = vessels.iter().map(
         |v| {
-            let mut score = 0; 
+            let mut score = 0;
 
             if serve_time <= v.available_from() + 1 {
                 score -= 64;
@@ -183,7 +180,7 @@ impl Chromosome {
             if chromosome.get(v.index()).unwrap().last().unwrap().node != order.node() {
                 score += 8;
             }
-            
+
             match problem.nodes().get(chromosome.get(v.index()).unwrap().last().unwrap().node).unwrap().r#type() {
                 crate::problem::NodeType::Consumption => score += 4,
                 crate::problem::NodeType::Production =>
