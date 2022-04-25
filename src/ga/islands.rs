@@ -117,12 +117,13 @@ where
                             .unwrap(),
                         Ok(Mts::Migration(migration)) => {
                             ga.population.extend(migration.iter().map(|plans| {
-                                RoutingSolution::new(
+                                RoutingSolution::new_with_model(
                                     problem.clone(),
                                     plans
                                         .iter()
                                         .map(|plan| plan.iter().cloned().collect())
                                         .collect(),
+                                    ga.quantities.clone(),
                                 )
                             }))
                         }

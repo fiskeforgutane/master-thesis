@@ -1,8 +1,9 @@
 use pyo3::pyclass;
 use rand::{prelude::IteratorRandom, Rng};
-use std::{collections::HashMap, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use crate::{
+    models::quantity::QuantityLp,
     problem::Problem,
     quants::{self, Order},
     solution::{routing::RoutingSolution, Visit},
@@ -22,7 +23,7 @@ pub struct Init;
 impl Initialization for Init {
     type Out = Chromosome;
 
-    fn new(&self, problem: Arc<Problem>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, _: Rc<RefCell<QuantityLp>>) -> Self::Out {
         Chromosome::new(&problem).unwrap()
     }
 }
@@ -33,9 +34,9 @@ pub struct InitRoutingSolution;
 impl Initialization for InitRoutingSolution {
     type Out = RoutingSolution;
 
-    fn new(&self, problem: Arc<Problem>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
         let routes = Chromosome::new(&problem).unwrap().chromosome;
-        RoutingSolution::new(problem, routes)
+        RoutingSolution::new_with_model(problem, routes, quantities)
     }
 }
 

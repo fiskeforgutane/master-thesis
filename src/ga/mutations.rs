@@ -308,7 +308,7 @@ impl RedCost {
         solution: &RoutingSolution,
     ) -> Vec<(usize, MoveDirection)> {
         let quant_lp = solution.quantities();
-        let vars = solution.variables();
+        let vars = &quant_lp.vars;
         let model = &quant_lp.model;
 
         // the visits indices ccorresponding to the ones with high reduced cost

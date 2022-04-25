@@ -10,12 +10,12 @@ pub mod recombinations;
 pub mod survival_selection;
 pub mod traits;
 
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use log::{info, trace};
 pub use traits::*;
 
-use crate::{problem::Problem, solution::routing::RoutingSolution};
+use crate::{models::quantity::QuantityLp, problem::Problem, solution::routing::RoutingSolution};
 
 use self::initialization::Initialization;
 
@@ -46,6 +46,8 @@ pub struct GeneticAlgorithm<PS, R, M, S, F> {
     child_population: Vec<RoutingSolution>,
     /// Will house the next generation of solution candidates, selected from (population, parent_population, child_population)
     next_population: Vec<RoutingSolution>,
+    /// The quantity LP shared between all individuals in the population
+    pub quantities: Rc<RefCell<QuantityLp>>,
 
     /// The configuration of the GA
     pub config: Config<PS, R, M, S, F>,
@@ -65,8 +67,13 @@ where
         I: Initialization<Out = RoutingSolution>,
     {
         trace!("Initializing population");
+        // Gurobi doesn't seem to like having many models, so we will
+        let quantities = Rc::new(RefCell::new(
+            QuantityLp::new(&config.problem).expect("LP construction failed"),
+        ));
+
         let population = (0..config.population_size)
-            .map(|_| initialization.new(config.problem.clone()))
+            .map(|_| initialization.new(config.problem.clone(), quantities.clone()))
             .collect::<Vec<_>>();
 
         // We need a strictly positive population size for this to make sense
@@ -89,6 +96,7 @@ where
             child_population: vec![dummy.clone(); config.child_count],
             next_population: vec![dummy; config.population_size],
             config,
+            quantities,
         }
     }
 
