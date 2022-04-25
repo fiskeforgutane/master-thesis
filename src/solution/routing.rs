@@ -389,7 +389,7 @@ impl RoutingSolution {
     /// Force an exact solution for the quantities delivered.
     /// This will use semicont variables for the amount delivered, turning the quantity
     /// assignment from an LP to a MILP. This can take a considerable amount of time to solve
-    pub fn exact(&mut self) -> Ref<'_, QuantityLp> {
+    pub fn exact(&self) -> Ref<'_, QuantityLp> {
         // This will trigger a (possibly) different quantity assignment, so
         // we will need to invalidate the caches.
         self.invalidate_caches();
