@@ -191,21 +191,22 @@ impl QuantityLp {
     ) -> grb::Result<()> {
         // Restrict the amount of alpha we can use in any particular time period.
         for n in 0..n {
-            // Limit on the use of the spot market per time step, and across the planning horizon.
-            // TODO: add limits to the problem
-            let period_limit: f64 = 0.0;
-            let limit: f64 = 0.0;
+            let node = &problem.nodes()[n];
+
             // Limit of alpha usage per time step
             for t in 0..n {
                 model.add_constr(
                     &format!("alpha_period_ub_{}_{}", t, n),
-                    c!(a[t][n].iter().grb_sum() <= period_limit),
+                    c!(a[t][n].iter().grb_sum() <= node.spot_market_limit_per_time()),
                 )?;
             }
 
             // Limit for alpha usage across all time steps
             let sum = (0..t).flat_map(|t| a[t][n].iter()).grb_sum();
-            model.add_constr(&format!("alpha_ub_{}", n), c!(sum <= limit))?;
+            model.add_constr(
+                &format!("alpha_ub_{}", n),
+                c!(sum <= node.spot_market_limit()),
+            )?;
         }
 
         Ok(())

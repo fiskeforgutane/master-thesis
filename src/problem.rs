@@ -484,6 +484,10 @@ pub struct Node {
     port_fee: Cost,
     /// The maximum inventory capacity of the farm
     capacity: FixedInventory,
+    /// The maximum amount that can be bought/sold in the spot market in a single timestep
+    spot_market_limit_per_time: f64,
+    /// The maximum amount that can be bought/sold in the spot market over the course of the planning period
+    spot_market_limit: f64,
     /// The change in inventory during each time step.
     inventory_changes: Vec<InventoryChange>,
     #[pyo3(get)]
@@ -512,6 +516,8 @@ impl Node {
         inventory_changes: Vec<InventoryChange>,
         revenue: Cost,
         initial_inventory: FixedInventory,
+        spot_market_limit_per_time: f64,
+        spot_market_limit: f64,
     ) -> Self {
         let mut cumulative_inventory = vec![Vec::new(); capacity.num_products()];
 
@@ -536,6 +542,8 @@ impl Node {
             revenue,
             cumulative_inventory,
             initial_inventory,
+            spot_market_limit_per_time,
+            spot_market_limit,
         }
     }
 
@@ -574,6 +582,16 @@ impl Node {
     /// The change in inventory during each time step.
     pub fn inventory_changes(&self) -> &[InventoryChange] {
         &self.inventory_changes
+    }
+
+    /// The maximum amount that can be sold to / bought from the spot market in a single timestep
+    pub fn spot_market_limit_per_time(&self) -> f64 {
+        self.spot_market_limit_per_time
+    }
+
+    /// The maximum amount that can be sold to / bought from the spot market over the course of the planning period
+    pub fn spot_market_limit(&self) -> f64 {
+        self.spot_market_limit
     }
 
     /// The inventory at a given time step for a given product, assuming no deliveries.

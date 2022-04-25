@@ -194,6 +194,8 @@ impl Node {
         inventory_changes: Vec<Vec<f64>>,
         revenue: Cost,
         initial_inventory: Vec<f64>,
+        spot_market_limit_per_time: f64,
+        spot_market_limit: f64,
     ) -> PyResult<Node> {
         let err = || PyErr::new::<PyValueError, _>("invalid inventory");
 
@@ -219,6 +221,8 @@ impl Node {
             changes,
             revenue,
             initial_inventory.fixed(),
+            spot_market_limit_per_time,
+            spot_market_limit,
         ))
     }
 
