@@ -18,6 +18,7 @@ pub struct Variables {
     pub s: Vec<Vec<Vec<Var>>>,
     pub l: Vec<Vec<Vec<Var>>>,
     pub b: Vec<Vec<Vec<Var>>>,
+    pub a: Vec<Vec<Vec<Var>>>,
 }
 
 #[pyclass]
@@ -253,7 +254,7 @@ impl QuantityLp {
 
         Ok(QuantityLp {
             model,
-            vars: Variables { w, x, s, l, b },
+            vars: Variables { w, x, s, l, b, a },
             semicont: false,
             berth: false,
         })
