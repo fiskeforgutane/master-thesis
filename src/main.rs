@@ -214,7 +214,7 @@ pub fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     let path = std::path::Path::new(&args[1]);
 
-    println!("Problem path: {}", path);
+    println!("Problem path: {:?}", path);
 
     let problem_name = path.file_stem().unwrap().to_str().unwrap();
     let directory = path.parent().unwrap();
