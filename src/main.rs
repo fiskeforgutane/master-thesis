@@ -154,9 +154,9 @@ pub fn run_island_ga(path: &str, epochs: usize) {
         revenue: -1.0,
         cost: 1.0,
     };
-	
-	let mut last_migration = 0;
-	let mut last_save = 0;
+
+    let mut last_migration = 0;
+    let mut last_save = 0;
 
     loop {
         let epochs = ga.epochs();
@@ -168,13 +168,13 @@ pub fn run_island_ga(path: &str, epochs: usize) {
                 .map(|plan| plan.iter().cloned().collect())
                 .collect(),
         );
-		
-		if epochs - last_migration > 500 {
-			print!("Migrating...");
-			ga.migrate(5);
-			println!(" DONE");
-			last_migration = epochs;
-		}
+
+        if epochs - last_migration > 500 {
+            print!("Migrating...");
+            ga.migrate(5);
+            println!(" DONE");
+            last_migration = epochs;
+        }
 
         println!(
             "{:>010}: F = {}. warp = {}, violation = {}, revenue = {}, cost = {}; (worst fitness = N/A)",
@@ -187,17 +187,15 @@ pub fn run_island_ga(path: &str, epochs: usize) {
             //worst_fitness.0
         );
 
-        
-		if epochs - last_save > 0 {
+        if epochs - last_save > 0 {
             let _ = std::fs::create_dir_all(&format!("solutions/"));
             let file = std::fs::File::create(&format!("solutions/{}.json", epochs)).unwrap();
 
             let visits: Vec<&[Visit]> = best.iter().map(|plan| &plan[..]).collect();
             serde_json::to_writer(file, &visits).expect("writing failed");
         }
-		
-		std::thread::sleep(std::time::Duration::from_millis(10_000));
-        
+
+        std::thread::sleep(std::time::Duration::from_millis(10_000));
     }
 }
 

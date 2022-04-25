@@ -1,5 +1,3 @@
-use std::fmt::Result;
-
 use grb::{c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
@@ -190,7 +188,6 @@ impl QuantityLp {
         a: &[Vec<Vec<Var>>],
         t: usize,
         n: usize,
-        p: usize,
     ) -> grb::Result<()> {
         // Restrict the amount of alpha we can use in any particular time period.
         for n in 0..n {
@@ -250,7 +247,7 @@ impl QuantityLp {
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
-        QuantityLp::alpha_limits(&mut model, problem, &a, t, n, p)?;
+        QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
 
         // This should probably be taken from the problem instance
         let discount: f64 = 0.999;
@@ -395,5 +392,60 @@ impl QuantityLp {
 
         let v = F64Variables { w, x, s, l };
         Ok(v)
+    }
+
+    /// Fixes the semicont and integer variables and converts the MIP to an LP
+    /// Model is updated, but not optimized
+    pub fn fix(&mut self) -> grb::Result<()> {
+        let fix_var = |var| -> grb::Result<()> {
+            let value = self
+                .model
+                .get_obj_attr(grb::attr::X, var)
+                .expect("failed to retrieve variable value");
+
+            self.model.set_obj_attr(grb::attr::LB, var, value)?;
+            self.model.set_obj_attr(grb::attr::UB, var, value)?;
+            self.model
+                .set_obj_attr(grb::attr::VType, var, grb::VarType::Continuous)?;
+            Ok(())
+        };
+
+        // fix all semicont
+        for var in self.vars.x.iter().flatten().flatten().flatten() {
+            fix_var(var)?;
+        }
+
+        // fix all integer
+        for var in self.vars.b.iter().flatten().flatten() {
+            fix_var(var)?;
+        }
+
+        self.model.update()?;
+
+        Ok(())
+    }
+
+    /// Fixes the semicont and integer variables and converts the LP to a MIP
+    /// Model is updated, but not optimized
+    pub fn unfix(&mut self) -> grb::Result<()> {
+        let unfix_var = |var: &grb::Var, vtype: grb::VarType| -> grb::Result<()> {
+            self.model.set_obj_attr(grb::attr::LB, var, 0.0)?;
+            self.model.set_obj_attr(grb::attr::UB, var, f64::INFINITY)?;
+            self.model.set_obj_attr(grb::attr::VType, var, vtype)?;
+            Ok(())
+        };
+        // unfix all semicont
+        for var in self.vars.x.iter().flatten().flatten().flatten() {
+            unfix_var(var, grb::VarType::SemiCont)?;
+        }
+
+        // unfix all integer
+        for var in self.vars.b.iter().flatten().flatten() {
+            unfix_var(var, grb::VarType::Binary)?;
+        }
+
+        self.model.update()?;
+
+        Ok(())
     }
 }
