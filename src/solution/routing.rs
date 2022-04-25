@@ -557,7 +557,7 @@ impl RoutingSolution {
 
     /// Recalculate all the cached values
     fn update(&self) {
-        let quantities = self.exact();
+        let quantities = self.quantities();
         self.update_cost(&quantities);
         self.update_revenue(&quantities);
         self.update_violation(&quantities);
