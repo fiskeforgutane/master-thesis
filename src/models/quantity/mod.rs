@@ -82,8 +82,7 @@ impl QuantityLp {
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
 
-        
-        /* 
+        /*
         // add one constraint to
         for (n, p) in iproduct!(0..n, 0..p) {
             let t = problem.timesteps() - 1;
@@ -95,7 +94,6 @@ impl QuantityLp {
             model.add_constr(&format!("s_end_{:?}", (n, p)), constr)?;
         }
         */
-        
 
         Ok(())
     }
@@ -132,7 +130,7 @@ impl QuantityLp {
             model.add_constr(&name, c!(lhs == rhs))?;
         }
 
-        /* 
+        /*
         for v in 0..v {
             let t = problem.timesteps()-1;
             let vessel = &problem.vessels()[v];
@@ -230,10 +228,10 @@ impl QuantityLp {
 
         // Inventory violation for nodes. Note that this is either excess or shortage,
         // depending on whether it is a production node or a consumption node.
-        let w = (t+1, n, p).cont(&mut model, "w")?;
+        let w = (t + 1, n, p).cont(&mut model, "w")?;
         let x = (t, n, v, p).cont(&mut model, "x")?;
-        let s = (t+1, n, p).free(&mut model, "s")?;
-        let l = (t+1, v, p).cont(&mut model, "l")?;
+        let s = (t + 1, n, p).free(&mut model, "s")?;
+        let l = (t + 1, v, p).cont(&mut model, "l")?;
         let b = (t, n, v).cont(&mut model, "b")?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
