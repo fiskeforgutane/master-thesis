@@ -685,6 +685,14 @@ impl Inventory {
             RawInventory::Multiple(xs) => xs.iter().sum::<f64>().abs() <= epsilon,
         }
     }
+
+    // The total amount of inventory across all product types.
+    pub fn total(&self) -> f64 {
+        match &self.0 {
+            RawInventory::Single(x) => *x,
+            RawInventory::Multiple(xs) => xs.iter().sum(),
+        }
+    }
 }
 impl From<FixedInventory> for Inventory {
     fn from(inventory: FixedInventory) -> Self {
