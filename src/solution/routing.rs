@@ -1,4 +1,4 @@
-use std::cell::{Cell, Ref, RefCell};
+use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::DerefMut;
@@ -10,7 +10,7 @@ use log::trace;
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 
-use crate::models::quantity::{QuantityLp, Variables};
+use crate::models::quantity::QuantityLp;
 use crate::problem::{Cost, Inventory, Problem, Product, Quantity, VesselIndex};
 use crate::solution::Visit;
 
@@ -389,7 +389,7 @@ impl RoutingSolution {
     /// Force an exact solution for the quantities delivered.
     /// This will use semicont variables for the amount delivered, turning the quantity
     /// assignment from an LP to a MILP. This can take a considerable amount of time to solve
-    pub fn exact(&mut self) -> Ref<'_, QuantityLp> {
+    pub fn exact_mut(&self) -> RefMut<'_, QuantityLp> {
         // This will trigger a (possibly) different quantity assignment, so
         // we will need to invalidate the caches.
         self.invalidate_caches();
@@ -398,6 +398,14 @@ impl RoutingSolution {
         lp.configure(self, true, true).expect("configure failed");
         lp.solve().expect("solve failed");
 
+        lp
+    }
+
+    /// Force an exact solution for the quantities delivered.
+    /// This will use semicont variables for the amount delivered, turning the quantity
+    /// assignment from an LP to a MILP. This can take a considerable amount of time to solve
+    pub fn exact(&self) -> Ref<'_, QuantityLp> {
+        let _ = self.exact_mut();
         self.cache.quantity.borrow()
     }
 
