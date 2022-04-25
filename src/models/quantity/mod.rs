@@ -46,6 +46,7 @@ impl QuantityLp {
         s: &[Vec<Vec<Var>>],
         w: &[Vec<Vec<Var>>],
         x: &[Vec<Vec<Vec<Var>>>],
+        a: &[Vec<Vec<Var>>],
         t: usize,
         n: usize,
         v: usize,
@@ -80,7 +81,8 @@ impl QuantityLp {
             let i = Self::multiplier(node.r#type());
             let external = (0..v).map(|v| x[t - 1][n][v][p]).grb_sum();
             let internal = node.inventory_changes()[t - 1][p];
-            let constr = c!(s[t][n][p] == s[t - 1][n][p] + internal - i * external);
+            let spot = a[t][n][p];
+            let constr = c!(s[t][n][p] == s[t - 1][n][p] + internal - i * (external + spot));
             model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
         }
 
@@ -268,11 +270,11 @@ impl QuantityLp {
         let a = (t, n, p).cont(&mut model, "a")?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
-        QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, t, n, v, p)?;
+        QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, &a, t, n, v, p)?;
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
-        QuantityLp::alpha_limits(&mut model, problem, a, t, n, p);
+        QuantityLp::alpha_limits(&mut model, problem, a, t, n, p)?;
 
         let obj = w.iter().flatten().flatten().grb_sum();
         model.set_objective(obj, grb::ModelSense::Minimize)?;
