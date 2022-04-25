@@ -218,6 +218,7 @@ impl QuantityLp {
         model.set_param(grb::param::OutputFlag, 0)?;
         // Use primal simplex, instead of the default concurrent solver. Reason: we will use multiple concurrent GAs
         model.set_param(grb::param::Method, 0)?;
+        model.set_param(grb::param::Presolve, 0)?;
         // Restrict to one thread. Also due to using concurrent GAs.
         model.set_param(grb::param::Threads, 1)?;
 
