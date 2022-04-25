@@ -41,6 +41,7 @@ where
     unreachable!()
 }
 
+#[derive(Debug, Clone)]
 pub struct AddRandom {
     rng: rand::rngs::StdRng,
 }
@@ -88,6 +89,7 @@ impl Mutation for AddRandom {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RemoveRandom {
     rng: rand::rngs::StdRng,
 }
@@ -117,12 +119,13 @@ impl Mutation for RemoveRandom {
 }
 
 // How we're going to perform the twerking.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum TwerkMode {
     Random,
     All,
 }
 /// "Shake" up the time at which each vessel's visits are performed.
+#[derive(Debug, Clone)]
 pub struct Twerk {
     rng: rand::rngs::StdRng,
     mode: TwerkMode,
@@ -219,6 +222,7 @@ pub enum RedCostMode {
 }
 
 /// This mutation exploits the dual solution of the quantities LP to direct the search towards a hopefulle better solution.
+#[derive(Debug, Clone)]
 pub struct RedCost {
     mode: RedCostMode,
     max_visits: usize,
@@ -629,6 +633,7 @@ impl Mutation for Bounce {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct IntraSwap;
 
 impl Mutation for IntraSwap {
@@ -661,7 +666,7 @@ impl Mutation for IntraSwap {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum TwoOptMode {
     /// Performs a 2-opt local search on every voyage for every vessel. The the u64 is the time limit for the local search per voyage. The f64 is the epsilon for accepting new solutions.
     LocalSerach(u64, f64),
@@ -669,6 +674,7 @@ pub enum TwoOptMode {
     IntraRandom,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct TwoOpt {
     mode: TwoOptMode,
 }
@@ -856,6 +862,7 @@ impl Mutation for TwoOpt {
 }
 
 // swaps one random visit from one route with a visit from another route
+#[derive(Debug, Clone)]
 pub struct InterSwap;
 
 impl Mutation for InterSwap {

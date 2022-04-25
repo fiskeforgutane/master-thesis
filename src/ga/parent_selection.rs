@@ -57,6 +57,7 @@ where
 }
 
 /// Tournament-style parent selection. Select `k` random individuals from the population, and choose the best among them for reproduction.
+#[derive(Debug, Clone)]
 pub struct Tournament {
     k: usize,
     buffer: Vec<f64>,
