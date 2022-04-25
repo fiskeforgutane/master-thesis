@@ -221,7 +221,7 @@ pub fn main() {
     let timesteps = directory.file_stem().unwrap().to_str().unwrap();
 
     // The output directory is ./solutions/TIME/PROBLEM/,
-    let mut out = directory.to_path_buf();
+    let mut out = std::env::current_dir().expect("unable to fetch current dir");
     out.push("solutions");
     out.push(timesteps);
     out.push(problem_name);
