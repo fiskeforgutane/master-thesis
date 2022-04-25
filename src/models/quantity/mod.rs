@@ -251,7 +251,12 @@ impl QuantityLp {
 
         let violation = w.iter().flatten().flatten().grb_sum();
         let spot = a.iter().flatten().flatten().grb_sum();
-        model.set_objective(violation + 0.5 * spot, grb::ModelSense::Minimize)?;
+        let revenue = iproduct!(0..t, 0..n, 0..v, 0..p)
+            .map(|(t, n, v, p)| problem.nodes()[n].revenue() * x[t][n][v][p])
+            .grb_sum();
+
+        let obj = violation + 0.5 * spot - 1e-6 * revenue;
+        model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
             model,
