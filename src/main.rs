@@ -1,6 +1,9 @@
 use float_ord::FloatOrd;
 use rand;
-use std::sync::Arc;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 pub mod ga;
 pub mod models;
 pub mod problem;
@@ -104,13 +107,19 @@ pub fn run_ga(path: &str, epochs: usize) {
     }
 }
 
-pub fn run_island_ga(path: &str, epochs: usize) {
+pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination) {
     let file = std::fs::File::open(path).unwrap();
     let reader = std::io::BufReader::new(file);
-
     let problem: Problem = serde_json::from_reader(reader).unwrap();
     let problem = Arc::new(problem);
     let closure_problem = problem.clone();
+
+    let fitness = fitness::Weighted {
+        warp: 1e8,
+        violation: 1e4,
+        revenue: -1.0,
+        cost: 1.0,
+    };
 
     let config = move || ga::Config {
         problem: closure_problem.clone(),
@@ -137,26 +146,12 @@ pub fn run_island_ga(path: &str, epochs: usize) {
             1,
             survival_selection::Proportionate(|x| 1.0 / (1.0 + x)),
         ),
-        fitness: fitness::Weighted {
-            warp: 1e8,
-            violation: 1e4,
-            revenue: -1.0,
-            cost: 1.0,
-        },
+        fitness,
     };
 
-    let islands = std::thread::available_parallelism().unwrap().get();
     let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 8);
 
-    let fitness = fitness::Weighted {
-        warp: 1e8,
-        violation: 1e4,
-        revenue: -1.0,
-        cost: 1.0,
-    };
-
     let mut last_migration = 0;
-    let mut last_save = 0;
 
     loop {
         let epochs = ga.epochs();
@@ -187,22 +182,51 @@ pub fn run_island_ga(path: &str, epochs: usize) {
             //worst_fitness.0
         );
 
-        if epochs - last_save > 0 {
-            let _ = std::fs::create_dir_all(&format!("solutions/"));
-            let file = std::fs::File::create(&format!("solutions/{}.json", epochs)).unwrap();
+        output.push(&format!("{}.json", epochs));
+        let file = std::fs::File::create(&output).unwrap();
+        output.pop();
 
-            let visits: Vec<&[Visit]> = best.iter().map(|plan| &plan[..]).collect();
-            serde_json::to_writer(file, &visits).expect("writing failed");
+        let visits: Vec<&[Visit]> = best.iter().map(|plan| &plan[..]).collect();
+        serde_json::to_writer(file, &visits).expect("writing failed");
+
+        // Whether we should terminate now
+        let terminate = match termination {
+            Termination::NoViolation => best.violation() <= 1e-3,
+            Termination::Never => false,
+            Termination::Epochs(x) => epochs > x,
+        };
+
+        if terminate {
+            return;
         }
 
         std::thread::sleep(std::time::Duration::from_millis(10_000));
     }
 }
 
+pub enum Termination {
+    Epochs(u64),
+    NoViolation,
+    Never,
+}
+
 pub fn main() {
-    println!("Hello world!");
-    run_island_ga(
-        "C:\\Users\\akselbor\\master-playground\\mirplib-rs\\t180\\LR1_1_DR1_3_VC1_V7a.json",
-        100000,
-    )
+    let args = std::env::args().collect::<Vec<_>>();
+    let path = std::path::Path::new(&args[1]);
+
+    let problem_name = path.file_stem().unwrap().to_str().unwrap();
+    let directory = path.parent().unwrap();
+    let timesteps = directory.file_stem().unwrap().to_str().unwrap();
+
+    // The output directory is ./solutions/TIME/PROBLEM/,
+    let mut out = directory.to_path_buf();
+    out.push("solutions");
+    out.push(timesteps);
+    out.push(problem_name);
+
+    // Create the output directory
+    std::fs::create_dir_all(&out);
+
+    // Run the GA.
+    run_island_ga(path, out, Termination::NoViolation);
 }
