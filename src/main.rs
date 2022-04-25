@@ -225,7 +225,7 @@ pub fn main() {
     out.push(problem_name);
 
     // Create the output directory
-    std::fs::create_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("failed to create out dir");
 
     // Run the GA.
     run_island_ga(path, out, Termination::NoViolation);
