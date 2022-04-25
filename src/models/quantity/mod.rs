@@ -183,7 +183,7 @@ impl QuantityLp {
     fn alpha_limits(
         model: &mut Model,
         problem: &Problem,
-        a: Vec<Vec<Vec<Var>>>,
+        a: &[Vec<Vec<Var>>],
         t: usize,
         n: usize,
         p: usize,
@@ -245,10 +245,11 @@ impl QuantityLp {
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
-        QuantityLp::alpha_limits(&mut model, problem, a, t, n, p)?;
+        QuantityLp::alpha_limits(&mut model, problem, &a, t, n, p)?;
 
-        let obj = w.iter().flatten().flatten().grb_sum();
-        model.set_objective(obj, grb::ModelSense::Minimize)?;
+        let violation = w.iter().flatten().flatten().grb_sum();
+        let spot = a.iter().flatten().flatten().grb_sum();
+        model.set_objective(violation + 0.5 * spot, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
             model,
