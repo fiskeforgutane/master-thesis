@@ -249,10 +249,22 @@ impl QuantityLp {
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n, p)?;
 
+        // This should probably be taken from the problem instance
+        let discount: f64 = 0.999;
+
         let violation = w.iter().flatten().flatten().grb_sum();
-        let spot = a.iter().flatten().flatten().grb_sum();
+        // We discount later uses of the spot market; effectively making it desirable to perform spot operations as late as possible
+        let spot = iproduct!(0..t, 0..n, 0..p)
+            .map(|(t, n, p)| a[t][n][p] * discount.powi(t as i32))
+            .grb_sum();
+
+        // We use an increasing weight to prefer early deliveries.
+        // The purpose of this is to "avoid" many small deliveries versus one larger one, even though it
+        // doesn't really matter for the solution itself.
         let revenue = iproduct!(0..t, 0..n, 0..v, 0..p)
-            .map(|(t, n, v, p)| problem.nodes()[n].revenue() * x[t][n][v][p])
+            .map(|(t, n, v, p)| {
+                problem.nodes()[n].revenue() * x[t][n][v][p] * discount.recip().powi(t as i32)
+            })
             .grb_sum();
 
         let obj = violation + 0.5 * spot - 1e-6 * revenue;
