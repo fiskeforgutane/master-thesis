@@ -307,9 +307,11 @@ impl RedCost {
         problem: &Problem,
         solution: &RoutingSolution,
     ) -> Vec<(usize, MoveDirection)> {
-        let quant_lp = solution.quantities();
-        let vars = &quant_lp.vars;
+        let quant_lp = &mut solution.exact_mut();
+        quant_lp.fix().expect("Failed to fix the model");
+        // fix semicont and integer variables
         let model = &quant_lp.model;
+        let vars = &quant_lp.vars;
 
         // the visits indices ccorresponding to the ones with high reduced cost
         let mut visit_indices: Vec<(usize, MoveDirection)> =
@@ -370,6 +372,10 @@ impl RedCost {
                 visit_indices[index] = (visit_idx, direction);
             }
         }
+
+        // unfix the model again
+        quant_lp.unfix().expect("Failed to unfix model");
+
         visit_indices
     }
 
