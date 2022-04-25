@@ -1,5 +1,3 @@
-use std::fmt::Result;
-
 use grb::{c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
@@ -187,7 +185,6 @@ impl QuantityLp {
         a: &[Vec<Vec<Var>>],
         t: usize,
         n: usize,
-        p: usize,
     ) -> grb::Result<()> {
         // Restrict the amount of alpha we can use in any particular time period.
         for n in 0..n {
@@ -247,7 +244,7 @@ impl QuantityLp {
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
-        QuantityLp::alpha_limits(&mut model, problem, &a, t, n, p)?;
+        QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
 
         let violation = w.iter().flatten().flatten().grb_sum();
         let spot = a.iter().flatten().flatten().grb_sum();
