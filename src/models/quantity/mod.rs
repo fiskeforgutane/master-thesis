@@ -226,12 +226,12 @@ impl QuantityLp {
                 model.add_constr(
                     &format!("alpha_period_ub_{}_{}", t, n),
                     c!(a[t][n].iter().grb_sum() <= period_limit),
-                );
+                )?;
             }
 
             // Limit for alpha usage across all time steps
             let sum = (0..t).flat_map(|t| a[t][n].iter()).grb_sum();
-            model.add_constr(&format!("alpha_ub_{}", n), c!(sum <= limit));
+            model.add_constr(&format!("alpha_ub_{}", n), c!(sum <= limit))?;
         }
 
         Ok(())
