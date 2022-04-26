@@ -1270,15 +1270,15 @@ impl Mutation for AddSmart {
 }
 
 /// How to decide on what visit to keep amount a string of visits.
-enum DedupPolicy {
+pub enum DedupPolicy {
     KeepFirst,
     KeepLast,
 }
 /// Remove duplicate visits in a solution
-struct Dedup(DedupPolicy);
+pub struct Dedup(DedupPolicy);
 
 impl Mutation for Dedup {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
         let mut mutator = solution.mutate();
 
         for mut plan in mutator.iter_mut().map(Plan::mutate) {
@@ -1302,7 +1302,7 @@ impl Mutation for Dedup {
 /// The choice of which node `d` to replace `b` with is chosen based on the distance `a -> d -> c`,
 /// choosing greedily with a blink rate. In addition, we only look at those `d` that have
 /// the same kind as `b`.
-struct ReplaceNode {
+pub struct ReplaceNode {
     rng: StdRng,
     blink_rate: f64,
 }
