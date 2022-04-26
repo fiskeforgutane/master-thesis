@@ -73,6 +73,7 @@ impl Initialization for GreedyWithBlinks {
 
         let mut best = (usize::MAX, FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
 
+        let start = std::time::Instant::now();
         loop {
             let s = &solution;
             let candidates = problem
@@ -100,6 +101,8 @@ impl Initialization for GreedyWithBlinks {
                 .unwrap();
 
             if cost >= best {
+                let end = std::time::Instant::now();
+                println!("GreedyWithBlinks took {}ms", (end - start).as_millis());
                 return solution;
             }
 
