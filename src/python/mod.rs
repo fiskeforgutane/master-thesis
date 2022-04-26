@@ -335,10 +335,12 @@ pub fn solve_quantities(
     routes: Vec<Vec<Visit>>,
     semicont: bool,
     berth: bool,
+    load_restrictions: bool,
 ) -> PyResult<F64Variables> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
-    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.configure(&solution, semicont, berth, load_restrictions)
+        .map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
     Ok(res)
 }
@@ -349,6 +351,7 @@ pub fn solve_multiple_quantities(
     solutions: Vec<Vec<Vec<Visit>>>,
     semicont: bool,
     berth: bool,
+    load_restrictions: bool,
 ) -> PyResult<Vec<F64Variables>> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
 
@@ -356,7 +359,8 @@ pub fn solve_multiple_quantities(
     let arc = Arc::new(problem);
     for routes in solutions {
         let solution = RoutingSolution::new(arc.clone(), routes);
-        lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+        lp.configure(&solution, semicont, berth, load_restrictions)
+            .map_err(pyerr)?;
         results.push(lp.solve_python().map_err(pyerr)?);
     }
 
