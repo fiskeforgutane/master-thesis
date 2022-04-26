@@ -16,7 +16,6 @@ use crate::ga::mutations::TimeSetter;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
 use crate::ga::mutations::TwoOptMode;
-use crate::ga::chromosome::Chromosome;
 use crate::ga::parent_selection;
 use crate::ga::Chain;
 use crate::ga::Fitness;
