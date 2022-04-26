@@ -1275,7 +1275,7 @@ pub enum DedupPolicy {
     KeepLast,
 }
 /// Remove duplicate visits in a solution
-pub struct Dedup(DedupPolicy);
+pub struct Dedup(pub DedupPolicy);
 
 impl Mutation for Dedup {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
