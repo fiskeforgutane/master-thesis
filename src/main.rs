@@ -15,7 +15,7 @@ use crate::ga::{
     chromosome::InitRoutingSolution,
     fitness::{self},
     mutations::{
-        AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
+        rr, AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
         TimeSetter, Twerk, TwoOpt, TwoOptMode,
     },
     parent_selection,
@@ -121,7 +121,6 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
         revenue: -1.0,
         cost: 1.0,
     };
-
     let config = move || ga::Config {
         problem: closure_problem.clone(),
         population_size: 100,
@@ -141,7 +140,9 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
             Stochastic::new(0.03, TimeSetter::new(0.0).unwrap()), // Stochastic::new(0.05, mutations::AddSmart)
             Stochastic::new(0.03, Bounce::new(3, BounceMode::All)),
             Stochastic::new(0.03, Bounce::new(3, BounceMode::Random)),
-            Stochastic::new(0.03, AddSmart)
+            Stochastic::new(0.03, AddSmart),
+            Stochastic::new(0.01, rr::Period::new(0.1, 0.50, 15)),
+            Stochastic::new(0.01, rr::Vessel::new(0.1, 0.75))
         ),
         selection: survival_selection::Elite(
             1,
