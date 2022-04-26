@@ -26,8 +26,15 @@ where
 
 /// Greedily construct an individual visit by visit, at each step choosing the visit resulting in the best solution,
 /// as evaluated by the quantity LP. Evaluation is skipped with probability `blink_rate`, to allow for some stochasticity / randomness
+#[derive(Debug, Clone, Copy)]
 pub struct GreedyWithBlinks {
     blink_rate: f64,
+}
+
+impl GreedyWithBlinks {
+    pub fn new(blink_rate: f64) -> Self {
+        GreedyWithBlinks { blink_rate }
+    }
 }
 
 impl GreedyWithBlinks {
@@ -73,7 +80,6 @@ impl Initialization for GreedyWithBlinks {
 
         let mut best = (usize::MAX, FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
 
-        let start = std::time::Instant::now();
         loop {
             let s = &solution;
             let candidates = problem
@@ -90,19 +96,21 @@ impl Initialization for GreedyWithBlinks {
                 })
                 .collect::<Vec<_>>();
 
-            let (v, node, time, _, cost) = candidates
+            let (v, node, time, cost) = candidates
                 .into_iter()
-                .map(|(v, node, time)| {
-                    let blink = rand::thread_rng().gen_bool(self.blink_rate);
-                    let cost = Self::evaluate(v, Visit { node, time }, &mut solution);
-                    (v, node, time, blink, cost)
-                })
-                .min_by_key(|t| (t.3, t.4))
+                .map(
+                    |(v, node, time)| match rand::thread_rng().gen_bool(self.blink_rate) {
+                        true => (v, node, time, (0, FloatOrd(0.0), FloatOrd(0.0))),
+                        false => {
+                            let cost = Self::evaluate(v, Visit { node, time }, &mut solution);
+                            (v, node, time, cost)
+                        }
+                    },
+                )
+                .min_by_key(|t| t.3)
                 .unwrap();
 
             if cost >= best {
-                let end = std::time::Instant::now();
-                println!("GreedyWithBlinks took {}ms", (end - start).as_millis());
                 return solution;
             }
 
