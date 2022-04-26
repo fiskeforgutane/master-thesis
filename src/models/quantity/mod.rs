@@ -228,7 +228,7 @@ impl QuantityLp {
         model.set_obj_attr_batch(
             grb::attr::UB,
             iproduct!(0..v, 0..t).map(|(vessel, time)| {
-                (cap_violation[time][vessel], problem.vessels()[v].capacity())
+                (cap_violation[time][vessel], problem.vessels()[vessel].capacity())
             }),
         )?;
 
@@ -236,7 +236,7 @@ impl QuantityLp {
             grb::attr::UB,
             iproduct!(0..v, 0..t).flat_map(|(vessel, time)| {
                 (0..p)
-                    .map(move |product| (l[time][vessel][product], problem.vessels()[v].capacity()))
+                    .map(move |product| (l[time][vessel][product], problem.vessels()[vessel].capacity()))
             }),
         )?;
 
@@ -496,23 +496,20 @@ impl QuantityLp {
             }
         });
 
+
+
         // set objective coefficient for production arrivals
         let l = &self.vars.l;
-        model.set_obj_attr_batch(
-            grb::attr::Obj,
-            prod_arrivals
-                .clone()
-                .flat_map(|(t, v)| (0..problem.products()).map(move |p| (l[t][v][p], 1.0))),
-        )?;
 
-        // set objective coefficient for consumption arrivals
-        model.set_obj_attr_batch(
-            grb::attr::Obj,
-            cons_arrivals
-                .clone()
-                .map(|(t, v)| (self.vars.cap_violation[t][v], 1.0)),
-        )?;
-
+        let a = prod_arrivals
+        .clone()
+        .flat_map(|(t, v)| (0..problem.products()).map(move |p| (l[t][v][p], 1.0)));
+        let b = cons_arrivals
+        .clone()
+        .map(|(t, v)| (self.vars.cap_violation[t][v], 1.0));
+        
+        model.set_obj_attr_batch(grb::attr::Obj, a.chain(b))?;
+        
         if load_restrictions {
             // set production arrivals to be empty
             let l = &self.vars.l;
