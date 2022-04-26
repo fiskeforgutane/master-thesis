@@ -48,7 +48,7 @@ impl Mutation for Period {
         {
             let mut solution = solution.mutate();
             for mut plan in solution.iter_mut().map(Plan::mutate) {
-                plan.dropout(|v| period.contains(&v.time), self.removal_rate);
+                plan.dropout(|i, v| i != 0 && period.contains(&v.time), self.removal_rate);
             }
         }
 
