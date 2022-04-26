@@ -581,6 +581,13 @@ impl RoutingSolution {
         self.cache.cost.set(None);
         self.cache.revenue.set(None);
     }
+
+    /// Convert to a double array of visits
+    pub fn to_vec(&self) -> Vec<Vec<Visit>> {
+        self.iter()
+            .map(|plan| plan.iter().cloned().collect())
+            .collect()
+    }
 }
 
 impl<'a> IntoIterator for &'a RoutingSolution {

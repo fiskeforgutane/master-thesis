@@ -27,6 +27,7 @@ use pyo3::prelude::*;
 use pyo3::wrap_pymodule;
 use pyo3_log;
 use pyo3_log::Logger;
+use python::distributed::ComputeNode;
 use quants::Order;
 use solution::{Delivery, Evaluation, Visit};
 
@@ -85,6 +86,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyElite>()?;
     m.add_class::<Weighted>()?;
     m.add_class::<PyGA>()?;
+    m.add_class::<ComputeNode>()?;
 
     Ok(())
 }
