@@ -69,6 +69,10 @@ impl Plan {
         PlanMut(self)
     }
 
+    pub fn origin(&self) -> Visit {
+        self.origin
+    }
+
     // Iterates over the plan, including its origin. Do not tamper with origin!
     pub fn iter_with_origin(
         &self,
@@ -94,7 +98,7 @@ impl Plan {
             first.unwrap().node
         );
         assert!(first.map(|&v| v == origin).unwrap_or(false));
-        
+
         // Enforce that there is at least one time step between consecutive visits
         assert!(sorted
             .iter()
@@ -163,6 +167,12 @@ impl<'a> PlanMut<'a> {
         for &i in remove.iter().rev() {
             self.swap_remove(i);
         }
+    }
+}
+
+impl PlanMut<'_> {
+    pub fn origin(&self) -> Visit {
+        self.0.origin()
     }
 }
 
