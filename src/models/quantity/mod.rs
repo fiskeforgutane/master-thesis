@@ -228,6 +228,7 @@ impl QuantityLp {
             model.add_constr(&format!("TravelAtCap_{}_{}", vessel, time), c!(lhs >= rhs))?;
 
             // arrive at production empty
+            let lhs = (0..p).map(|product| s[time][vessel][product]).grb_sum();
             // set rhs initially to capacity
             let rhs = problem.vessels()[v].capacity();
             model.add_constr(&format!("TravelEmpty_{}_{}", vessel, time), c!(lhs <= rhs))?;
@@ -363,7 +364,7 @@ impl QuantityLp {
         );
         model.set_obj_attr_batch(
             grb::attr::RHS,
-            indices.map(|(v, t)| {
+            indices.clone().map(|(v, t)| {
                 (
                     model
                         .get_constr_by_name(&format!("TravelEmpty_{}_{}", v, t))
@@ -427,18 +428,17 @@ impl QuantityLp {
         )?;
 
         if load_restrictions {
-            let timesteps = solution.problem().timesteps();
             let kind = |n: usize| solution.problem().nodes()[n].r#type();
 
             let iterator = solution.iter().enumerate().flat_map(|(v, plan)| {
                 plan.iter()
                     .enumerate()
                     .skip(1)
-                    .map(|(visit_idx, visit)| (v, plan, visit_idx, visit))
+                    .map(move |(visit_idx, visit)| (v, plan, visit_idx, visit))
             });
 
             // identify arrivals at production nodes
-            let prod_arrivals = iterator.filter_map(|(v, plan, visit_idx, visit)| {
+            let prod_arrivals = iterator.clone().filter_map(|(v, plan, visit_idx, visit)| {
                 // check that the previous visit is not at a production node
                 let prev = plan[visit_idx - 1].node;
                 if let NodeType::Production = kind(prev) {
@@ -446,7 +446,7 @@ impl QuantityLp {
                 } else {
                     match kind(visit.node) {
                         NodeType::Consumption => None,
-                        NodeType::Production => Some((visit.time, visit.node, v)),
+                        NodeType::Production => Some((visit.time, v)),
                     }
                 }
             });
@@ -458,14 +458,14 @@ impl QuantityLp {
                     None
                 } else {
                     match kind(visit.node) {
-                        NodeType::Consumption => Some((visit.time, visit.node, v)),
+                        NodeType::Consumption => Some((visit.time, v)),
                         NodeType::Production => None,
                     }
                 }
             });
 
             // set production arrivals to be empty
-            for (t, n, v) in prod_arrivals {
+            for (t, v) in prod_arrivals {
                 let constr = model
                     .get_constr_by_name(&format!("TravelEmpty_{}_{}", v, t))?
                     .unwrap();
@@ -473,7 +473,7 @@ impl QuantityLp {
             }
 
             // set consumption arrivals to be full if coming from production
-            for (t, n, v) in prod_arrivals {
+            for (t, v) in cons_arrivals {
                 let constr = model
                     .get_constr_by_name(&format!("TravelAtCap_{}_{}", v, t))?
                     .unwrap();
