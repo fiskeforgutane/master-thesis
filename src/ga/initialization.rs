@@ -113,7 +113,7 @@ impl GreedyWithBlinks {
     }
 
     // Repeatedly insert at the best position according to greedy with blinks while improvements are > epsilon.
-    pub fn converge<I>(
+    pub fn converge(
         &self,
         solution: &mut RoutingSolution,
         epsilon: (f64, f64),
