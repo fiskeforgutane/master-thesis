@@ -38,21 +38,29 @@ impl GreedyWithBlinks {
 }
 
 impl GreedyWithBlinks {
-    fn evaluate(
+    /// Return the violation and loss of the insertion, if it incurs no warp.
+    pub fn evaluate(
         vessel: usize,
         insertion: Visit,
         solution: &mut RoutingSolution,
-    ) -> (usize, FloatOrd<f64>, FloatOrd<f64>) {
+    ) -> Option<(FloatOrd<f64>, FloatOrd<f64>)> {
         // Insert the visit
         {
             let mut solution = solution.mutate();
             let mut plan = solution[vessel].mutate();
             plan.push(insertion);
         }
-        // Evaluate the solution
+
+        // We will only evaluate those that have no warp, as an optimization
         let warp = solution.warp();
-        let violation = solution.violation();
-        let loss = solution.cost() - solution.revenue();
+        let obj = match warp {
+            0 => Some((
+                FloatOrd(solution.violation()),
+                FloatOrd(solution.cost() - solution.revenue()),
+            )),
+            _ => None,
+        };
+
         // Undo the insertion
         {
             let mut solution = solution.mutate();
@@ -62,7 +70,72 @@ impl GreedyWithBlinks {
         }
 
         // Return the relevant objectives
-        (warp, FloatOrd(violation), FloatOrd(loss))
+        obj
+    }
+
+    /// Choose among the possible (usize, Visit)s using greedy with blinks.
+    pub fn choose_inc_obj<I>(
+        &self,
+        solution: &mut RoutingSolution,
+        candidates: I,
+    ) -> Option<((usize, Visit), (FloatOrd<f64>, FloatOrd<f64>))>
+    where
+        I: Iterator<Item = (usize, Visit)>,
+    {
+        // Return the minimum (sans blinking).
+        // Note that we will filter out occupied time slots, just in case.
+        candidates
+            .filter_map(|(v, visit)| {
+                let blink = rand::thread_rng().gen_bool(self.blink_rate);
+                let occupied = solution[v]
+                    .binary_search_by_key(&visit.time, |v| v.time)
+                    .is_ok();
+                let bad = (FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
+
+                let mut cost = || match blink {
+                    true => bad,
+                    false => Self::evaluate(v, visit, solution).unwrap_or(bad),
+                };
+
+                match occupied {
+                    true => None,
+                    false => Some(((v, visit), cost())),
+                }
+            })
+            .min_by_key(|(_, cost)| *cost)
+    }
+
+    pub fn choose<I>(&self, solution: &mut RoutingSolution, candidates: I) -> Option<(usize, Visit)>
+    where
+        I: Iterator<Item = (usize, Visit)>,
+    {
+        self.choose_inc_obj(solution, candidates).map(|t| t.0)
+    }
+
+    // Repeatedly insert at the best position according to greedy with blinks while improvements are > epsilon.
+    pub fn converge<I>(
+        &self,
+        solution: &mut RoutingSolution,
+        epsilon: (f64, f64),
+        candidates: Vec<(usize, Visit)>,
+    ) {
+        let mut best = (
+            FloatOrd(solution.violation()),
+            FloatOrd(solution.cost() - solution.revenue()),
+        );
+
+        while let Some((idx, obj)) = self.choose_inc_obj(solution, candidates.iter().cloned()) {
+            let dv = best.0 .0 - obj.0 .0;
+            let dl = best.1 .0 - obj.1 .0;
+
+            if (dv, dl) <= epsilon {
+                return;
+            }
+
+            let mut solution = solution.mutate();
+            let mut plan = solution[idx.0].mutate();
+            plan.push(idx.1);
+        }
     }
 }
 
@@ -78,7 +151,7 @@ impl Initialization for GreedyWithBlinks {
             quantities.clone(),
         );
 
-        let mut best = (usize::MAX, FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
+        let mut best = (FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
 
         loop {
             let s = &solution;
@@ -98,15 +171,16 @@ impl Initialization for GreedyWithBlinks {
 
             let (v, node, time, cost) = candidates
                 .into_iter()
-                .map(
-                    |(v, node, time)| match rand::thread_rng().gen_bool(self.blink_rate) {
-                        true => (v, node, time, (0, FloatOrd(0.0), FloatOrd(0.0))),
+                .map(|(v, node, time)| {
+                    let bad = (FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
+                    match rand::thread_rng().gen_bool(self.blink_rate) {
+                        true => (v, node, time, bad),
                         false => {
                             let cost = Self::evaluate(v, Visit { node, time }, &mut solution);
-                            (v, node, time, cost)
+                            (v, node, time, cost.unwrap_or(bad))
                         }
-                    },
-                )
+                    }
+                })
                 .min_by_key(|t| t.3)
                 .unwrap();
 
