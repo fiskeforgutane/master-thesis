@@ -253,7 +253,7 @@ impl QuantityLp {
                 &format!("setCap_{}_{}", t, v),
                 c!(cap_violation[time][vessel]
                     == (0..p)
-                        .map(|product| problem.vessels()[v].capacity() - l[time][vessel][product])
+                        .map(|product| problem.vessels()[vessel].capacity() - l[time][vessel][product])
                         .grb_sum()),
             )?;
         }
