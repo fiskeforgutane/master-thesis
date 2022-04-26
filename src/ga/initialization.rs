@@ -107,6 +107,7 @@ impl Initialization for GreedyWithBlinks {
             let mut solution = solution.mutate();
             let mut plan = solution[v].mutate();
             plan.push(Visit { node, time });
+            best = cost;
         }
     }
 }
