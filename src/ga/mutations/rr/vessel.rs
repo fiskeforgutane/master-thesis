@@ -38,6 +38,7 @@ impl Mutation for Vessel {
         // Ruin it by removing all visits
         let mut mutator = solution.mutate();
         mutator[vessel].mutate().clear();
+        drop(mutator);
 
         // Reconstruct using greedy with blinks
         let available = problem.vessels()[vessel].available_from();
