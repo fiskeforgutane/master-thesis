@@ -1,3 +1,4 @@
+pub mod distributed;
 pub mod ga;
 
 use crate::ga::chromosome::Chromosome;
