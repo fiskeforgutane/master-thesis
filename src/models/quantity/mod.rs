@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use grb::{c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
@@ -358,6 +356,37 @@ impl QuantityLp {
             }),
         )?;
 
+        // Disable all TravelAtCap and TravelEmpty constraints
+        let indices = iproduct!(
+            0..solution.problem().vessels().len(),
+            0..solution.problem().timesteps()
+        );
+        model.set_obj_attr_batch(
+            grb::attr::RHS,
+            indices.map(|(v, t)| {
+                (
+                    model
+                        .get_constr_by_name(&format!("TravelEmpty_{}_{}", v, t))
+                        .unwrap()
+                        .unwrap(),
+                    solution.problem().vessels()[v].capacity(),
+                )
+            }),
+        )?;
+
+        model.set_obj_attr_batch(
+            grb::attr::RHS,
+            indices.map(|(v, t)| {
+                (
+                    model
+                        .get_constr_by_name(&format!("TravelAtCap_{}_{}", v, t))
+                        .unwrap()
+                        .unwrap(),
+                    0.0,
+                )
+            }),
+        )?;
+
         let lower = |n: usize| match self.semicont {
             true => problem.nodes()[n].min_unloading_amount(),
             false => 0.0,
@@ -401,22 +430,59 @@ impl QuantityLp {
             let timesteps = solution.problem().timesteps();
             let kind = |n: usize| solution.problem().nodes()[n].r#type();
 
-            let production_keys = Self::active(solution)
-                .filter_map(|(t, n, v, p)| match kind(n) {
-                    NodeType::Consumption => None,
-                    NodeType::Production => Some((t, n, v, p)),
-                })
-                .collect::<HashSet<(usize, usize, usize, usize)>>();
+            let iterator = solution.iter().enumerate().flat_map(|(v, plan)| {
+                plan.iter()
+                    .enumerate()
+                    .skip(1)
+                    .map(|(visit_idx, visit)| (v, plan, visit_idx, visit))
+            });
 
-            // identify arrivals
-            let arrivals = production_keys
-                .iter()
-                .filter(|(t, n, v, p)| match t {
-                    0 => false,
-                    _ => production_keys.contains(&(t - 1, *n, *v, *p)),
-                })
-                .map(|e| *e)
-                .collect::<Vec<(usize, usize, usize, usize)>>();
+            // identify arrivals at production nodes
+            let prod_arrivals = iterator.filter_map(|(v, plan, visit_idx, visit)| {
+                // check that the previous visit is not at a production node
+                let prev = plan[visit_idx - 1].node;
+                if let NodeType::Production = kind(prev) {
+                    None
+                } else {
+                    match kind(visit.node) {
+                        NodeType::Consumption => None,
+                        NodeType::Production => Some((visit.time, visit.node, v)),
+                    }
+                }
+            });
+
+            // identify arrivals at the first consumption node after visiting a production node
+            let cons_arrivals = iterator.filter_map(|(v, plan, visit_idx, visit)| {
+                let prev = plan[visit_idx - 1].node;
+                if let NodeType::Consumption = kind(prev) {
+                    None
+                } else {
+                    match kind(visit.node) {
+                        NodeType::Consumption => Some((visit.time, visit.node, v)),
+                        NodeType::Production => None,
+                    }
+                }
+            });
+
+            // set production arrivals to be empty
+            for (t, n, v) in prod_arrivals {
+                let constr = model
+                    .get_constr_by_name(&format!("TravelEmpty_{}_{}", v, t))?
+                    .unwrap();
+                model.set_obj_attr(grb::attr::RHS, &constr, 0.0)?;
+            }
+
+            // set consumption arrivals to be full if coming from production
+            for (t, n, v) in prod_arrivals {
+                let constr = model
+                    .get_constr_by_name(&format!("TravelAtCap_{}_{}", v, t))?
+                    .unwrap();
+                model.set_obj_attr(
+                    grb::attr::RHS,
+                    &constr,
+                    solution.problem().vessels()[v].capacity(),
+                )?;
+            }
         }
 
         Ok(())
