@@ -11,17 +11,17 @@ use crate::{
 };
 
 pub trait Dropout<T> {
-    fn dropout<F: Fn(usize, T) -> bool>(&mut self, eligible: F, removal_rate: f64);
+    fn dropout<F: Fn(T) -> bool>(&mut self, eligible: F, removal_rate: f64);
 }
 
 impl<T> Dropout<T> for Vec<T>
 where
     T: Copy,
 {
-    fn dropout<F: Fn(usize, T) -> bool>(&mut self, eligible: F, removal_rate: f64) {
+    fn dropout<F: Fn(T) -> bool>(&mut self, eligible: F, removal_rate: f64) {
         let mut i = 0;
         while i < self.len() {
-            if eligible(i, self[i]) && rand::thread_rng().gen_bool(removal_rate) {
+            if eligible(self[i]) && rand::thread_rng().gen_bool(removal_rate) {
                 self.swap_remove(i);
             } else {
                 i += 1;
@@ -61,13 +61,14 @@ impl Mutation for Vessel {
         {
             let mut mutator = solution.mutate();
             let mut plan = mutator[vessel].mutate();
-            plan.dropout(|i, _| i != 0, self.removal_rate);
+            let origin = plan.origin();
+            plan.dropout(|x| x != origin, self.removal_rate);
         }
 
         // Find the insertion candidates
         let available = problem.vessels()[vessel].available_from();
         let nodes = problem.indices::<Node>();
-        let time = (available + 1..problem.timesteps());
+        let time = available + 1..problem.timesteps();
         let candidates = iproduct!(nodes, time)
             .map(|(node, time)| (vessel, Visit { node, time }))
             .collect();

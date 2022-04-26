@@ -48,7 +48,9 @@ impl Mutation for Period {
         {
             let mut solution = solution.mutate();
             for mut plan in solution.iter_mut().map(Plan::mutate) {
-                plan.dropout(|i, v| i != 0 && period.contains(&v.time), self.removal_rate);
+                let origin = plan.origin();
+                let eligible = |v: Visit| v != origin && period.contains(&v.time);
+                plan.dropout(eligible, self.removal_rate);
             }
         }
 
@@ -58,7 +60,7 @@ impl Mutation for Period {
             problem.indices::<Node>(),
             period
         )
-        .filter(|&(v, n, t)| t > problem.vessels()[v].available_from())
+        .filter(|&(v, _, t)| t > problem.vessels()[v].available_from())
         .map(|(v, node, time)| (v, Visit { node, time }))
         .collect();
 
