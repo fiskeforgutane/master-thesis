@@ -80,32 +80,23 @@ impl Chromosome {
 
             // We want the vessels that are currently on the opposite node type of the current order, that
             // are available before the closing of the order
-            let available_vessels: Vec<&Vessel> = vessels
-                .iter()
-                .filter(|v| {
-                    (problem
-                        .nodes()
-                        .get(avail_from[&v.index()].0)
-                        .unwrap()
-                        .r#type()
-                        != order_node_type)
-                        && (avail_from[&v.index()].1 < order.close())
-                })
-                .collect::<Vec<_>>();
+            let available_vessels: Vec<&Vessel> = vessels.iter().filter(
+                |v| {
+                    let (node, available) = avail_from[&v.index()];
+                    problem.nodes()[node].r#type() != order_node_type && available < order.close()
+                }
+            ).collect::<Vec<_>>();
 
             // If some vessels fullfils the abovementioned criteria
-            if available_vessels.len() > 0 {
-                let chosen = available_vessels.choose(&mut rng).unwrap().index();
-
-                let serve_time = rng.gen_range(avail_from[&chosen].1 + 1..(order.close() + 1));
-
+            if let Some(vessel) = available_vessels.choose(&mut rng) {
+                let chosen = vessel.index();
+                let serve_time = rng.gen_range(avail_from[&chosen].1 + 1..=order.close());
+                let visit = Visit::new(problem, order.node(), serve_time).unwrap();
+            
                 avail_from.insert(chosen, (order.node(), serve_time + 1));
-
-                chromosome
-                    .get_mut(chosen)
-                    .unwrap()
-                    .push(Visit::new(problem, order.node(), serve_time).unwrap());
-            } else {
+                chromosome[chosen].push(visit);
+            }
+            else {
                 // If no vessels fullfils the above criteria, the next step depends on the node type
                 match order_node_type {
                     crate::problem::NodeType::Consumption => {
@@ -123,8 +114,7 @@ impl Chromosome {
                         // If a vessel is available, use it, otherwise skip the order
                         match chosen_vessel {
                             Some(v) => {
-                                let serve_time = rng
-                                    .gen_range(avail_from[&v.index()].1 + 1..(order.close() + 1));
+                                let serve_time = rng.gen_range(avail_from[&v.index()].1 + 1..=order.close());
 
                                 avail_from.insert(v.index(), (order.node(), serve_time + 1));
 
@@ -155,6 +145,16 @@ impl Chromosome {
 ************** RANKING BASED ***************************
     //println!("Serve time: {}", serve_time);
     //println!("Vessels available from: {:?}", avail_from);
+
+     // Binary indicator indicating if the nodes are a consumption or production node
+    let node_types: Vec<u64> = problem
+        .nodes()
+        .iter()
+        .map(|n| match n.r#type() {
+            crate::problem::NodeType::Consumption => 1,
+            crate::problem::NodeType::Production => 0,
+        })
+        .collect();
 
     /*
     Idea: rank the vessels based on a set of factors.

@@ -84,7 +84,8 @@ pub fn run_ga(path: &str, epochs: usize) {
             .unwrap();
 
         println!(
-            "F = {}. warp = {}, violation = {}, revenue = {}, cost = {}; (worst fitness = {})",
+            "Iteration: {}, F = {}. warp = {}, violation = {}, revenue = {}, cost = {}; (worst fitness = {})",
+            i+1,
             fitness.of(&problem, best),
             best.warp(),
             best.violation(),
