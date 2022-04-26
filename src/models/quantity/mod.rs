@@ -215,22 +215,22 @@ impl QuantityLp {
     fn load_restrictions(
         model: &mut Model,
         problem: &Problem,
-        s: &[Vec<Vec<Var>>],
+        l: &[Vec<Vec<Var>>],
         v: usize,
         t: usize,
         p: usize,
     ) -> grb::Result<()> {
         for (vessel, time) in iproduct!(0..v, 0..t) {
             // leave production fully loaded
-            let lhs = (0..p).map(|product| s[time][vessel][product]).grb_sum();
+            let lhs = (0..p).map(|product| l[time][vessel][product]).grb_sum();
             // set rhs initially to 0.0
             let rhs = 0.0;
             model.add_constr(&format!("TravelAtCap_{}_{}", vessel, time), c!(lhs >= rhs))?;
 
             // arrive at production empty
-            let lhs = (0..p).map(|product| s[time][vessel][product]).grb_sum();
+            let lhs = (0..p).map(|product| l[time][vessel][product]).grb_sum();
             // set rhs initially to capacity
-            let rhs = problem.vessels()[v].capacity();
+            let rhs = problem.vessels()[vessel].capacity();
             model.add_constr(&format!("TravelEmpty_{}_{}", vessel, time), c!(lhs <= rhs))?;
         }
 
@@ -273,7 +273,7 @@ impl QuantityLp {
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
-        QuantityLp::load_restrictions(&mut model, problem, &s, v, t, p)?;
+        QuantityLp::load_restrictions(&mut model, problem, &l, v, t, p)?;
 
         // This should probably be taken from the problem instance
         let discount: f64 = 0.999;
