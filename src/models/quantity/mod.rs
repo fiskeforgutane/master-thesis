@@ -213,28 +213,32 @@ impl QuantityLp {
         Ok(())
     }
 
-    fn load_restrictions(
+    fn reset_load_bounds(
         model: &mut Model,
         problem: &Problem,
         l: &[Vec<Vec<Var>>],
         cap_violation: &[Vec<Var>],
-        v: usize,
-        t: usize,
-        p: usize,
     ) -> grb::Result<()> {
-        for (vessel, time) in iproduct!(0..v, 0..t) {
-            // leave production fully loaded
-            let lhs = cap_violation[time][vessel];
-            // set rhs initially to 0.0
-            let rhs = 0.0;
-            model.add_constr(&format!("TravelAtCap_{}_{}", vessel, time), c!(lhs >= rhs))?;
+        let (v, t, p) = (
+            problem.vessels().len(),
+            problem.timesteps(),
+            problem.products(),
+        );
 
-            // arrive at production empty
-            let lhs = (0..p).map(|product| l[time][vessel][product]).grb_sum();
-            // set rhs initially to capacity
-            let rhs = problem.vessels()[vessel].capacity();
-            model.add_constr(&format!("TravelEmpty_{}_{}", vessel, time), c!(lhs <= rhs))?;
-        }
+        model.set_obj_attr_batch(
+            grb::attr::UB,
+            iproduct!(0..v, 0..t).map(|(vessel, time)| {
+                (cap_violation[time][vessel], problem.vessels()[v].capacity())
+            }),
+        )?;
+
+        model.set_obj_attr_batch(
+            grb::attr::UB,
+            iproduct!(0..v, 0..t).flat_map(|(vessel, time)| {
+                (0..p)
+                    .map(move |product| (l[time][vessel][product], problem.vessels()[v].capacity()))
+            }),
+        )?;
 
         Ok(())
     }
@@ -298,7 +302,6 @@ impl QuantityLp {
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
-        QuantityLp::load_restrictions(&mut model, problem, &l, &cap_violation, v, t, p)?;
         QuantityLp::cap_restrictions(&mut model, problem, &l, &cap_violation, v, t, p)?;
 
         // This should probably be taken from the problem instance
@@ -378,6 +381,14 @@ impl QuantityLp {
 
         self.berth = berth;
 
+        // reset load bounds
+        QuantityLp::reset_load_bounds(
+            &mut self.model,
+            solution.problem(),
+            &self.vars.l,
+            &self.vars.cap_violation,
+        )?;
+
         // By default: disable `all` variables
         let model = &self.model;
         let problem = solution.problem();
@@ -391,36 +402,10 @@ impl QuantityLp {
             }),
         )?;
 
-        // Disable all TravelAtCap and TravelEmpty constraints
         let indices = iproduct!(
             0..solution.problem().vessels().len(),
             0..solution.problem().timesteps()
         );
-        model.set_obj_attr_batch(
-            grb::attr::RHS,
-            indices.clone().map(|(v, t)| {
-                (
-                    model
-                        .get_constr_by_name(&format!("TravelEmpty_{}_{}", v, t))
-                        .unwrap()
-                        .unwrap(),
-                    solution.problem().vessels()[v].capacity(),
-                )
-            }),
-        )?;
-
-        model.set_obj_attr_batch(
-            grb::attr::RHS,
-            indices.clone().map(|(v, t)| {
-                (
-                    model
-                        .get_constr_by_name(&format!("TravelAtCap_{}_{}", v, t))
-                        .unwrap()
-                        .unwrap(),
-                    0.0,
-                )
-            }),
-        )?;
 
         // Disable all obj-coefficients for travel empty and travel at cap
         model.set_obj_attr_batch(
@@ -530,24 +515,18 @@ impl QuantityLp {
 
         if load_restrictions {
             // set production arrivals to be empty
-            for (t, v) in prod_arrivals {
-                let constr = model
-                    .get_constr_by_name(&format!("TravelEmpty_{}_{}", v, t))?
-                    .unwrap();
-                model.set_obj_attr(grb::attr::RHS, &constr, 0.0)?;
-            }
+            let l = &self.vars.l;
+            model.set_obj_attr_batch(
+                grb::attr::UB,
+                prod_arrivals
+                    .flat_map(|(t, v)| (0..problem.products()).map(move |p| (l[t][v][p], 0.0))),
+            )?;
 
             // set consumption arrivals to be full if coming from production
-            for (t, v) in cons_arrivals {
-                let constr = model
-                    .get_constr_by_name(&format!("TravelAtCap_{}_{}", v, t))?
-                    .unwrap();
-                model.set_obj_attr(
-                    grb::attr::RHS,
-                    &constr,
-                    solution.problem().vessels()[v].capacity(),
-                )?;
-            }
+            model.set_obj_attr_batch(
+                grb::attr::UB,
+                cons_arrivals.map(|(t, v)| (self.vars.cap_violation[t][v], 0.0)),
+            )?;
         }
 
         Ok(())
