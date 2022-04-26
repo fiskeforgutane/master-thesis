@@ -17,6 +17,7 @@ pub struct Variables {
     pub l: Vec<Vec<Vec<Var>>>,
     pub b: Vec<Vec<Vec<Var>>>,
     pub a: Vec<Vec<Vec<Var>>>,
+    pub cap_violation: Vec<Vec<Var>>,
 }
 
 #[pyclass]
@@ -216,13 +217,14 @@ impl QuantityLp {
         model: &mut Model,
         problem: &Problem,
         l: &[Vec<Vec<Var>>],
+        cap_violation: &[Vec<Var>],
         v: usize,
         t: usize,
         p: usize,
     ) -> grb::Result<()> {
         for (vessel, time) in iproduct!(0..v, 0..t) {
             // leave production fully loaded
-            let lhs = (0..p).map(|product| l[time][vessel][product]).grb_sum();
+            let lhs = cap_violation[time][vessel];
             // set rhs initially to 0.0
             let rhs = 0.0;
             model.add_constr(&format!("TravelAtCap_{}_{}", vessel, time), c!(lhs >= rhs))?;
@@ -232,6 +234,28 @@ impl QuantityLp {
             // set rhs initially to capacity
             let rhs = problem.vessels()[vessel].capacity();
             model.add_constr(&format!("TravelEmpty_{}_{}", vessel, time), c!(lhs <= rhs))?;
+        }
+
+        Ok(())
+    }
+
+    fn cap_restrictions(
+        model: &mut Model,
+        problem: &Problem,
+        l: &[Vec<Vec<Var>>],
+        cap_violation: &[Vec<Var>],
+        v: usize,
+        t: usize,
+        p: usize,
+    ) -> grb::Result<()> {
+        for (time, vessel) in iproduct!(0..t, 0..v) {
+            model.add_constr(
+                &format!("setCap_{}_{}", t, v),
+                c!(cap_violation[time][vessel]
+                    == (0..p)
+                        .map(|product| problem.vessels()[v].capacity() - l[time][vessel][product])
+                        .grb_sum()),
+            )?;
         }
 
         Ok(())
@@ -266,6 +290,7 @@ impl QuantityLp {
         let l = (t + 1, v, p).cont(&mut model, "l")?;
         let b = (t, n, v).cont(&mut model, "b")?;
         let a = (t, n, p).cont(&mut model, "a")?;
+        let cap_violation = (t, v).cont(&mut model, "cap_violation")?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
         QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, &a, t, n, v, p)?;
@@ -273,7 +298,8 @@ impl QuantityLp {
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
-        QuantityLp::load_restrictions(&mut model, problem, &l, v, t, p)?;
+        QuantityLp::load_restrictions(&mut model, problem, &l, &cap_violation, v, t, p)?;
+        QuantityLp::cap_restrictions(&mut model, problem, &l, &cap_violation, v, t, p)?;
 
         // This should probably be taken from the problem instance
         let discount: f64 = 0.999;
@@ -298,7 +324,15 @@ impl QuantityLp {
 
         Ok(QuantityLp {
             model,
-            vars: Variables { w, x, s, l, b, a },
+            vars: Variables {
+                w,
+                x,
+                s,
+                l,
+                b,
+                a,
+                cap_violation,
+            },
             semicont: false,
             berth: false,
         })
@@ -377,7 +411,7 @@ impl QuantityLp {
 
         model.set_obj_attr_batch(
             grb::attr::RHS,
-            indices.map(|(v, t)| {
+            indices.clone().map(|(v, t)| {
                 (
                     model
                         .get_constr_by_name(&format!("TravelAtCap_{}_{}", v, t))
@@ -386,6 +420,20 @@ impl QuantityLp {
                     0.0,
                 )
             }),
+        )?;
+
+        // Disable all obj-coefficients for travel empty and travel at cap
+        model.set_obj_attr_batch(
+            grb::attr::Obj,
+            indices
+                .clone()
+                .map(|(v, t)| (self.vars.cap_violation[t][v], 0.0)),
+        )?;
+
+        let l = &self.vars.l;
+        model.set_obj_attr_batch(
+            grb::attr::Obj,
+            indices.flat_map(|(v, t)| (0..problem.products()).map(move |p| (l[t][v][p], 0.0))),
         )?;
 
         let lower = |n: usize| match self.semicont {
@@ -427,43 +475,60 @@ impl QuantityLp {
             Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
         )?;
 
+        let kind = |n: usize| solution.problem().nodes()[n].r#type();
+
+        let iterator = solution.iter().enumerate().flat_map(|(v, plan)| {
+            plan.iter()
+                .enumerate()
+                .skip(1)
+                .map(move |(visit_idx, visit)| (v, plan, visit_idx, visit))
+        });
+
+        // identify arrivals at production nodes
+        let prod_arrivals = iterator.clone().filter_map(|(v, plan, visit_idx, visit)| {
+            // check that the previous visit is not at a production node
+            let prev = plan[visit_idx - 1].node;
+            if let NodeType::Production = kind(prev) {
+                None
+            } else {
+                match kind(visit.node) {
+                    NodeType::Consumption => None,
+                    NodeType::Production => Some((visit.time, v)),
+                }
+            }
+        });
+
+        // identify arrivals at the first consumption node after visiting a production node
+        let cons_arrivals = iterator.filter_map(|(v, plan, visit_idx, visit)| {
+            let prev = plan[visit_idx - 1].node;
+            if let NodeType::Consumption = kind(prev) {
+                None
+            } else {
+                match kind(visit.node) {
+                    NodeType::Consumption => Some((visit.time, v)),
+                    NodeType::Production => None,
+                }
+            }
+        });
+
+        // set objective coefficient for production arrivals
+        let l = &self.vars.l;
+        model.set_obj_attr_batch(
+            grb::attr::Obj,
+            prod_arrivals
+                .clone()
+                .flat_map(|(t, v)| (0..problem.products()).map(move |p| (l[t][v][p], 1.0))),
+        )?;
+
+        // set objective coefficient for consumption arrivals
+        model.set_obj_attr_batch(
+            grb::attr::Obj,
+            cons_arrivals
+                .clone()
+                .map(|(t, v)| (self.vars.cap_violation[t][v], 1.0)),
+        )?;
+
         if load_restrictions {
-            let kind = |n: usize| solution.problem().nodes()[n].r#type();
-
-            let iterator = solution.iter().enumerate().flat_map(|(v, plan)| {
-                plan.iter()
-                    .enumerate()
-                    .skip(1)
-                    .map(move |(visit_idx, visit)| (v, plan, visit_idx, visit))
-            });
-
-            // identify arrivals at production nodes
-            let prod_arrivals = iterator.clone().filter_map(|(v, plan, visit_idx, visit)| {
-                // check that the previous visit is not at a production node
-                let prev = plan[visit_idx - 1].node;
-                if let NodeType::Production = kind(prev) {
-                    None
-                } else {
-                    match kind(visit.node) {
-                        NodeType::Consumption => None,
-                        NodeType::Production => Some((visit.time, v)),
-                    }
-                }
-            });
-
-            // identify arrivals at the first consumption node after visiting a production node
-            let cons_arrivals = iterator.filter_map(|(v, plan, visit_idx, visit)| {
-                let prev = plan[visit_idx - 1].node;
-                if let NodeType::Consumption = kind(prev) {
-                    None
-                } else {
-                    match kind(visit.node) {
-                        NodeType::Consumption => Some((visit.time, v)),
-                        NodeType::Production => None,
-                    }
-                }
-            });
-
             // set production arrivals to be empty
             for (t, v) in prod_arrivals {
                 let constr = model
