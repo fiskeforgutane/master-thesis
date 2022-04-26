@@ -132,6 +132,7 @@ impl GreedyWithBlinks {
                 return;
             }
 
+            best = obj;
             let mut solution = solution.mutate();
             let mut plan = solution[idx.0].mutate();
             plan.push(idx.1);
