@@ -534,25 +534,27 @@ impl RoutingSolution {
             .iter_with_origin()
             .enumerate()
             .map(|(v, plan)| {
-                plan.tuple_windows()
-                    .map(|(v1, v2)| {
-                        // NOTE: the time might be an off-by-one error
-                        // NOTE2: might consider batching this Gurobi call.
-                        let t = v2.time;
-                        for p in 0..p {
-                            inventory[p] =
-                                lp.model.get_obj_attr(grb::attr::X, &load[t][v][p]).unwrap();
-                        }
+                problem.nodes()[problem.vessels()[v].origin()].port_fee()
+                    + plan
+                        .tuple_windows()
+                        .map(|(v1, v2)| {
+                            // NOTE: the time might be an off-by-one error
+                            // NOTE2: might consider batching this Gurobi call.
+                            let t = v2.time;
+                            for p in 0..p {
+                                inventory[p] =
+                                    lp.model.get_obj_attr(grb::attr::X, &load[t][v][p]).unwrap();
+                            }
 
-                        let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
-                        let port_fee = match v1.node == v2.node {
-                            true => 0.0,
-                            false => problem.nodes()[v2.node].port_fee(),
-                        };
+                            let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
+                            let port_fee = match v1.node == v2.node {
+                                true => 0.0,
+                                false => problem.nodes()[v2.node].port_fee(),
+                            };
 
-                        travel + port_fee
-                    })
-                    .sum::<f64>()
+                            travel + port_fee
+                        })
+                        .sum::<f64>()
             })
             .sum::<f64>();
 
