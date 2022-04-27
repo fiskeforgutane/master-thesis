@@ -1,7 +1,9 @@
 use float_ord::FloatOrd;
 use rand;
 use std::{
+    cell::{RefCell, RefMut},
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 pub mod ga;
@@ -23,6 +25,7 @@ use crate::ga::{
     survival_selection, Fitness, GeneticAlgorithm, Stochastic,
 };
 
+use crate::models::quantity::QuantityLp;
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
@@ -211,11 +214,115 @@ pub enum Termination {
     Never,
 }
 
+pub fn simple(problem: Arc<Problem>) {
+    let vessel = &problem.vessels()[0];
+    let origin = vessel.origin();
+    let t = problem.timesteps();
+    let node = 2;
+    let travel_time = problem.travel_time(origin, node, vessel);
+    let available = vessel.available_from() + travel_time;
+
+    drop(vessel);
+
+    let routes = vec![Vec::new(); problem.vessels().len()];
+    let mut solution = RoutingSolution::new(problem, routes);
+
+    {
+        let mut solution = solution.mutate();
+        solution[0].mutate().push(Visit {
+            node,
+            time: available,
+        });
+    }
+
+    let mut sum = 0.0;
+    let start = std::time::Instant::now();
+    for t in available..t {
+        {
+            let mut solution = solution.mutate();
+            solution[0].mutate()[1].time = t;
+        }
+
+        sum += solution.violation();
+    }
+    let end = std::time::Instant::now();
+    let used = (end - start).as_millis();
+    println!("sum of violation: {sum}");
+    println!("completed in {used}ms");
+}
+
+pub fn complex(problem: Arc<Problem>) {
+    let n = 2;
+    let v = 0;
+
+    let vessel = &problem.vessels()[v];
+    let origin = vessel.origin();
+    let t = problem.timesteps();
+    let travel_time = problem.travel_time(origin, n, vessel);
+    let available = vessel.available_from() + travel_time;
+    let rate = problem.nodes()[origin].min_unloading_amount();
+    let max_loading_time = (vessel.capacity() / rate).ceil() as usize;
+
+    drop(vessel);
+
+    let routes = vec![Vec::new(); problem.vessels().len()];
+    let mut lp = Rc::new(RefCell::new(QuantityLp::new(&problem).unwrap()));
+    let mut solution = RoutingSolution::new_with_model(problem, routes, lp.clone());
+
+    {
+        let mut solution = solution.mutate();
+        solution[0].mutate().push(Visit {
+            node: n,
+            time: available,
+        });
+    }
+
+    println!("base = {}", solution.violation());
+    let mut sum = 0.0;
+    let start = std::time::Instant::now();
+    for t in available..t {
+        /*{
+            let mut solution = solution.mutate();
+            solution[0].mutate()[1].time = t;
+        }*/
+
+        let borrow = &mut *lp.borrow_mut();
+
+        let model = &mut borrow.model;
+        let vars = &mut borrow.vars;
+
+        model
+            .set_obj_attr_batch(
+                grb::attr::UB,
+                std::iter::once((vars.x[t - 1][n][v][0], 0.0)).chain(
+                    vars.x
+                        .get(t + max_loading_time)
+                        .map(|x| (x[n][v][0], f64::INFINITY)),
+                ),
+            )
+            .unwrap();
+        model.optimize().unwrap();
+
+        sum += model.get_obj_attr(grb::attr::X, &vars.violation).unwrap();
+    }
+    let end = std::time::Instant::now();
+    let used = (end - start).as_millis();
+    println!("sum of violation: {sum}");
+    println!("completed in {used}ms");
+}
+
 pub fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     let path = std::path::Path::new(&args[1]);
 
     println!("Problem path: {:?}", path);
+
+    let file = std::fs::File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let problem: Problem = serde_json::from_reader(reader).unwrap();
+    let problem = Arc::new(problem);
+    simple(problem.clone());
+    complex(problem);
 
     let problem_name = path.file_stem().unwrap().to_str().unwrap();
     let directory = path.parent().unwrap();
