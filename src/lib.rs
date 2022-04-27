@@ -107,6 +107,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(objective_terms, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
@@ -120,6 +121,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
+    m.add_class::<ObjectiveTerms>()?;
 
     Ok(())
 }
