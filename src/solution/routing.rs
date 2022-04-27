@@ -529,7 +529,10 @@ impl RoutingSolution {
                         }
 
                         let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
-                        let port_fee = problem.nodes()[v2.node].port_fee();
+                        let port_fee = match v1.node == v2.node {
+                            true => 0.0,
+                            false => problem.nodes()[v2.node].port_fee(),
+                        };
 
                         travel + port_fee
                     })
