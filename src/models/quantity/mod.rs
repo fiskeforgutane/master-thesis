@@ -1,4 +1,4 @@
-use grb::{c, expr::GurobiSum, Model, Var};
+use grb::{add_ctsvar, c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
 
@@ -253,38 +253,11 @@ impl QuantityLp {
         let l = (t + 1, v, p).cont(&mut model, "l")?;
         let b = (t, n, v).cont(&mut model, "b")?;
         let a = (t, n, p).cont(&mut model, "a")?;
-        let revenue = model.add_var(
-            "revenue",
-            grb::VarType::Continuous,
-            0.0,
-            0.0,
-            f64::INFINITY,
-            std::iter::empty(),
-        )?;
-        let timing = model.add_var(
-            "timing",
-            grb::VarType::Continuous,
-            0.0,
-            0.0,
-            f64::INFINITY,
-            std::iter::empty(),
-        )?;
-        let spot = model.add_var(
-            "spot",
-            grb::VarType::Continuous,
-            0.0,
-            0.0,
-            f64::INFINITY,
-            std::iter::empty(),
-        )?;
-        let violation = model.add_var(
-            "violation",
-            grb::VarType::Continuous,
-            0.0,
-            0.0,
-            f64::INFINITY,
-            std::iter::empty(),
-        )?;
+
+        let revenue = add_ctsvar!(model, name: "revenue", bounds: 0.0..)?;
+        let timing = add_ctsvar!(model, name: "timinig", bounds: 0.0..)?;
+        let spot = add_ctsvar!(model, name: "spot", bounds: 0.0..)?;
+        let violation = add_ctsvar!(model, name: "violation", bounds: 0.0..)?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
         QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, &a, t, n, v, p)?;
