@@ -531,11 +531,11 @@ impl RoutingSolution {
         let p = problem.count::<Product>();
         let mut inventory = Inventory::zeroed(p).unwrap();
         let cost = self
-            .iter_with_origin()
+            .iter()
             .enumerate()
             .map(|(v, plan)| {
                 problem.nodes()[problem.vessels()[v].origin()].port_fee()
-                    + plan
+                    + plan.iter()
                         .tuple_windows()
                         .map(|(v1, v2)| {
                             // NOTE: the time might be an off-by-one error
