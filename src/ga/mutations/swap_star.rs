@@ -154,6 +154,10 @@ impl SwapStar {
             .collect()
     }
 
+    /// Returns the best swap to perform between `plan1` and `plan2`
+    ///
+    /// ## Returns
+    /// Two tuples consisting of the visit to remove from the plan and where to insert it in the other plan
     fn best_swap(
         plan1: &Plan,
         plan2: &Plan,
@@ -192,6 +196,9 @@ impl SwapStar {
         best_swap
     }
 
+    /// Gets the time to insert visit `to_insert` into `plan_idx`
+    /// Tries to add it at a time step when the vessel can reach the node,
+    /// and if not, the time step between the between the previous visit and next is selected
     fn get_new_time(
         plan_idx: usize,
         into_idx: usize,
@@ -217,6 +224,7 @@ impl SwapStar {
         }
     }
 
+    /// Create a new visit to insert into `plan_idx` at `into_idx`
     fn new_visit(
         plan_idx: usize,
         into_idx: usize,
@@ -229,6 +237,17 @@ impl SwapStar {
         }
     }
 
+    /// Apply the swap
+    ///
+    /// ## Arguments
+    ///
+    /// * `solution`- The routing solution
+    /// * `plan1_idx` - The index of the first plan
+    /// * `plan2_idx` - The index of the second plan
+    /// * `into_plan1` - The visit to insert into the first plan
+    /// * `into_plan2` - The visit to insert into the second plan
+    /// * `remove_from_1` - The index of the visit to remove from the first plan
+    /// * `remove_from_2` - The index of the visit to remove from the second plan
     fn apply_swap(
         solution: &mut RoutingSolution,
         plan1_idx: usize,
@@ -251,12 +270,14 @@ impl SwapStar {
         plan2.mutate().fix();
     }
 
+    /// Checks if the plans at index `i` and `j` have overlapping polar sectors
     fn overlapping(i: usize, j: usize, solution: &RoutingSolution, problem: &Problem) -> bool {
         let sector1 = CircleSector::from_route(&solution[i], problem);
         let sector2 = CircleSector::from_route(&solution[j], problem);
         overlap(&sector1, &sector2)
     }
 
+    /// Returns a vector with all pairs of plans that have overlapping polar sectors
     fn swap_star_plans<'s>(
         problem: &'s Problem,
         solution: &'s RoutingSolution,
@@ -281,32 +302,36 @@ impl Mutation for SwapStar {
     }
 }
 
+/// A circle sector represented by a start angle and an end angle. Angles are given in the discrete range [0,16535]
 struct CircleSector {
     pub start: i16,
     pub end: i16,
 }
 
 impl CircleSector {
-    pub fn new(point: i16) -> CircleSector {
-        let start = point;
-        let end = point;
+    pub fn new(angle: i16) -> CircleSector {
+        let start = angle;
+        let end = angle;
         CircleSector { start, end }
     }
 
-    pub fn is_enclosed(&self, point: i16) -> bool {
-        modulo(point - self.start) <= modulo(self.end - self.start)
+    /// Checks if the given `angle` is enclosed in `self`
+    pub fn is_enclosed(&self, angle: i16) -> bool {
+        modulo(angle - self.start) <= modulo(self.end - self.start)
     }
 
-    pub fn extend(&mut self, point: i16) {
-        if !self.is_enclosed(point) {
-            if modulo(point - self.end) <= modulo(self.start - point) {
-                self.end = point;
+    /// Extends the interval of `self`
+    pub fn extend(&mut self, angle: i16) {
+        if !self.is_enclosed(angle) {
+            if modulo(angle - self.end) <= modulo(self.start - angle) {
+                self.end = angle;
             } else {
-                self.start = point;
+                self.start = angle;
             }
         }
     }
 
+    /// creates the circle sector of the given `plan`
     fn from_route(plan: &Plan, problem: &Problem) -> CircleSector {
         let points = plan
             .iter()
@@ -325,6 +350,7 @@ impl CircleSector {
         sector
     }
 
+    /// Returns the angle to add to the given cartesian coordinate depending on which quadrant it is in
     fn quadrant(x: f64, y: f64) -> Option<f64> {
         if x >= 0.0 && y >= 0.0 {
             return Some(0.0);
@@ -348,10 +374,12 @@ impl CircleSector {
     }
 }
 
+/// Positive modulo operation of i
 fn modulo(i: i16) -> i16 {
     (i % 16536 + 16536) % 16536
 }
 
+/// Checks if two circle sectors overlap
 fn overlap(sector1: &CircleSector, sector2: &CircleSector) -> bool {
     (modulo(sector2.start - sector1.start) <= modulo(sector1.end - sector1.start))
         || (modulo(sector1.start - sector2.start) <= modulo(sector2.end - sector2.start))
