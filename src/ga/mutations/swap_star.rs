@@ -333,11 +333,12 @@ impl CircleSector {
 
     /// creates the circle sector of the given `plan`
     fn from_route(plan: &Plan, problem: &Problem) -> CircleSector {
+        let center = problem.center();
         let points = plan
             .iter()
             .map(|visit| {
                 let n = &problem.nodes()[visit.node];
-                let (x, y) = n.coordinates();
+                let (x, y) = (n.coordinates().0 - center.0, n.coordinates().1 - center.1);
                 let polar = Self::cartesian_to_polar(x, y)
                     .expect("failed to convert from cartesian to polar");
 
