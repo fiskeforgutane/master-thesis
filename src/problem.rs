@@ -42,6 +42,10 @@ pub struct Problem {
     #[pyo3(get)]
     /// A distance matrix between the different nodes.
     distances: Vec<Vec<Distance>>,
+    /// production nodes
+    production_nodes: Vec<usize>,
+    /// consumption nodes
+    consumption_nodes: Vec<usize>,
 }
 
 impl Problem {
@@ -99,34 +103,20 @@ impl Problem {
         (quantity.abs() / rate.abs()).ceil() as TimeIndex
     }
     /// Returns the consumption nodes of the problem
-    /// **VERY BAD** should be done once in the constructor
-    pub fn consumption_nodes(&self) -> Vec<&Node> {
-        self.nodes()
-            .iter()
-            .filter_map(|n: &Node| match n.r#type() {
-                NodeType::Consumption => Some(n),
-                NodeType::Production => None,
-            })
-            .collect()
+    pub fn consumption_nodes(&self) -> &Vec<usize> {
+        &self.consumption_nodes
     }
 
     /// Returns the production nodes of the problem
-    /// **VERY BAD** should be done once in the constructor
-    pub fn production_nodes(&self) -> Vec<&Node> {
-        self.nodes()
-            .iter()
-            .filter_map(|n: &Node| match n.r#type() {
-                NodeType::Consumption => None,
-                NodeType::Production => Some(n),
-            })
-            .collect()
+    pub fn production_nodes(&self) -> &Vec<usize> {
+        &self.production_nodes
     }
 
     /// Returns the closes production node for the given node
     pub fn closest_production_node(&self, node: &Node) -> &Node {
-        let prod_nodes = self.production_nodes();
-        prod_nodes
+        self.production_nodes()
             .iter()
+            .map(|n| &self.nodes()[*n])
             .min_by(|a, b| {
                 self.distance(a.index(), node.index())
                     .partial_cmp(&self.distance(b.index(), node.index()))
@@ -165,6 +155,20 @@ impl Problem {
             node: vessel.origin(),
             time: vessel.available_from(),
         }
+    }
+
+    /// calculates the coordinate of the mass center of production nodes
+    pub fn center(&self) -> (f64, f64) {
+        let mut c = (0.0, 0.0);
+        self.production_nodes().iter().for_each(|n| {
+            let coord = self.nodes()[*n].coordinates();
+            c.0 += coord.0;
+            c.1 += coord.1;
+        });
+        (
+            c.0 / self.production_nodes().len() as f64,
+            c.1 / self.production_nodes().len() as f64,
+        )
     }
 }
 
@@ -348,12 +352,30 @@ impl Problem {
             Self::check_vessel(v, vessel, n, t, p)?;
         }
 
+        let consumption_nodes = nodes
+            .iter()
+            .filter_map(|n: &Node| match n.r#type() {
+                NodeType::Consumption => Some(n.index()),
+                NodeType::Production => None,
+            })
+            .collect();
+
+        let production_nodes = nodes
+            .iter()
+            .filter_map(|n: &Node| match n.r#type() {
+                NodeType::Consumption => None,
+                NodeType::Production => Some(n.index()),
+            })
+            .collect();
+
         Ok(Self {
             vessels,
             nodes,
             timesteps,
             products,
             distances,
+            production_nodes,
+            consumption_nodes,
         })
     }
 }
@@ -501,6 +523,8 @@ pub struct Node {
     cumulative_inventory: Vec<Vec<Quantity>>,
     /// The initial inventory of the node
     initial_inventory: FixedInventory,
+    /// the coordinates of the node
+    coordinates: (f64, f64),
 }
 
 impl Node {
@@ -518,6 +542,7 @@ impl Node {
         initial_inventory: FixedInventory,
         spot_market_limit_per_time: f64,
         spot_market_limit: f64,
+        coordinates: (f64, f64),
     ) -> Self {
         let mut cumulative_inventory = vec![Vec::new(); capacity.num_products()];
 
@@ -544,6 +569,7 @@ impl Node {
             initial_inventory,
             spot_market_limit_per_time,
             spot_market_limit,
+            coordinates,
         }
     }
 
@@ -639,6 +665,10 @@ impl Node {
 
     pub fn cumulative_inventory(&self) -> &Vec<Vec<Quantity>> {
         &self.cumulative_inventory
+    }
+
+    pub fn coordinates(&self) -> (f64, f64) {
+        self.coordinates
     }
 }
 
