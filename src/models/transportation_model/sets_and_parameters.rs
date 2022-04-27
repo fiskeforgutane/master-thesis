@@ -77,7 +77,8 @@ impl Sets {
             .unwrap();
 
         trace!("Speed of slowest vessel: {:?}", slowest_vessel.speed());
-        for node in problem.consumption_nodes() {
+        for n in problem.consumption_nodes() {
+            let node = &problem.nodes()[*n];
             trace!("\nnode: {:?}", node.index());
             let closest_prod = problem.closest_production_node(node);
             trace!("closest prod: {:?}", closest_prod.index());
