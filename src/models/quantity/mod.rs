@@ -224,6 +224,66 @@ impl QuantityLp {
         Ok(())
     }
 
+    #[cfg(feature = "linear-semicont")]
+    fn linear_semicont(
+        model: &mut Model,
+        problem: &Problem,
+        x: &[Vec<Vec<Vec<Var>>>],
+        t: usize,
+        n: usize,
+        v: usize,
+        p: usize,
+    ) -> grb::Result<Var> {
+        let p1 = (t, n, v, p).cont(&mut model, "p1")?;
+        let p2 = (t, n, v, p).cont(&mut model, "p2")?;
+        let p3 = (t, n, v, p).cont(&mut model, "p3")?;
+        let p4 = (t, n, v, p).cont(&mut model, "p4")?;
+        // This could be elided, but it will (hopefully ?) help with numerical stability.
+        // Each of (p1, p2, p3, p4) will be large in size, but p should be bounded quite well
+        let ps = (t, n, v, p).cont(&mut model, "psum")?;
+        let semicont = add_ctsvar!(model, name: "semicont", bounds: 0.0..)?;
+
+        // Controls the slope and maximum value of the penalty
+        let lb = |n: usize| problem.nodes()[n].min_unloading_amount();
+        let d: f64 = 1.0;
+        let m: f64 = 1.0;
+
+        let constraints = iproduct!(0..t, 0..n, 0..v, 0..p).flat_map(|(t, n, v, p)| {
+            [
+                (
+                    format!("lb_p1_{t}_{n}_{v}_{p}"),
+                    c!(p1[t][n][v][p] >= m * x[t][n][v][p]),
+                ),
+                (
+                    format!("lb_p2_{t}_{n}_{v}_{p}"),
+                    c!(p2[t][n][v][p] >= -m * (x[t][n][v][p] - d)),
+                ),
+                (
+                    format!("p3_{t}_{n}_{v}_{p}"),
+                    c!(p3[t][n][v][p] >= -m * (x[t][n][v][p] - lb(n))),
+                ),
+                (
+                    format!("p4_{t}_{n}_{v}_{p}"),
+                    c!(p4[t][n][v][p] >= m * (x[t][n][v][p] - lb(n) - d)),
+                ),
+                (
+                    format!("sum_{t}_{n}_{v}_{p}"),
+                    c!(ps[t][n][v][p]
+                        == p1[t][n][v][p] - p2[t][n][v][p] - p3[t][n][v][p] + p4[t][n][v][p]),
+                ),
+            ]
+        });
+
+        let sum = iproduct!(0..t, 0..n, 0..v, 0..p)
+            .map(|(t, n, v, p)| ps[t][n][v][p])
+            .grb_sum();
+        let constr = ("c_semicont".to_string(), c!(semicont == sum));
+
+        model.add_constrs(constraints.chain(Some(constr)))?;
+
+        Ok(sum)
+    }
+
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
             NodeType::Consumption => -1.0,
@@ -265,6 +325,8 @@ impl QuantityLp {
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
+        #[cfg(feature = "linear-semicont")]
+        let semicont = QuantityLp::linear_semicont(&mut model, problem, t, n, v, p);
 
         // This should probably be taken from the problem instance
         let discount: f64 = 0.999;
@@ -291,7 +353,11 @@ impl QuantityLp {
         model.add_constr("violation", c!(violation == violation_expr))?;
         model.add_constr("timing", c!(timing == timing_expr))?;
 
+        #[cfg(not(feature = "linear-semicont"))]
         let obj = violation + 0.5 * spot - 1e-6 * (revenue + timing);
+        #[cfg(feature = "linear-semicont")]
+        let obj = violation + 0.5 * spot - 1e-6 * (revenue + timing) + 1e3 * semicont;
+
         model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {

@@ -22,3 +22,7 @@ float-ord = "0.3.2"
 typed-index-collections = "3.0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+[features]
+# Use the option-based linear semicont implementation
+linear-semicont = []
