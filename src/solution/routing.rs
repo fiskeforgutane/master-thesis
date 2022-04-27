@@ -546,19 +546,11 @@ impl RoutingSolution {
                                     lp.model.get_obj_attr(grb::attr::X, &load[t][v][p]).unwrap();
                             }
 
-<<<<<<< HEAD
-                        let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
-                        let port_fee = match v1.node == v2.node {
-                            true => 0.0,
-                            false => problem.nodes()[v2.node].port_fee(),
-                        };
-=======
                             let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
                             let port_fee = match v1.node == v2.node {
                                 true => 0.0,
                                 false => problem.nodes()[v2.node].port_fee(),
                             };
->>>>>>> 7e3ae5ba194b80c60ba857320da6b3de8e8a3351
 
                             travel + port_fee
                         })
