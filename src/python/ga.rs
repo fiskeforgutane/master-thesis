@@ -405,6 +405,7 @@ impl PyGA {
                 let spot = lp.vars.spot.convert(&lp.model).unwrap();
                 let violation = lp.vars.violation.convert(&lp.model).unwrap();
                 let timing = lp.vars.timing.convert(&lp.model).unwrap();
+                let a = lp.vars.a.convert(&lp.model).unwrap();
 
                 let v = F64Variables {
                     w,
@@ -415,6 +416,7 @@ impl PyGA {
                     spot,
                     violation,
                     timing,
+                    a,
                 };
 
                 let obj = (

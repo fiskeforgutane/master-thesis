@@ -41,6 +41,8 @@ pub struct F64Variables {
     pub violation: f64,
     #[pyo3(get)]
     pub timing: f64,
+    #[pyo3(get)]
+    pub a: Vec<Vec<Vec<f64>>>,
 }
 
 pub struct QuantityLp {
@@ -428,6 +430,7 @@ impl QuantityLp {
         let violation = self.vars.violation.convert(&self.model)?;
         let timing = self.vars.timing.convert(&self.model)?;
         let spot = self.vars.spot.convert(&self.model)?;
+        let a = self.vars.a.convert(&self.model)?;
 
         let v = F64Variables {
             w,
@@ -438,6 +441,7 @@ impl QuantityLp {
             spot,
             violation,
             timing,
+            a,
         };
         Ok(v)
     }
