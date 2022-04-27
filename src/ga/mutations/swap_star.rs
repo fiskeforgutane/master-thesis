@@ -13,10 +13,13 @@ use crate::{
     utils::GetPairMut,
 };
 
+/// A local search swap procedure that exchanges two visits v and v' from different plans r and r' without and insertion in place.
+/// In this process, v can be inserted in any position in r', and v' can likewise be inserted in any position of r.
+/// The procedure only evaluates swaps using distance, hence deliveries are ignored.
 pub struct SwapStar;
 
 impl SwapStar {
-    /// Evaluates the cost of inserting the given visit into the given index in the given plan
+    /// Evaluates the cost of inserting the given `visit` into the given `idx` in the given `plan`
     fn evaluate(idx: usize, visit: &Visit, plan: &Plan, problem: &Problem) -> f64 {
         let dist = |n1, n2| problem.distance(n1, n2);
         if idx == plan.len() {
@@ -29,6 +32,12 @@ impl SwapStar {
     }
 
     /// cost of inserting a visit between two other visits
+    ///
+    /// ## Arguments
+    ///
+    /// * `prev` - the visit prior to the one inserted
+    /// * `inserted` - the visit in the middle
+    /// * `next` - the next visit, if any
     fn cost_between(
         prev: &Visit,
         inserted: &Visit,
@@ -44,6 +53,13 @@ impl SwapStar {
         }
     }
 
+    /// Finds the best entry point among the top three given that does not have an edge into, nor out from the `visit_to_remove`
+    ///
+    /// ## Arguments
+    ///
+    /// * `top_three` - The top three (might be fewer if the plan was shorter) best places to insert, sorted from best to worst
+    /// * `plan` - The plan where the insertions will be made
+    /// * `visit_to_remove` - The visit that will be removed from `plan`
     fn best_without_v(top_three: &Vec<usize>, plan: &Plan, visit_to_remove: &Visit) -> usize {
         let a = top_three
             .into_iter()
@@ -61,6 +77,19 @@ impl SwapStar {
         *a.unwrap()
     }
 
+    /// Checks whether it is best to insert the `visit_to_insert` into the current place of `visit_to_remove` or in the best place that does not
+    /// have an edge into nor out from the `visit_to_remove`
+    ///
+    /// ## Arguments
+    /// * `pos1` - The best place to insert, that does not have and edge into, nor out from, `visit_to_remove`
+    /// * `to_remove_idx` - The index in the `plan` of the `visit_to_remove`
+    /// * `visit_to_insert` - The visit to insert
+    /// * `visit_to_remove` - The visit to remove
+    /// * `plan` - The plan of `visit_to_remove`
+    /// * `problem` - The problem
+    ///
+    /// ## Returns
+    /// The best position to insert `visit_to_insert` into `plan`, as well as the cost associated with doing this
     fn _get_best(
         pos1: usize,
         to_remove_idx: usize,
@@ -92,6 +121,9 @@ impl SwapStar {
         }
     }
 
+    /// Identify the two three best places to insert the given visit into the given plan
+    /// Returns a vector sorted from best position to worst. The length of the vector might be shorter than 3 if
+    /// the plan is shorter than 3
     pub fn find_top_three(visit: &Visit, plan: &Plan, problem: &Problem) -> Vec<usize> {
         // omits origin as nothing should be inserted prior to origin.
         let mut costs = (1..=plan.len())
