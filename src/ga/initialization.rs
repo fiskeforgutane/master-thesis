@@ -1,12 +1,12 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use float_ord::FloatOrd;
 use log::trace;
-use rand::{prelude::StdRng, Rng};
+use rand::Rng;
 
 use crate::{
     models::quantity::QuantityLp,
-    problem::{Node, Problem, Timestep, Vessel},
+    problem::{Node, Problem, Vessel},
     solution::{routing::RoutingSolution, Visit},
 };
 

@@ -6,10 +6,7 @@ use std::{
 use itertools::Itertools;
 use rand::prelude::SliceRandom;
 
-use crate::solution::{
-    routing::{Plan, RoutingSolution},
-    Visit,
-};
+use crate::solution::{routing::RoutingSolution, Visit};
 
 use super::{
     initialization::Initialization, Config, Fitness, GeneticAlgorithm, Mutation, ParentSelection,

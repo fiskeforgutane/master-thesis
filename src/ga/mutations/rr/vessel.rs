@@ -6,7 +6,7 @@ use rand::{
 
 use crate::{
     ga::{initialization::GreedyWithBlinks, Mutation},
-    problem::{self, Node},
+    problem::Node,
     solution::Visit,
 };
 
