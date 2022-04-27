@@ -214,6 +214,8 @@ pub struct Cache {
     cost: Cell<Option<Cost>>,
     /// The total revenue of the solution.
     revenue: Cell<Option<Cost>>,
+    /// The timing punishment of the solution.
+    timing: Cell<Option<Cost>>,
 }
 
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
@@ -248,6 +250,7 @@ impl Clone for RoutingSolution {
                 violation: Cell::new(None),
                 cost: Cell::new(None),
                 revenue: Cell::new(None),
+                timing: Cell::new(None),
             },
         }
     }
@@ -311,6 +314,7 @@ impl RoutingSolution {
             violation: Cell::new(None),
             cost: Cell::new(None),
             revenue: Cell::new(None),
+            timing: Cell::new(None),
         };
 
         Self {
@@ -497,15 +501,28 @@ impl RoutingSolution {
                 warp += needed.max(available) - available;
             }
         }
-
         self.cache.warp.set(Some(warp));
         warp
     }
 
     fn update_violation(&self, quantities: &QuantityLp) -> f64 {
-        let obj = quantities.model.get_attr(grb::attr::ObjVal).unwrap();
-        self.cache.violation.set(Some(obj));
-        obj
+        let lp = quantities;
+        let violation = lp
+            .model
+            .get_obj_attr(grb::attr::X, &lp.vars.violation)
+            .expect("failed to retrieve variables");
+        self.cache.violation.set(Some(violation));
+        violation
+    }
+
+    fn update_timing(&self, quantities: &QuantityLp) -> f64 {
+        let lp = quantities;
+        let timing = lp
+            .model
+            .get_obj_attr(grb::attr::X, &lp.vars.timing)
+            .expect("failed to retrieve variables");
+        self.cache.timing.set(Some(timing));
+        timing
     }
 
     fn update_cost(&self, quantities: &QuantityLp) -> f64 {
@@ -546,20 +563,10 @@ impl RoutingSolution {
         // We need to retrieve the solution variables, and loop over the ones
         // that are non-zero to determine the revenue
         let lp = quantities;
-        let x = &lp.vars.x;
-        let nodes = self.problem().nodes();
-        let variables = lp
+        let revenue = lp
             .model
-            .get_obj_attr_batch(
-                grb::attr::X,
-                QuantityLp::active(self).map(|(t, n, v, p)| x[t][n][v][p]),
-            )
+            .get_obj_attr(grb::attr::X, &lp.vars.revenue)
             .expect("retrieving variable values failed");
-
-        let revenue = QuantityLp::active(self)
-            .zip_eq(&variables)
-            .map(|((_, n, _, _), quantity)| nodes[n].revenue() * quantity)
-            .sum();
 
         self.cache.revenue.set(Some(revenue));
         revenue
@@ -571,6 +578,7 @@ impl RoutingSolution {
         self.update_cost(&quantities);
         self.update_revenue(&quantities);
         self.update_violation(&quantities);
+        self.update_timing(&quantities);
         self.update_warp();
     }
 
