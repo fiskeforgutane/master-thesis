@@ -152,6 +152,31 @@ impl GreedyWithBlinks {
             plan.push(idx.1);
         }
     }
+
+    pub fn insert_best(
+        &self,
+        solution: &mut RoutingSolution,
+        epsilon: (f64, f64),
+        candidates: &Vec<(usize, Visit)>,
+        best: (usize, FloatOrd<f64>, FloatOrd<f64>),
+    ) -> Option<((usize, Visit), (usize, FloatOrd<f64>, FloatOrd<f64>))> {
+        // choose the best among the candidates
+
+        self.choose_inc_obj(solution, candidates.into_iter().cloned())
+            .and_then(|(idx, obj)| {
+                let dv = best.1 .0 - obj.1 .0;
+                let dl = best.2 .0 - obj.2 .0;
+
+                if (dv, dl) <= epsilon || obj.0 > best.0 {
+                    trace!("Iterative converge done");
+                    return None;
+                }
+
+                let mutator = &mut solution.mutate();
+                mutator[idx.0].mutate().push(idx.1);
+                Some((idx, obj))
+            })
+    }
 }
 
 impl Initialization for GreedyWithBlinks {

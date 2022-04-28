@@ -145,8 +145,8 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
             Stochastic::new(0.03, Bounce::new(3, BounceMode::All)),
             Stochastic::new(0.03, Bounce::new(3, BounceMode::Random)),
             Stochastic::new(0.03, AddSmart),
-            Stochastic::new(0.01, rr::Period::new(0.1, 0.50, 15)),
-            Stochastic::new(0.01, rr::Vessel::new(0.1, 0.75))
+            Stochastic::new(0.01, rr::Period::new(0.1, 0.50, 15, 3)),
+            Stochastic::new(0.01, rr::Vessel::new(0.1, 0.75, 3))
         ),
         selection: survival_selection::Elite(
             1,
