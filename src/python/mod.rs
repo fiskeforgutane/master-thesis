@@ -381,8 +381,9 @@ pub fn swap_star_test(
     problem: Problem,
 ) -> Vec<Vec<Visit>> {
     let arc = Arc::new(problem);
-
+    trace!("here");
     let mut solution = RoutingSolution::new(arc.clone(), routes);
+    trace!("testing_overlap");
     let overlapping = SwapStar::overlapping(r1, r2, &solution, &arc);
     trace!("overlapping: {:?}", overlapping);
     let best_swap = SwapStar::best_swap(&solution[r1], &solution[r2], &arc);
