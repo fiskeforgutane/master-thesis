@@ -616,7 +616,7 @@ impl RoutingSolution {
                 )
                 .expect("failed to retrieve variables")
                 .into_iter()
-                .any(|v| v > 0.0)
+                .any(|v| v > 1e-5)
             {
                 break;
             }
@@ -655,15 +655,17 @@ impl RoutingSolution {
                     _ => current_visit.time + current_duration - 1 + travel_time,
                 };
                 match arrival < time_bound {
-                    true => Some((arrival..(arrival + c).min(self.problem.timesteps()-1)).map(move |t| {
-                        (
-                            plan_idx,
-                            Visit {
-                                node: n.index(),
-                                time: t,
-                            },
-                        )
-                    })),
+                    true => Some(
+                        (arrival..(arrival + c).min(self.problem.timesteps() - 1)).map(move |t| {
+                            (
+                                plan_idx,
+                                Visit {
+                                    node: n.index(),
+                                    time: t,
+                                },
+                            )
+                        }),
+                    ),
                     false => None,
                 }
             })
@@ -706,10 +708,14 @@ impl Drop for RoutingSolutionMut<'_> {
         // Check that the visit times are correct
         for (v, plan) in self.0.routes.iter().enumerate() {
             // Ensure that the last timestep is within the planning period.
-            assert!(match plan.last() {
-                Some(visit) => visit.time < timesteps,
-                None => true,
-            },"Some(visit) => visit.time < timesteps, None => true, visit:{:?}",plan.last());
+            assert!(
+                match plan.last() {
+                    Some(visit) => visit.time < timesteps,
+                    None => true,
+                },
+                "Some(visit) => visit.time < timesteps, None => true, visit:{:?}",
+                plan.last()
+            );
             // Assert that the first visit of each vessel's plan corresponds to its origin visit.
             assert!(plan
                 .first()
