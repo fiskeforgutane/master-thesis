@@ -374,7 +374,7 @@ pub fn solve_multiple_quantities(
 }
 
 #[pyfunction]
-pub fn swap_star(
+pub fn swap_star_test(
     r1: usize,
     r2: usize,
     routes: Vec<Vec<Visit>>,
