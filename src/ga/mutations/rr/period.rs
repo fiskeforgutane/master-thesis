@@ -62,33 +62,46 @@ impl Mutation for Period {
             FloatOrd(solution.violation()),
             FloatOrd(solution.cost() - solution.revenue()),
         );
-        let mut indices = vec![0; problem.vessels().len()];
-        let mut candidates = problem
+
+        // The indices of the last visit evaluated in every plan
+        let mut indices = problem
             .indices::<Vessel>()
             .map(|v| {
-                solution
-                    .candidates(indices[v], v, self.c)
-                    .collect::<Vec<_>>()
+                match solution[v].binary_search_by_key(&period.start, |visit| visit.time) {
+                    Ok(x) => x,
+                    // since the index where an element can be inserted is returned if the key is not found, this will be the first visit time > period.
+                    // therefore the one before is x-1
+                    Err(x) => 0.max(x - 1),
+                }
             })
             .collect::<Vec<_>>();
-        let mut v = 0;
-        loop {
-            let greedy = GreedyWithBlinks::new(self.blink_rate);
-            candidates[v] = solution.candidates(indices[v], v, self.c).collect();
-            // choose the best among the candidates
-            match greedy.insert_best(
-                solution,
-                self.epsilon,
-                &candidates.iter().flatten().cloned().collect(),
-                best,
-            ) {
-                Some((idx, obj)) => {
-                    best = obj;
-                    indices[idx.0] += 1;
-                    v = idx.0
-                }
-                None => return,
-            }
+
+        // gets candidates and filteres out the ones outside the range.
+        let get_candidates =
+            |v, solution: &crate::solution::routing::RoutingSolution, indices: &Vec<usize>| {
+                solution
+                    .candidates(indices[v], v, self.c)
+                    .filter(|(_, v)| period.contains(&v.time))
+                    .collect::<Vec<_>>()
+            };
+
+        let mut candidates = problem
+            .indices::<Vessel>()
+            .map(|v| get_candidates(v, solution, &indices))
+            .collect::<Vec<_>>();
+
+        let greedy = GreedyWithBlinks::new(self.blink_rate);
+        while let Some((idx, obj)) = greedy.insert_best(
+            solution,
+            self.epsilon,
+            &candidates.iter().flatten().cloned().collect(),
+            best,
+        ) {
+            best = obj;
+            indices[idx.0] += 1;
+            // the index of the vessel changed, this is the one we must get new candidates for
+            let v = idx.0;
+            candidates[v] = get_candidates(v, solution, &indices);
         }
     }
 }

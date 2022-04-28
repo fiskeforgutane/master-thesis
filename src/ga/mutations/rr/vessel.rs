@@ -70,19 +70,13 @@ impl Mutation for Vessel {
             FloatOrd(solution.cost() - solution.revenue()),
         );
         let mut idx = 0;
-        loop {
-            let candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
-            // Gredily construct a new vessel plan based on greedy insertion with blinks
-            let greedy = GreedyWithBlinks::new(self.blink_rate);
-
-            // choose the best among the candidates
-            match greedy.insert_best(solution, self.epsilon, &candidates, best) {
-                Some((_, obj)) => {
-                    best = obj;
-                    idx += 1;
-                }
-                None => return,
-            }
+        // Gredily construct a new vessel plan based on greedy insertion with blinks
+        let greedy = GreedyWithBlinks::new(self.blink_rate);
+        let mut candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
+        while let Some((_, obj)) = greedy.insert_best(solution, self.epsilon, &candidates, best) {
+            best = obj;
+            idx += 1;
+            candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
         }
     }
 }
