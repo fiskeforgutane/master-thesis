@@ -32,7 +32,6 @@ pub struct Variables {
 pub struct QuantityLp {
     pub model: Model,
     pub vars: Option<Variables>,
-    pub solution: Option<RoutingSolution>,
     pub semicont: bool,
     pub berth: bool,
 }
@@ -70,7 +69,6 @@ impl QuantityLp {
             vars: None,
             semicont: false,
             berth: false,
-            solution: None,
         })
     }
 
@@ -217,7 +215,7 @@ impl QuantityLp {
 
                 // Some other code relies on the loading being defined at each visit.
                 // Not strictly needed for the sparse model.
-                // t_v[v].insert(*times.start());
+                t_v[v].insert(*times.start());
 
                 for t in times {
                     t_v[v].insert(t);
@@ -374,7 +372,6 @@ impl QuantityLp {
         model.add_constr("c_spot", c!(spot == a.values().grb_sum()))?;
         model.add_constr("c_timing", c!(timing == 0.0_f64))?;
 
-        self.solution = Some(solution.clone());
         self.vars = Some(Variables {
             w,
             x,
