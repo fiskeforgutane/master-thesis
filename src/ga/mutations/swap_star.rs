@@ -129,7 +129,7 @@ impl SwapStar {
     /// the plan is shorter than 3
     pub fn find_top_three(visit: &Visit, plan: &Plan, problem: &Problem) -> Vec<usize> {
 
-        trace!("finding top three of removing {:?}, from plan {:?}", visit, plan.iter().map(|v|(v.node, v.time)).collect::<Vec<_>>());
+        trace!("finding top three of inserting {:?}, from plan {:?}", visit, plan.iter().map(|v|(v.node, v.time)).collect::<Vec<_>>());
 
         // omits origin as nothing should be inserted prior to origin.
         let mut costs = (1..=plan.len())
@@ -154,10 +154,12 @@ impl SwapStar {
             }
         }
 
-        res.into_iter()
+        let a = res.into_iter()
             .sorted_by_key(|(_, cost)| FloatOrd(*cost))
             .map(|(i, _)| i)
-            .collect()
+            .collect();
+        trace!("top three: {:?}", a);
+        a
     }
 
     /// Returns the best swap to perform between `plan1` and `plan2`
