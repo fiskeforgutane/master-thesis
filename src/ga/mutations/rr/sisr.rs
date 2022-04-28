@@ -4,6 +4,7 @@ use std::{
 };
 
 use float_ord::FloatOrd;
+use itertools::Itertools;
 use log::{debug, trace, warn};
 use rand::{self, prelude::Distribution};
 use rand::{distributions::Uniform, Rng};
@@ -81,19 +82,6 @@ impl SlackInductionByStringRemoval {
         solution: &RoutingSolution,
     ) -> Vec<(VesselIndex, usize)> {
         debug!("vehicles used = {:?}", vehicles_used);
-        let mut candidates = solution
-            .iter()
-            .enumerate()
-            .filter(|(v, _)| !vehicles_used.contains(&v))
-            .flat_map(|(v, route)| {
-                route.iter().enumerate().filter_map(move |(i, visit)| {
-                    match time_period.contains(&visit.time) {
-                        true => Some((v, i)),
-                        false => None,
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
 
         let key = |&(v, i): &(usize, usize)| {
             let visit = solution[v][i];
@@ -105,9 +93,20 @@ impl SlackInductionByStringRemoval {
             (FloatOrd(distance), time_skew)
         };
 
-        candidates.sort_unstable_by_key(key);
-
-        candidates
+        solution
+            .iter()
+            .enumerate()
+            .filter(|(v, _)| !vehicles_used.contains(&v))
+            .flat_map(|(v, route)| {
+                route.iter().enumerate().filter_map(move |(i, visit)| {
+                    match time_period.contains(&visit.time) {
+                        true => Some((v, i)),
+                        false => None,
+                    }
+                })
+            })
+            .sorted_unstable_by_key(key)
+            .collect()
     }
 
     /// The method used to select strings for removal
@@ -115,22 +114,20 @@ impl SlackInductionByStringRemoval {
         config: &Config,
         solution: &RoutingSolution,
     ) -> Vec<(VesselIndex, Range<usize>)> {
+        let mut rng = rand::thread_rng();
         let problem = solution.problem();
-        let ls_max = (config.max_cardinality as f64).min(
-            SlackInductionByStringRemoval::average_tour_cardinality(solution),
-        );
+
+        let ls_max = (config.max_cardinality as f64).min(Self::average_tour_cardinality(solution));
         let ks_max = (4.0 * config.average_removal as f64) / (1.0 + ls_max) - 1.0;
         // The number of strings that will be removed.
-        let k_s =
-            Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rand::thread_rng()) as usize;
+        let k_s = Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rng) as usize;
 
         trace!("ls_max = {}, ks_max = {}, k_s = {}", ls_max, ks_max, k_s);
 
-        let (seed_vehicle, seed_index) =
-            match SlackInductionByStringRemoval::select_random_visit(solution) {
-                Some(x) => x,
-                None => return Vec::new(),
-            };
+        let (seed_vehicle, seed_index) = match Self::select_random_visit(solution) {
+            Some(x) => x,
+            None => return Vec::new(),
+        };
 
         let seed = solution[seed_vehicle][seed_index];
 
@@ -141,11 +138,8 @@ impl SlackInductionByStringRemoval {
         // A list of the vehicle's who's tour we have removed.
         let mut vehicles_used = HashSet::with_capacity(k_s);
         // A list of the time periods covered by the strings that will be removed.
-        let mut time_periods = {
-            let mut v = Vec::with_capacity(k_s);
-            v.push(seed.time..=seed.time);
-            v
-        };
+        let mut time_periods = Vec::with_capacity(k_s);
+        time_periods.push(seed.time..=seed.time);
 
         // The SISRs paper by Christiaens et al. only considers adjacency based on distance, which makes sense when there is no time aspect.
         // However, we need to considers adjacency in both space and time. It makes sense to find a nearby node that is visited in the same
