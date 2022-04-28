@@ -9,7 +9,7 @@ use crate::{
     problem::Problem,
     solution::{
         routing::{Plan, RoutingSolution},
-        Visit,
+        Visit, visit,
     },
     utils::GetPairMut,
 };
@@ -62,6 +62,7 @@ impl SwapStar {
     /// * `plan` - The plan where the insertions will be made
     /// * `visit_to_remove` - The visit that will be removed from `plan`
     fn best_without_v(top_three: &Vec<usize>, plan: &Plan, visit_to_remove: &Visit) -> usize {
+        trace!("top three: {:?}, plan: {:?}, to_remove: {:?}", top_three, plan, visit_to_remove);
         let a = top_three
             .into_iter()
             .filter(|visit_idx| {
