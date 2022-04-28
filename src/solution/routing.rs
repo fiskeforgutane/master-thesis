@@ -1,7 +1,7 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::ops::DerefMut;
+use std::ops::{DerefMut, Range, RangeInclusive};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
@@ -11,7 +11,7 @@ use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 
 use crate::models::quantity::QuantityLp;
-use crate::problem::{Cost, Inventory, Problem, Product, Quantity, VesselIndex};
+use crate::problem::{Cost, Inventory, NodeIndex, Problem, Product, Quantity, VesselIndex};
 use crate::solution::Visit;
 
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
@@ -600,6 +600,47 @@ impl RoutingSolution {
         self.iter()
             .map(|plan| plan.iter().cloned().collect())
             .collect()
+    }
+
+    /// An iterator that enumerates all the possible visits that can be inserted into the solution
+    /// without incurring any additional time warp. Consecutive visits to the same node will not be included.
+    pub fn available(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            VesselIndex,
+            impl Iterator<Item = (NodeIndex, RangeInclusive<usize>)> + '_,
+        ),
+    > + '_ {
+        let problem = self.problem();
+        self.iter_with_terminals()
+            .enumerate()
+            .map(move |(v, plan)| {
+                let vessel = &problem.vessels()[v];
+                (
+                    v,
+                    plan.tuple_windows().flat_map(move |(v1, v2)| {
+                        problem
+                            .nodes()
+                            .iter()
+                            .filter(move |n| n.index() != v1.node && n.index() != v2.node)
+                            .filter_map(move |n| {
+                                let t1 = problem.travel_time(v1.node, n.index(), vessel);
+                                let t2 = problem.travel_time(n.index(), v2.node, vessel);
+
+                                // TODO: check off by one (?)
+                                let earliest_arrival = v1.time + t1;
+                                let latest_departure = v2.time.max(t2) - t2;
+                                let available = earliest_arrival..=latest_departure;
+
+                                match available.is_empty() {
+                                    true => None,
+                                    false => Some((n.index(), available)),
+                                }
+                            })
+                    }),
+                )
+            })
     }
 
     pub fn duration(&self, plan_idx: usize, visit_idx: usize) -> usize {
