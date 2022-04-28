@@ -39,19 +39,15 @@ impl SwapStar {
     /// * `prev` - the visit prior to the one inserted
     /// * `inserted` - the visit in the middle
     /// * `next` - the next visit, if any
-    fn cost_between(
-        prev: &Visit,
-        inserted: &Visit,
-        next: Option<&Visit>,
+    fn cost_between(visits: Vec<Visit>,
+       
         problem: &Problem,
     ) -> f64 {
-        match next {
-            Some(next) => {
-                problem.distance(prev.node, inserted.node)
-                    + problem.distance(inserted.node, next.node)
-            }
-            None => problem.distance(prev.node, inserted.node),
-        }
+        visits.iter().fold((0.0, None), |acc:(f64,Option<Visit>),x| match acc.1{
+            Some(v) => (problem.distance(v.node, x.node), Some(x)),
+            None => (0.0, Some(*x)),
+        } ).0
+       
     }
 
     /// Finds the best entry point among the top three given that does not have an edge into, nor out from the `visit_to_remove`
@@ -117,7 +113,10 @@ impl SwapStar {
         trace!("pos1: {}", pos1);
         trace!("to_remove_idx: {:?}", to_remove_idx);
         // the cost of inserting not associated with the visit that is removed
-        let cost1 = Self::cost_between(&plan[pos1 - 1], visit_to_insert, plan.get(pos1), problem);
+        let cost1 = Self::cost_between(vec![plan.get(pos1 - 1), Some(visit_to_insert), plan.get(pos1)].into_iter().filter_map(|v| match v {
+            Some(x) => Some(*x),
+            None => None,
+        }).collect(), problem);
         // the cost of inserting at the place of the visit to remove
         let cost2 = Self::cost_between(
             &plan[to_remove_idx - 1],
