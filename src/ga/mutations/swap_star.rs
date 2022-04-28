@@ -149,7 +149,7 @@ impl SwapStar {
                     .enumerate()
                     .max_by_key(|(_, e)| FloatOrd(e.1))
                     .unwrap();
-                trace!("element:{:?}" element);
+                trace!("element:{:?}", element);
                 res.push(*element);
                 costs.swap_remove(index_to_remove);
             }
