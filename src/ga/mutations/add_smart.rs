@@ -4,7 +4,7 @@ use log::warn;
 
 use crate::{
     ga::Mutation,
-    models::quantity::QuantityLp,
+    models::quantity::{sparse, QuantityLp},
     problem::{NodeIndex, Problem, ProductIndex, TimeIndex, VesselIndex},
     solution::{routing::RoutingSolution, Visit},
 };

@@ -10,7 +10,7 @@ use log::trace;
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 
-use crate::models::quantity::QuantityLp;
+use crate::models::quantity::sparse;
 use crate::problem::{Cost, Inventory, Problem, Product, Quantity, VesselIndex};
 use crate::solution::Visit;
 
@@ -207,7 +207,7 @@ pub struct Cache {
     warp: Cell<Option<usize>>,
     /// The quantity LP associated with this plan. This is the thing that
     /// will determine (optimal) quantities given the current set of routes.
-    quantity: Rc<RefCell<QuantityLp>>,
+    quantity: Rc<RefCell<sparse::QuantityLp>>,
     /// The total inventory violations (excess/shortage)
     violation: Cell<Option<Quantity>>,
     /// The total cost of the solution.
@@ -297,11 +297,11 @@ impl RoutingSolution {
         RoutingSolution::new(problem, routes)
     }
 
-    /// Construct a new RoutingSolution with a RefCell to the given QuantityLp
+    /// Construct a new RoutingSolution with a RefCell to the given sparse::QuantityLp
     pub fn new_with_model(
         problem: Arc<Problem>,
         routes: Vec<Vec<Visit>>,
-        model: Rc<RefCell<QuantityLp>>,
+        model: Rc<RefCell<sparse::QuantityLp>>,
     ) -> Self {
         // We won't bother returning a result from this, since it'll probably just be .unwrapped() anyways
         if routes.len() != problem.vessels().len() {
@@ -329,7 +329,7 @@ impl RoutingSolution {
     }
 
     pub fn new(problem: Arc<Problem>, routes: Vec<Vec<Visit>>) -> Self {
-        let model = Rc::new(RefCell::new(QuantityLp::new(&problem).unwrap()));
+        let model = Rc::new(RefCell::new(sparse::QuantityLp::new(&problem).unwrap()));
         Self::new_with_model(problem, routes, model)
     }
 
@@ -388,7 +388,7 @@ impl RoutingSolution {
     }
 
     /// Retrieve a reference to the quantity assignment LP.
-    pub fn quantities(&self) -> Ref<'_, QuantityLp> {
+    pub fn quantities(&self) -> Ref<'_, sparse::QuantityLp> {
         // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
         let mut lp = self.cache.quantity.borrow_mut();
@@ -402,7 +402,7 @@ impl RoutingSolution {
     /// Force an exact solution for the quantities delivered.
     /// This will use semicont variables for the amount delivered, turning the quantity
     /// assignment from an LP to a MILP. This can take a considerable amount of time to solve
-    pub fn exact_mut(&self) -> RefMut<'_, QuantityLp> {
+    pub fn exact_mut(&self) -> RefMut<'_, sparse::QuantityLp> {
         // This will trigger a (possibly) different quantity assignment, so
         // we will need to invalidate the caches.
         self.invalidate_caches();
@@ -417,7 +417,7 @@ impl RoutingSolution {
     /// Force an exact solution for the quantities delivered.
     /// This will use semicont variables for the amount delivered, turning the quantity
     /// assignment from an LP to a MILP. This can take a considerable amount of time to solve
-    pub fn exact(&self) -> Ref<'_, QuantityLp> {
+    pub fn exact(&self) -> Ref<'_, sparse::QuantityLp> {
         let _ = self.exact_mut();
         self.cache.quantity.borrow()
     }
@@ -504,7 +504,7 @@ impl RoutingSolution {
         warp
     }
 
-    fn update_violation(&self, quantities: &QuantityLp) -> f64 {
+    fn update_violation(&self, quantities: &sparse::QuantityLp) -> f64 {
         let lp = quantities;
         let violation = lp
             .model
@@ -514,7 +514,7 @@ impl RoutingSolution {
         violation
     }
 
-    fn update_timing(&self, quantities: &QuantityLp) -> f64 {
+    fn update_timing(&self, quantities: &sparse::QuantityLp) -> f64 {
         let lp = quantities;
         let timing = lp
             .model
@@ -524,7 +524,7 @@ impl RoutingSolution {
         timing
     }
 
-    fn update_cost(&self, quantities: &QuantityLp) -> f64 {
+    fn update_cost(&self, quantities: &sparse::QuantityLp) -> f64 {
         let problem = self.problem();
         let lp = quantities;
         let load = &lp.vars.l;
@@ -564,7 +564,7 @@ impl RoutingSolution {
         cost
     }
 
-    fn update_revenue(&self, quantities: &QuantityLp) -> Cost {
+    fn update_revenue(&self, quantities: &sparse::QuantityLp) -> Cost {
         // We need to retrieve the solution variables, and loop over the ones
         // that are non-zero to determine the revenue
         let lp = quantities;

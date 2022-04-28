@@ -2,12 +2,15 @@ pub mod destroy_and_repair;
 pub mod ga;
 pub mod models;
 pub mod problem;
+#[cfg(feature = "python")]
 pub mod python;
 pub mod quants;
 pub mod solution;
 pub mod utils;
 
+#[cfg(feature = "python")]
 use crate::python::ga::*;
+#[cfg(feature = "python")]
 use crate::python::*;
 use ga::{
     chromosome::Chromosome,
@@ -23,14 +26,20 @@ use problem::NodeType;
 use problem::Problem;
 use problem::Vessel;
 
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::wrap_pymodule;
+#[cfg(feature = "python")]
 use pyo3_log;
+#[cfg(feature = "python")]
 use pyo3_log::Logger;
+#[cfg(feature = "python")]
 use python::distributed::ComputeNode;
 use quants::Order;
 use solution::{Delivery, Evaluation, Visit};
 
+#[cfg(feature = "python")]
 #[pyfunction]
 pub fn test_logging() {
     log::error!("This is an error");
@@ -41,6 +50,7 @@ pub fn test_logging() {
     log::info!("Is trace enabled: {}", log::log_enabled!(log::Level::Trace));
 }
 
+#[cfg(feature = "python")]
 /// A submodule for the GA
 #[pymodule]
 fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -91,6 +101,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
+#[cfg(feature = "python")]
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.

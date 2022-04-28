@@ -5,22 +5,22 @@ use log::trace;
 use rand::Rng;
 
 use crate::{
-    models::quantity::QuantityLp,
+    models::quantity::sparse,
     problem::{Node, Problem, Vessel},
     solution::{routing::RoutingSolution, Visit},
 };
 
 pub trait Initialization {
     type Out;
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out;
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<sparse::QuantityLp>>) -> Self::Out;
 }
 
 impl<F, O> Initialization for F
 where
-    F: Fn(Arc<Problem>, Rc<RefCell<QuantityLp>>) -> O,
+    F: Fn(Arc<Problem>, Rc<RefCell<sparse::QuantityLp>>) -> O,
 {
     type Out = O;
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<sparse::QuantityLp>>) -> Self::Out {
         self(problem, quantities)
     }
 }
@@ -157,7 +157,7 @@ impl GreedyWithBlinks {
 impl Initialization for GreedyWithBlinks {
     type Out = RoutingSolution;
 
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<sparse::QuantityLp>>) -> Self::Out {
         let t = problem.timesteps();
         // We start with an empty solution
         let mut solution = RoutingSolution::new_with_model(

@@ -23,3 +23,6 @@ typed-index-collections = "3.0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 slice-group-by = "0.3.0"
+
+[features]
+python = []

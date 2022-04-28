@@ -7,7 +7,7 @@ use rand::{
 use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use crate::{
-    models::quantity::QuantityLp,
+    models::quantity::sparse,
     problem::{Problem, Vessel},
     quants::{self, Order},
     solution::{routing::RoutingSolution, Visit},
@@ -27,7 +27,7 @@ pub struct Init;
 impl Initialization for Init {
     type Out = Chromosome;
 
-    fn new(&self, problem: Arc<Problem>, _: Rc<RefCell<QuantityLp>>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, _: Rc<RefCell<sparse::QuantityLp>>) -> Self::Out {
         Chromosome::new(&problem).unwrap()
     }
 }
@@ -38,7 +38,7 @@ pub struct InitRoutingSolution;
 impl Initialization for InitRoutingSolution {
     type Out = RoutingSolution;
 
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<sparse::QuantityLp>>) -> Self::Out {
         let routes = Chromosome::new(&problem).unwrap().chromosome;
         RoutingSolution::new_with_model(problem, routes, quantities)
     }
@@ -80,23 +80,23 @@ impl Chromosome {
 
             // We want the vessels that are currently on the opposite node type of the current order, that
             // are available before the closing of the order
-            let available_vessels: Vec<&Vessel> = vessels.iter().filter(
-                |v| {
+            let available_vessels: Vec<&Vessel> = vessels
+                .iter()
+                .filter(|v| {
                     let (node, available) = avail_from[&v.index()];
                     problem.nodes()[node].r#type() != order_node_type && available < order.close()
-                }
-            ).collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
 
             // If some vessels fullfils the abovementioned criteria
             if let Some(vessel) = available_vessels.choose(&mut rng) {
                 let chosen = vessel.index();
                 let serve_time = rng.gen_range(avail_from[&chosen].1 + 1..=order.close());
                 let visit = Visit::new(problem, order.node(), serve_time).unwrap();
-            
+
                 avail_from.insert(chosen, (order.node(), serve_time + 1));
                 chromosome[chosen].push(visit);
-            }
-            else {
+            } else {
                 // If no vessels fullfils the above criteria, the next step depends on the node type
                 match order_node_type {
                     crate::problem::NodeType::Consumption => {
@@ -114,7 +114,8 @@ impl Chromosome {
                         // If a vessel is available, use it, otherwise skip the order
                         match chosen_vessel {
                             Some(v) => {
-                                let serve_time = rng.gen_range(avail_from[&v.index()].1 + 1..=order.close());
+                                let serve_time =
+                                    rng.gen_range(avail_from[&v.index()].1 + 1..=order.close());
 
                                 avail_from.insert(v.index(), (order.node(), serve_time + 1));
 

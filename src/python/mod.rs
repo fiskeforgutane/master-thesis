@@ -2,8 +2,8 @@ pub mod distributed;
 pub mod ga;
 
 use crate::ga::chromosome::Chromosome;
+use crate::models::quantity::sparse;
 use crate::models::quantity::F64Variables;
-use crate::models::quantity::QuantityLp;
 use crate::problem::Compartment;
 use crate::problem::Cost;
 use crate::problem::Distance;
@@ -342,7 +342,7 @@ pub fn solve_quantities(
     semicont: bool,
     berth: bool,
 ) -> PyResult<F64Variables> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = sparse::QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     lp.configure(&solution, semicont, berth).map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
@@ -356,7 +356,7 @@ pub fn solve_multiple_quantities(
     semicont: bool,
     berth: bool,
 ) -> PyResult<Vec<F64Variables>> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = sparse::QuantityLp::new(&problem).map_err(pyerr)?;
 
     let mut results = Vec::new();
     let arc = Arc::new(problem);
@@ -376,7 +376,7 @@ pub fn objective_terms(
     semicont: bool,
     berth: bool,
 ) -> PyResult<ObjectiveTerms> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = sparse::QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     lp.configure(&solution, semicont, berth).map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;

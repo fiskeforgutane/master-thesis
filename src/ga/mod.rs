@@ -15,7 +15,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use log::{info, trace};
 pub use traits::*;
 
-use crate::{models::quantity::QuantityLp, problem::Problem, solution::routing::RoutingSolution};
+use crate::{models::quantity::sparse, problem::Problem, solution::routing::RoutingSolution};
 
 use self::initialization::Initialization;
 
@@ -47,7 +47,7 @@ pub struct GeneticAlgorithm<PS, R, M, S, F> {
     /// Will house the next generation of solution candidates, selected from (population, parent_population, child_population)
     next_population: Vec<RoutingSolution>,
     /// The quantity LP shared between all individuals in the population
-    pub quantities: Rc<RefCell<QuantityLp>>,
+    pub quantities: Rc<RefCell<sparse::QuantityLp>>,
 
     /// The configuration of the GA
     pub config: Config<PS, R, M, S, F>,
@@ -69,7 +69,7 @@ where
         trace!("Initializing population");
         // Gurobi doesn't seem to like having many models, so we will
         let quantities = Rc::new(RefCell::new(
-            QuantityLp::new(&config.problem).expect("LP construction failed"),
+            sparse::QuantityLp::new(&config.problem).expect("LP construction failed"),
         ));
 
         let population = (0..config.population_size)

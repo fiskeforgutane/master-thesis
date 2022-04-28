@@ -26,14 +26,14 @@ pub struct Variables {
     pub timing: Var,
 }
 
-pub struct SparseQuantityLp {
+pub struct QuantityLp {
     pub model: Model,
     pub vars: Variables,
     pub semicont: bool,
     pub berth: bool,
 }
 
-impl SparseQuantityLp {
+impl QuantityLp {
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
             NodeType::Consumption => -1.0,
@@ -50,7 +50,7 @@ impl SparseQuantityLp {
         // Restrict to one thread. Also due to using concurrent GAs.
         model.set_param(grb::param::Threads, 1)?;
 
-        Ok(SparseQuantityLp {
+        Ok(QuantityLp {
             model,
             vars: todo!(),
             semicont: false,
