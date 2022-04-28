@@ -4,6 +4,11 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use std::io::Write;
+use chrono::Local;
+use env_logger::Builder;
+use log::{LevelFilter, trace, log_enabled, info};
+
 pub mod ga;
 pub mod models;
 pub mod problem;
@@ -151,7 +156,7 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
         fitness,
     };
 
-    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 8);
+    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 1);
 
     let mut last_migration = 0;
 
@@ -213,6 +218,23 @@ pub enum Termination {
 }
 
 pub fn main() {
+    //env_logger::init();     
+    
+
+    Builder::new()
+        .format(|buf, record| {
+            writeln!(buf,
+                "{} [{}] - {}",
+                Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter(None, LevelFilter::Trace)
+        .init();
+    info!("test");
+
+    
     let args = std::env::args().collect::<Vec<_>>();
     let path = std::path::Path::new(&args[1]);
 

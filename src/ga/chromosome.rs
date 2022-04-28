@@ -1,3 +1,4 @@
+use log::trace;
 use pyo3::pyclass;
 use rand::{
     prelude::{IteratorRandom, SliceRandom},
@@ -49,7 +50,6 @@ impl Chromosome {
         // Generate the initiale orders using the transportation model and sort by closing time
         let mut initial_orders: Vec<Order> = quants::initial_orders(problem)?;
         initial_orders.sort_by_key(|o| o.close());
-
         // Retrieve the vessels from the problem
         let vessels = problem.vessels();
 
@@ -131,7 +131,6 @@ impl Chromosome {
                 }
             }
         }
-
         Ok(Self { chromosome })
     }
 
