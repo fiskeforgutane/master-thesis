@@ -39,15 +39,14 @@ impl SwapStar {
     /// * `prev` - the visit prior to the one inserted
     /// * `inserted` - the visit in the middle
     /// * `next` - the next visit, if any
-    fn cost_between(visits: Vec<Visit>,
-       
-        problem: &Problem,
-    ) -> f64 {
-        visits.iter().fold((0.0, None), |acc:(f64,Option<Visit>),x| match acc.1{
-            Some(v) => (problem.distance(v.node, x.node), Some(x)),
-            None => (0.0, Some(*x)),
-        } ).0
-       
+    fn cost_between(visits: Vec<Visit>, problem: &Problem) -> f64 {
+        visits
+            .iter()
+            .fold((0.0, None), |acc: (f64, Option<Visit>), x| match acc.1 {
+                Some(v) => (problem.distance(v.node, x.node), Some(*x)),
+                None => (0.0, Some(*x)),
+            })
+            .0
     }
 
     /// Finds the best entry point among the top three given that does not have an edge into, nor out from the `visit_to_remove`
@@ -59,31 +58,34 @@ impl SwapStar {
     /// * `visit_to_remove` - The visit that will be removed from `plan`
     fn best_without_v(top_three: &Vec<usize>, plan: &Plan, visit_to_remove: &Visit) -> usize {
         trace!("in best without");
-        trace!("top three: {:?}, \nplan: {:?}, \nto_remove: {:?}", top_three, plan.iter().map(|v|(v.node,v.time)).collect::<Vec<_>>(), visit_to_remove);
+        trace!(
+            "top three: {:?}, \nplan: {:?}, \nto_remove: {:?}",
+            top_three,
+            plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>(),
+            visit_to_remove
+        );
         let a = top_three
             .into_iter()
             .filter(|visit_idx| {
                 let curr = plan.get(**visit_idx);
                 match curr {
-                    Some(curr) =>{
+                    Some(curr) => {
                         if curr == visit_to_remove {
-                        false
-                    } else if &plan[*visit_idx - 1] == visit_to_remove {
-                        false
-                    } else {
-                        true
-                    }
-                },
-                    None => { 
-                        if &plan[*visit_idx - 1] == visit_to_remove {
-                        false
+                            false
+                        } else if &plan[*visit_idx - 1] == visit_to_remove {
+                            false
                         } else {
                             true
                         }
-                    },
+                    }
+                    None => {
+                        if &plan[*visit_idx - 1] == visit_to_remove {
+                            false
+                        } else {
+                            true
+                        }
+                    }
                 }
-                
-                
             })
             .next();
         *a.unwrap()
@@ -113,22 +115,44 @@ impl SwapStar {
         trace!("pos1: {}", pos1);
         trace!("to_remove_idx: {:?}", to_remove_idx);
         // the cost of inserting not associated with the visit that is removed
-        let cost1 = Self::cost_between(vec![plan.get(pos1 - 1), Some(visit_to_insert), plan.get(pos1)].into_iter().filter_map(|v| match v {
-            Some(x) => Some(*x),
-            None => None,
-        }).collect(), problem);
+        let cost1 = Self::cost_between(
+            vec![plan.get(pos1 - 1), Some(visit_to_insert), plan.get(pos1)]
+                .into_iter()
+                .filter_map(|v| match v {
+                    Some(x) => Some(*x),
+                    None => None,
+                })
+                .collect(),
+            problem,
+        );
         // the cost of inserting at the place of the visit to remove
         let cost2 = Self::cost_between(
-            &plan[to_remove_idx - 1],
-            visit_to_insert,
-            plan.get(to_remove_idx + 1),
+            vec![
+                plan.get(to_remove_idx - 1),
+                Some(visit_to_insert),
+                plan.get(to_remove_idx + 1),
+            ]
+            .into_iter()
+            .filter_map(|v| match v {
+                Some(x) => Some(*x),
+                None => None,
+            })
+            .collect(),
             problem,
         );
         // gain from removing the visit to remove
         let gain = Self::cost_between(
-            &plan[to_remove_idx - 1],
-            visit_to_remove,
-            plan.get(to_remove_idx + 1),
+            vec![
+                plan.get(to_remove_idx - 1),
+                Some(visit_to_remove),
+                plan.get(to_remove_idx + 1),
+            ]
+            .into_iter()
+            .filter_map(|v| match v {
+                Some(x) => Some(*x),
+                None => None,
+            })
+            .collect(),
             problem,
         );
         if cost1 < cost2 {
@@ -142,14 +166,17 @@ impl SwapStar {
     /// Returns a vector sorted from best position to worst. The length of the vector might be shorter than 3 if
     /// the plan is shorter than 3
     pub fn find_top_three(visit: &Visit, plan: &Plan, problem: &Problem) -> Vec<usize> {
-
-        trace!("finding top three of inserting {:?}, from plan {:?}", visit, plan.iter().map(|v|(v.node, v.time)).collect::<Vec<_>>());
+        trace!(
+            "finding top three of inserting {:?}, from plan {:?}",
+            visit,
+            plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
+        );
 
         // omits origin as nothing should be inserted prior to origin.
         let mut costs = (1..=plan.len())
             .map(|idx| (idx, Self::evaluate(idx, visit, plan, problem)))
             .collect::<Vec<_>>();
-        
+
         // if there are less than three elements, return the entire list
         let mut res = Vec::new();
         if costs.len() < 3 {
@@ -162,9 +189,9 @@ impl SwapStar {
                     .enumerate()
                     .min_by_key(|(_, e)| FloatOrd(e.1))
                     .unwrap();
-                
+
                 res.push(*element);
-                
+
                 costs.swap_remove(index_to_remove);
             }
         }
@@ -173,7 +200,6 @@ impl SwapStar {
             .sorted_by_key(|(_, cost)| FloatOrd(*cost))
             .map(|(i, _)| i)
             .collect()
-        
     }
 
     /// Returns the best swap to perform between `plan1` and `plan2`
@@ -185,10 +211,10 @@ impl SwapStar {
         plan2: &Plan,
         problem: &Problem,
     ) -> Option<((usize, usize), (usize, usize))> {
-        trace!("plan1.len():{}",plan1.len());
-        trace!("plan2.len():{}",plan2.len());
-        if plan1.len() < 3 || plan2.len() <3{
-            return None
+        trace!("plan1.len():{}", plan1.len());
+        trace!("plan2.len():{}", plan2.len());
+        if plan1.len() < 3 || plan2.len() < 3 {
+            return None;
         }
         // best indices in plan1 to insert visits from plan2
         let best_plan1 = plan2
