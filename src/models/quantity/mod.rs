@@ -1,3 +1,5 @@
+pub mod sparse;
+
 use grb::{add_ctsvar, c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
