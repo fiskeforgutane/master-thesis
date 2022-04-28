@@ -156,7 +156,7 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
         fitness,
     };
 
-    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 1);
+    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 8);
 
     let mut last_migration = 0;
 
