@@ -135,7 +135,7 @@ impl SwapStar {
         let mut costs = (1..=plan.len())
             .map(|idx| (idx, Self::evaluate(idx, visit, plan, problem)))
             .collect::<Vec<_>>();
-        trace!("costs: {}",costs);
+        trace!("costs: {:?}",costs);
         // if there are less than three elements, return the entire list
         let mut res = Vec::new();
         if costs.len() < 3 {
