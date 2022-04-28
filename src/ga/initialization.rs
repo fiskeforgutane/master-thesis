@@ -161,8 +161,9 @@ impl GreedyWithBlinks {
         best: (usize, FloatOrd<f64>, FloatOrd<f64>),
     ) -> Option<((usize, Visit), (usize, FloatOrd<f64>, FloatOrd<f64>))> {
         // choose the best among the candidates
-        match self.choose_inc_obj(solution, candidates.into_iter().cloned()) {
-            Some((idx, obj)) => {
+
+        self.choose_inc_obj(solution, candidates.into_iter().cloned())
+            .and_then(|(idx, obj)| {
                 let dv = best.1 .0 - obj.1 .0;
                 let dl = best.2 .0 - obj.2 .0;
 
@@ -174,9 +175,7 @@ impl GreedyWithBlinks {
                 let mutator = &mut solution.mutate();
                 mutator[idx.0].mutate().push(idx.1);
                 Some((idx, obj))
-            }
-            None => None,
-        }
+            })
     }
 }
 
