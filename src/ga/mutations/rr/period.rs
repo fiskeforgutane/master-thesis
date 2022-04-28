@@ -89,8 +89,7 @@ impl Mutation for Period {
             .indices::<Vessel>()
             .map(|v| get_candidates(v, solution, &indices))
             .collect::<Vec<_>>();
-        // the vessel index of the previous vessel that got a visit added to its plan. Initiated at 0.
-        let mut v = 0;
+
         let greedy = GreedyWithBlinks::new(self.blink_rate);
         while let Some((idx, obj)) = greedy.insert_best(
             solution,
@@ -98,10 +97,11 @@ impl Mutation for Period {
             &candidates.iter().flatten().cloned().collect(),
             best,
         ) {
-            candidates[v] = get_candidates(v, solution, &indices);
             best = obj;
             indices[idx.0] += 1;
-            v = idx.0
+            // the index of the vessel changed, this is the one we must get new candidates for
+            let v = idx.0;
+            candidates[v] = get_candidates(v, solution, &indices);
         }
     }
 }
