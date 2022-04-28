@@ -9,7 +9,7 @@ use crate::{
     problem::Problem,
     solution::{
         routing::{Plan, RoutingSolution},
-        Visit, visit,
+        Visit,
     },
     utils::GetPairMut,
 };
@@ -135,7 +135,7 @@ impl SwapStar {
         let mut costs = (1..=plan.len())
             .map(|idx| (idx, Self::evaluate(idx, visit, plan, problem)))
             .collect::<Vec<_>>();
-        trace!("costs: {:?}",costs);
+        
         // if there are less than three elements, return the entire list
         let mut res = Vec::new();
         if costs.len() < 3 {
@@ -148,20 +148,18 @@ impl SwapStar {
                     .enumerate()
                     .min_by_key(|(_, e)| FloatOrd(e.1))
                     .unwrap();
-                trace!("element:{:?}", element);
+                
                 res.push(*element);
-                trace!("res: {:?}",res);
+                
                 costs.swap_remove(index_to_remove);
             }
         }
-        trace!("res: {:?}",res);
 
-        let a = res.into_iter()
+        res.into_iter()
             .sorted_by_key(|(_, cost)| FloatOrd(*cost))
             .map(|(i, _)| i)
-            .collect();
-        trace!("top three: {:?}", a);
-        a
+            .collect()
+        
     }
 
     /// Returns the best swap to perform between `plan1` and `plan2`
