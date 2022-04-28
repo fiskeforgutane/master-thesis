@@ -57,6 +57,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(remove_random, m)?)?;
     m.add_function(wrap_pyfunction!(add_smart, m)?)?;
     m.add_function(wrap_pyfunction!(time_setter, m)?)?;
+    m.add_function(wrap_pyfunction!(python::ga::swap_star, m)?)?;
 
     // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;
@@ -106,6 +107,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(python::swap_star_test, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;

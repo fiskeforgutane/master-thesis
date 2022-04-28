@@ -2,6 +2,7 @@ use std::f64::consts::PI;
 
 use float_ord::FloatOrd;
 use itertools::{iproduct, Itertools};
+use log::trace;
 
 use crate::{
     ga::Mutation,
@@ -158,7 +159,7 @@ impl SwapStar {
     ///
     /// ## Returns
     /// Two tuples consisting of the visit to remove from the plan and where to insert it in the other plan
-    fn best_swap(
+    pub fn best_swap(
         plan1: &Plan,
         plan2: &Plan,
         problem: &Problem,
@@ -228,7 +229,7 @@ impl SwapStar {
     }
 
     /// Create a new visit to insert into `plan_idx` at `into_idx`
-    fn new_visit(
+    pub fn new_visit(
         plan_idx: usize,
         into_idx: usize,
         to_insert: Visit,
@@ -251,7 +252,7 @@ impl SwapStar {
     /// * `into_plan2` - The visit to insert into the second plan
     /// * `remove_from_1` - The index of the visit to remove from the first plan
     /// * `remove_from_2` - The index of the visit to remove from the second plan
-    fn apply_swap(
+    pub fn apply_swap(
         solution: &mut RoutingSolution,
         plan1_idx: usize,
         plan2_idx: usize,
@@ -274,9 +275,11 @@ impl SwapStar {
     }
 
     /// Checks if the plans at index `i` and `j` have overlapping polar sectors
-    fn overlapping(i: usize, j: usize, solution: &RoutingSolution, problem: &Problem) -> bool {
+    pub fn overlapping(i: usize, j: usize, solution: &RoutingSolution, problem: &Problem) -> bool {
         let sector1 = CircleSector::from_route(&solution[i], problem);
+        trace!("sector1: {:?}", sector1);
         let sector2 = CircleSector::from_route(&solution[j], problem);
+        trace!("sector2: {:?}", sector2);
         overlap(&sector1, &sector2)
     }
 
@@ -305,6 +308,7 @@ impl Mutation for SwapStar {
     }
 }
 
+#[derive(Debug)]
 /// A circle sector represented by a start angle and an end angle. Angles are given in the discrete range [0,16535]
 struct CircleSector {
     pub start: i16,
@@ -336,11 +340,12 @@ impl CircleSector {
 
     /// creates the circle sector of the given `plan`
     fn from_route(plan: &Plan, problem: &Problem) -> CircleSector {
+        let center = problem.center();
         let points = plan
             .iter()
             .map(|visit| {
                 let n = &problem.nodes()[visit.node];
-                let (x, y) = n.coordinates();
+                let (x, y) = (n.coordinates().0 - center.0, n.coordinates().1 - center.1);
                 let polar = Self::cartesian_to_polar(x, y)
                     .expect("failed to convert from cartesian to polar");
 

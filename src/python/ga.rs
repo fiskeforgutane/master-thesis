@@ -12,6 +12,7 @@ use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
 use crate::ga::mutations::RemoveRandom;
+use crate::ga::mutations::SwapStar;
 use crate::ga::mutations::TimeSetter;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
@@ -197,6 +198,13 @@ pub fn time_setter(delay: f64) -> PyMut {
 pub fn add_smart() -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(AddSmart {})),
+    }
+}
+
+#[pyfunction]
+pub fn swap_star() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(SwapStar {})),
     }
 }
 
