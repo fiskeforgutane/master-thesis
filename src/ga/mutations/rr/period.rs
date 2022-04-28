@@ -63,6 +63,7 @@ impl Mutation for Period {
             FloatOrd(solution.cost() - solution.revenue()),
         );
 
+        // The indices of the last visit evaluated in every plan
         let mut indices = problem
             .indices::<Vessel>()
             .map(|v| {
@@ -74,36 +75,33 @@ impl Mutation for Period {
                 }
             })
             .collect::<Vec<_>>();
-        let mut candidates = problem
-            .indices::<Vessel>()
-            .map(|v| {
+
+        // gets candidates and filteres out the ones outside the range.
+        let get_candidates =
+            |v, solution: &crate::solution::routing::RoutingSolution, indices: &Vec<usize>| {
                 solution
                     .candidates(indices[v], v, self.c)
-                    .filter(|(_, v)| v.time < period.end)
+                    .filter(|(_, v)| v.time >= period.start && v.time < period.end)
                     .collect::<Vec<_>>()
-            })
+            };
+
+        let mut candidates = problem
+            .indices::<Vessel>()
+            .map(|v| get_candidates(v, solution, &indices))
             .collect::<Vec<_>>();
+        // the vessel index of the previous vessel that got a visit added to its plan. Initiated at 0.
         let mut v = 0;
-        loop {
-            let greedy = GreedyWithBlinks::new(self.blink_rate);
-            candidates[v] = solution
-                .candidates(indices[v], v, self.c)
-                .filter(|(_, v)| v.time < period.end)
-                .collect();
-            // choose the best among the candidates
-            match greedy.insert_best(
-                solution,
-                self.epsilon,
-                &candidates.iter().flatten().cloned().collect(),
-                best,
-            ) {
-                Some((idx, obj)) => {
-                    best = obj;
-                    indices[idx.0] += 1;
-                    v = idx.0
-                }
-                None => return,
-            }
+        let greedy = GreedyWithBlinks::new(self.blink_rate);
+        while let Some((idx, obj)) = greedy.insert_best(
+            solution,
+            self.epsilon,
+            &candidates.iter().flatten().cloned().collect(),
+            best,
+        ) {
+            candidates[v] = get_candidates(v, solution, &indices);
+            best = obj;
+            indices[idx.0] += 1;
+            v = idx.0
         }
     }
 }
