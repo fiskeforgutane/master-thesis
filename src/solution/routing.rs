@@ -633,8 +633,7 @@ impl RoutingSolution {
         c: usize,
     ) -> impl Iterator<Item = (VesselIndex, Visit)> + 'a {
         let current_visit = &self[plan_idx][visit_idx];
-        // the last time period at the current visit
-        let current_duration = self.duration(plan_idx, visit_idx);
+
         let vessel = &self.problem().vessels()[plan_idx];
         // the time period of the next visit, if none, the length of the planning period
         let time_bound = match self[plan_idx].get(visit_idx + 1) {
@@ -650,10 +649,7 @@ impl RoutingSolution {
                     .problem()
                     .travel_time(current_visit.node, n.index(), vessel);
 
-                let arrival = match current_duration {
-                    0 => current_visit.time + travel_time,
-                    _ => current_visit.time + current_duration - 1 + travel_time,
-                };
+                let arrival = current_visit.time + travel_time;
                 match arrival < time_bound {
                     true => Some(
                         (arrival..(arrival + c).min(self.problem.timesteps() - 1)).map(move |t| {
