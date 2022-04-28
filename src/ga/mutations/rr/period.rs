@@ -62,19 +62,34 @@ impl Mutation for Period {
             FloatOrd(solution.violation()),
             FloatOrd(solution.cost() - solution.revenue()),
         );
-        let mut indices = vec![0; problem.vessels().len()];
+
+        let mut indices = problem
+            .indices::<Vessel>()
+            .map(|v| {
+                match solution[v].binary_search_by_key(&period.start, |visit| visit.time) {
+                    Ok(x) => x,
+                    // since the index where an element can be inserted is returned if the key is not found, this will be the first visit time > period.
+                    // therefore the one before is x-1
+                    Err(x) => 0.max(x - 1),
+                }
+            })
+            .collect::<Vec<_>>();
         let mut candidates = problem
             .indices::<Vessel>()
             .map(|v| {
                 solution
                     .candidates(indices[v], v, self.c)
+                    .filter(|(_, v)| v.time < period.end)
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
         let mut v = 0;
         loop {
             let greedy = GreedyWithBlinks::new(self.blink_rate);
-            candidates[v] = solution.candidates(indices[v], v, self.c).collect();
+            candidates[v] = solution
+                .candidates(indices[v], v, self.c)
+                .filter(|(_, v)| v.time < period.end)
+                .collect();
             // choose the best among the candidates
             match greedy.insert_best(
                 solution,
