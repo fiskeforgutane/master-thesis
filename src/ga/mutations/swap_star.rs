@@ -398,19 +398,20 @@ impl CircleSector {
         trace!("generating for route: {:?}", plan);
         let points = plan
             .iter()
-            .map(|visit| {
+            .filter_map(|visit| {
                 let n = &problem.nodes()[visit.node];
                 trace!("node {}", n.index());
                 trace!("coords {:?}", n.coordinates());
                 let (x, y) = (n.coordinates().0 - center.0, n.coordinates().1 - center.1);
-                let polar = Self::cartesian_to_polar(x, y)
-                    .expect("failed to convert from cartesian to polar");
-                trace!("polar {}", polar);
-
-                // scale the angle from radians to [0,16535]
-                let scaled = f64::round((polar / (2.0 * PI)) * 16535.0) as i16;
-                trace!("scaled polar {}", scaled);
-                scaled
+                match Self::cartesian_to_polar(x, y) {
+                    Some(polar) => {
+                        trace!("polar {}", polar);
+                        let scaled = f64::round((polar / (2.0 * PI)) * 16535.0) as i16;
+                        trace!("scaled polar {}", scaled);
+                        Some(scaled)
+                    }
+                    None => None,
+                }
             })
             .collect::<Vec<_>>();
         let mut sector = CircleSector::new(points[0]);
