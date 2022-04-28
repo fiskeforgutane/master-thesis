@@ -380,6 +380,7 @@ pub fn swap_star_test(
     routes: Vec<Vec<Visit>>,
     problem: Problem,
 ) -> Vec<Vec<Visit>> {
+    trace!("here");
     let arc = Arc::new(problem);
     trace!("here");
     let mut solution = RoutingSolution::new(arc.clone(), routes);
