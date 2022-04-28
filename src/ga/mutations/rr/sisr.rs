@@ -8,6 +8,7 @@ use itertools::Itertools;
 use log::{debug, trace, warn};
 use rand::{self, prelude::Distribution};
 use rand::{distributions::Uniform, Rng};
+use serde::Serialize;
 
 use crate::{
     ga::{initialization::GreedyWithBlinks, Mutation},
@@ -21,7 +22,7 @@ pub struct SlackInductionByStringRemoval {
     config: Config,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Serialize)]
 /// Configuration determining the behaviour of the SISRs algorithm.
 pub struct Config {
     /// The average number of nodes removed during a string removal
