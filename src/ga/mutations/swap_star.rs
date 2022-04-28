@@ -325,6 +325,7 @@ impl SwapStar {
 
     /// Checks if the plans at index `i` and `j` have overlapping polar sectors
     pub fn overlapping(i: usize, j: usize, solution: &RoutingSolution, problem: &Problem) -> bool {
+        trace!("center: {:?}", problem.center());
         let sector1 = CircleSector::from_route(&solution[i], problem);
         trace!("sector1: {:?}", sector1);
         let sector2 = CircleSector::from_route(&solution[j], problem);
