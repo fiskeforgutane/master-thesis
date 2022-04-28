@@ -379,29 +379,37 @@ impl CircleSector {
 
     /// Extends the interval of `self`
     pub fn extend(&mut self, angle: i16) {
+        trace!("extending : {:?}", self);
+        trace!("enclosed: {:?}", self.is_enclosed(angle));
         if !self.is_enclosed(angle) {
             if modulo(angle - self.end) <= modulo(self.start - angle) {
                 self.end = angle;
             } else {
                 self.start = angle;
             }
+            trace!("is extended to: {:?}", self);
         }
     }
 
     /// creates the circle sector of the given `plan`
     fn from_route(plan: &Plan, problem: &Problem) -> CircleSector {
         let center = problem.center();
-        trace!("problem center: {:?}", problem.center());
+        trace!("generating for route: {:?}", plan);
         let points = plan
             .iter()
             .map(|visit| {
                 let n = &problem.nodes()[visit.node];
+                trace!("node {}", n.index());
+                trace!("coords {:?}", n.coordinates());
                 let (x, y) = (n.coordinates().0 - center.0, n.coordinates().1 - center.1);
                 let polar = Self::cartesian_to_polar(x, y)
                     .expect("failed to convert from cartesian to polar");
+                trace!("polar {}", polar);
 
                 // scale the angle from radians to [0,16535]
-                f64::round((polar / (2.0 * PI)) * 16535.0) as i16
+                let scaled = f64::round((polar / (2.0 * PI)) * 16535.0) as i16;
+                trace!("scaled polar {}", scaled);
+                scaled
             })
             .collect::<Vec<_>>();
         let mut sector = CircleSector::new(points[0]);
