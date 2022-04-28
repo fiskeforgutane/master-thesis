@@ -81,7 +81,7 @@ impl Mutation for Period {
             |v, solution: &crate::solution::routing::RoutingSolution, indices: &Vec<usize>| {
                 solution
                     .candidates(indices[v], v, self.c)
-                    .filter(|(_, v)| v.time >= period.start && v.time < period.end)
+                    .filter(|(_, v)| period.contains(&v.time))
                     .collect::<Vec<_>>()
             };
 
