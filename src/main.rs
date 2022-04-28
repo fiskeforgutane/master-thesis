@@ -268,5 +268,5 @@ pub fn main() {
     std::fs::create_dir_all(&out).expect("failed to create out dir");
 
     // Run the GA.
-    run_island_ga(path, out, Termination::Never);
+    run_island_ga(path, out, Termination::NoViolation);
 }
