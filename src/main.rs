@@ -123,16 +123,16 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
     };
     let config = move || ga::Config {
         problem: closure_problem.clone(),
-        population_size: 100,
-        child_count: 100,
+        population_size: 5,
+        child_count: 5,
         parent_selection: parent_selection::Tournament::new(3).unwrap(),
         recombination: Stochastic::new(0.10, PIX),
         mutation: chain!(
-            Stochastic::new(0.03, AddRandom::new()),
-            Stochastic::new(0.03, RemoveRandom::new()),
-            Stochastic::new(0.03, InterSwap),
+            //Stochastic::new(0.03, AddRandom::new()),
+            //Stochastic::new(0.03, RemoveRandom::new()),
+            /* Stochastic::new(0.03, InterSwap),
             Stochastic::new(0.03, IntraSwap),
-            Stochastic::new(0.03, RedCost::red_cost_mutation(10)),
+            // Stochastic::new(0.03, RedCost::red_cost_mutation(10)),
             Stochastic::new(0.03, Twerk::everybody()),
             Stochastic::new(0.03, Twerk::some_random_person()),
             Stochastic::new(0.03, TwoOpt::new(TwoOptMode::IntraRandom)),
@@ -140,9 +140,9 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
             Stochastic::new(0.03, TimeSetter::new(0.0).unwrap()), // Stochastic::new(0.05, mutations::AddSmart)
             Stochastic::new(0.03, Bounce::new(3, BounceMode::All)),
             Stochastic::new(0.03, Bounce::new(3, BounceMode::Random)),
-            Stochastic::new(0.03, AddSmart),
-            Stochastic::new(0.01, rr::Period::new(0.1, 0.50, 15)),
-            Stochastic::new(0.01, rr::Vessel::new(0.1, 0.75))
+             */// Stochastic::new(0.03, AddSmart),
+            Stochastic::new(1.0, rr::Period::new(0.1, 0.50, 1)),
+            Stochastic::new(1.0, rr::Vessel::new(0.1, 0.10))
         ),
         selection: survival_selection::Elite(
             1,
@@ -151,7 +151,7 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
         fitness,
     };
 
-    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 8);
+    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 1);
 
     let mut last_migration = 0;
 
