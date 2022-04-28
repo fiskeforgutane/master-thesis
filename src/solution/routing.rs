@@ -655,7 +655,7 @@ impl RoutingSolution {
                     _ => current_visit.time + current_duration - 1 + travel_time,
                 };
                 match arrival < time_bound {
-                    true => Some((arrival..arrival + c).map(move |t| {
+                    true => Some((arrival..(arrival + c).min(self.problem.timesteps()-1)).map(move |t| {
                         (
                             plan_idx,
                             Visit {
@@ -709,7 +709,7 @@ impl Drop for RoutingSolutionMut<'_> {
             assert!(match plan.last() {
                 Some(visit) => visit.time < timesteps,
                 None => true,
-            });
+            },"Some(visit) => visit.time < timesteps, None => true, visit:{:?}",plan.last());
             // Assert that the first visit of each vessel's plan corresponds to its origin visit.
             assert!(plan
                 .first()
