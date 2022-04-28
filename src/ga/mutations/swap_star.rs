@@ -114,6 +114,8 @@ impl SwapStar {
         plan: &Plan,
         problem: &Problem,
     ) -> (usize, f64) {
+        trace!("pos1: {}", pos1);
+        trace!("to_remove_idx: {:?}", to_remove_idx);
         // the cost of inserting not associated with the visit that is removed
         let cost1 = Self::cost_between(&plan[pos1 - 1], visit_to_insert, plan.get(pos1), problem);
         // the cost of inserting at the place of the visit to remove
