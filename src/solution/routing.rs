@@ -430,7 +430,7 @@ impl RoutingSolution {
         let cached = &self.cache.warp;
 
         if cached.get().is_none() {
-            self.update();
+            self.update_warp();
         }
 
         cached.get().unwrap()
