@@ -154,6 +154,7 @@ impl SwapStar {
                 costs.swap_remove(index_to_remove);
             }
         }
+        trace!("res: {:?}",res);
 
         let a = res.into_iter()
             .sorted_by_key(|(_, cost)| FloatOrd(*cost))
