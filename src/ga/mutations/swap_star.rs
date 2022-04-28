@@ -151,6 +151,7 @@ impl SwapStar {
                     .unwrap();
                 trace!("element:{:?}", element);
                 res.push(*element);
+                trace!("res: {:?}",res);
                 costs.swap_remove(index_to_remove);
             }
         }
