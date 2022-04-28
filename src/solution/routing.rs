@@ -508,7 +508,7 @@ impl RoutingSolution {
         let lp = quantities;
         let violation = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.violation)
+            .get_obj_attr(grb::attr::X, &lp.vars.as_ref().unwrap().violation)
             .expect("failed to retrieve variables");
         self.cache.violation.set(Some(violation));
         violation
@@ -518,7 +518,7 @@ impl RoutingSolution {
         let lp = quantities;
         let timing = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.timing)
+            .get_obj_attr(grb::attr::X, &lp.vars.as_ref().unwrap().timing)
             .expect("failed to retrieve variables");
         self.cache.timing.set(Some(timing));
         timing
@@ -527,7 +527,7 @@ impl RoutingSolution {
     fn update_cost(&self, quantities: &sparse::QuantityLp) -> f64 {
         let problem = self.problem();
         let lp = quantities;
-        let load = &lp.vars.l;
+        let load = &lp.vars.as_ref().unwrap().l;
         let p = problem.count::<Product>();
         let mut inventory = Inventory::zeroed(p).unwrap();
         let cost = self
@@ -572,7 +572,7 @@ impl RoutingSolution {
         let lp = quantities;
         let revenue = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.revenue)
+            .get_obj_attr(grb::attr::X, &lp.vars.as_ref().unwrap().revenue)
             .expect("retrieving variable values failed");
 
         self.cache.revenue.set(Some(revenue));

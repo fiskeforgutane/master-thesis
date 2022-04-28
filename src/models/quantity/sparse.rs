@@ -28,7 +28,7 @@ pub struct Variables {
 
 pub struct QuantityLp {
     pub model: Model,
-    pub vars: Variables,
+    pub vars: Option<Variables>,
     pub semicont: bool,
     pub berth: bool,
 }
@@ -52,7 +52,7 @@ impl QuantityLp {
 
         Ok(QuantityLp {
             model,
-            vars: todo!(),
+            vars: None,
             semicont: false,
             berth: false,
         })
@@ -295,7 +295,7 @@ impl QuantityLp {
         model.add_constr("c_spot", c!(spot == a.values().grb_sum()))?;
         model.add_constr("c_timing", c!(timing == 0.0_f64));
 
-        self.vars = Variables {
+        self.vars = Some(Variables {
             w,
             x,
             s,
@@ -305,7 +305,7 @@ impl QuantityLp {
             spot,
             revenue,
             timing,
-        };
+        });
 
         Ok(())
     }
@@ -315,6 +315,6 @@ impl QuantityLp {
     pub fn solve(&mut self) -> grb::Result<&Variables> {
         self.model.optimize()?;
 
-        Ok(&self.vars)
+        Ok(self.vars.as_ref().expect("should exist"))
     }
 }
