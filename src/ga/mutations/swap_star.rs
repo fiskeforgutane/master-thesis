@@ -62,19 +62,32 @@ impl SwapStar {
     /// * `plan` - The plan where the insertions will be made
     /// * `visit_to_remove` - The visit that will be removed from `plan`
     fn best_without_v(top_three: &Vec<usize>, plan: &Plan, visit_to_remove: &Visit) -> usize {
-        trace!("HEEEEEEELLOOOO");
+        trace!("in best without");
         trace!("top three: {:?}, \nplan: {:?}, \nto_remove: {:?}", top_three, plan.iter().map(|v|(v.node,v.time)).collect::<Vec<_>>(), visit_to_remove);
         let a = top_three
             .into_iter()
             .filter(|visit_idx| {
-                let curr = &plan[**visit_idx];
-                if curr == visit_to_remove {
-                    false
-                } else if &plan[*visit_idx - 1] == visit_to_remove {
-                    false
-                } else {
-                    true
+                let curr = plan.get(**visit_idx);
+                match curr {
+                    Some(curr) =>{
+                        if curr == visit_to_remove {
+                        false
+                    } else if &plan[*visit_idx - 1] == visit_to_remove {
+                        false
+                    } else {
+                        true
+                    }
+                },
+                    None => { 
+                        if &plan[*visit_idx - 1] == visit_to_remove {
+                        false
+                        } else {
+                            true
+                        }
+                    },
                 }
+                
+                
             })
             .next();
         *a.unwrap()
