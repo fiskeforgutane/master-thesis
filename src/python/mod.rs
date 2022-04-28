@@ -1,6 +1,8 @@
 pub mod ga;
 
 use crate::ga::chromosome::Chromosome;
+use crate::ga::mutations::SwapStar;
+use crate::ga::Mutation;
 use crate::models::quantity::F64Variables;
 use crate::models::quantity::QuantityLp;
 use crate::problem::Compartment;
@@ -20,6 +22,7 @@ use crate::quants::Quantities;
 use crate::solution;
 use crate::solution::Visit;
 use crate::solution::{Delivery, Evaluation};
+use log::trace;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
@@ -368,4 +371,28 @@ pub fn solve_multiple_quantities(
     }
 
     Ok(results)
+}
+
+#[pyfunction]
+pub fn swap_star(
+    r1: usize,
+    r2: usize,
+    routes: Vec<Vec<Visit>>,
+    problem: Problem,
+) -> Vec<Vec<Visit>> {
+    let arc = Arc::new(problem);
+
+    let mut solution = RoutingSolution::new(arc.clone(), routes);
+    let overlapping = SwapStar::overlapping(r1, r2, &solution, &arc);
+    trace!("overlapping: {:?}", overlapping);
+    let best_swap = SwapStar::best_swap(&solution[r1], &solution[r2], &arc);
+    if let Some(((v1, p1), (v2, p2))) = best_swap {
+        let into_plan2 = SwapStar::new_visit(r2, p1, solution[r1][v1], &solution);
+        let into_plan1 = SwapStar::new_visit(r1, p2, solution[r2][v2], &solution);
+        SwapStar::apply_swap(&mut solution, r1, r2, into_plan1, into_plan2, v1, v2);
+    }
+    solution
+        .iter()
+        .map(|plan| plan.iter().cloned().collect())
+        .collect()
 }
