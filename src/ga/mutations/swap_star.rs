@@ -128,6 +128,9 @@ impl SwapStar {
     /// Returns a vector sorted from best position to worst. The length of the vector might be shorter than 3 if
     /// the plan is shorter than 3
     pub fn find_top_three(visit: &Visit, plan: &Plan, problem: &Problem) -> Vec<usize> {
+
+        trace!("finding top three of removing {:?}, from plan {:?}", visit, plan.iter().map(|v|(v.node, v.time)).collect::<Vec<_>>());
+
         // omits origin as nothing should be inserted prior to origin.
         let mut costs = (1..=plan.len())
             .map(|idx| (idx, Self::evaluate(idx, visit, plan, problem)))
