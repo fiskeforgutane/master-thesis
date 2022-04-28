@@ -1,17 +1,14 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     io::Write,
-    ops::{Range, RangeInclusive},
-    sync::Arc,
+    ops::RangeInclusive,
 };
 
 use grb::{add_ctsvar, c, expr::GurobiSum, Expr, Model, Var};
 use itertools::{iproduct, Itertools};
-use rand::Rng;
 use slice_group_by::GroupBy;
 
 use crate::{
-    models::utils::AddVars,
     problem::{NodeIndex, NodeType, Problem, ProductIndex, TimeIndex, VesselIndex},
     solution::routing::RoutingSolution,
 };
@@ -80,7 +77,6 @@ impl QuantityLp {
         ),
     > + 's {
         let problem = solution.problem();
-        let p = problem.products();
 
         solution
             .iter_with_terminals()

@@ -7,19 +7,19 @@ use crate::{
     ga::{
         self,
         chromosome::InitRoutingSolution,
-        fitness::{self, Weighted},
+        fitness::Weighted,
         islands::IslandGA,
         mutations::{
             AddRandom, AddSmart, Bounce, BounceMode, Dedup, DedupPolicy, InterSwap, IntraSwap,
             RedCost, RemoveRandom, ReplaceNode, TimeSetter, Twerk, TwoOpt, TwoOptMode,
         },
-        parent_selection::{self, Tournament},
+        parent_selection::Tournament,
         recombinations::PIX,
         survival_selection::{self, Elite},
         Fitness, Mutation, ParentSelection, Recombination, Stochastic, SurvivalSelection,
     },
     problem::Problem,
-    solution::{routing::Plan, Visit},
+    solution::Visit,
 };
 
 /// To avoid having to type out the humongous GA type.
