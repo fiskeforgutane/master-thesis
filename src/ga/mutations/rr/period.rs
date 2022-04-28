@@ -71,7 +71,7 @@ impl Mutation for Period {
                     Ok(x) => x,
                     // since the index where an element can be inserted is returned if the key is not found, this will be the first visit time > period.
                     // therefore the one before is x-1
-                    Err(x) => 0.max(x - 1),
+                    Err(x) => x.max(1) - 1,
                 }
             })
             .collect::<Vec<_>>();
