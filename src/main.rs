@@ -235,7 +235,7 @@ pub enum Termination {
 pub fn main() {
     //env_logger::init();
 
-    Builder::new()
+    /*     Builder::new()
         .format(|buf, record| {
             writeln!(
                 buf,
@@ -247,7 +247,7 @@ pub fn main() {
         })
         .filter(None, LevelFilter::Trace)
         .init();
-    info!("test");
+    info!("test"); */
 
     let args = std::env::args().collect::<Vec<_>>();
     let path = std::path::Path::new(&args[1]);
