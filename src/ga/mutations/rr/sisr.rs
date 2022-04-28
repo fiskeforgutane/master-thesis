@@ -1,12 +1,10 @@
 use std::{
-    cmp::Ordering,
     collections::HashSet,
     ops::{Range, RangeInclusive},
 };
 
 use float_ord::FloatOrd;
 use log::{debug, trace, warn};
-use pyo3::pyclass;
 use rand::{self, prelude::Distribution};
 use rand::{distributions::Uniform, Rng};
 
@@ -22,7 +20,6 @@ pub struct SlackInductionByStringRemoval {
     config: Config,
 }
 
-#[pyclass]
 #[derive(Debug, Clone)]
 /// Configuration determining the behaviour of the SISRs algorithm.
 pub struct Config {
@@ -36,6 +33,8 @@ pub struct Config {
     pub blink_rate: f64,
     /// We only consider the first `n` times in each continuous range of insertion points
     pub first_n: usize,
+    /// The epsilon for (violation, cost)
+    pub epsilon: (f64, f64),
     // The initial temperature
     // pub t0: f64,
     // The end temperature
@@ -249,6 +248,23 @@ impl Mutation for SlackInductionByStringRemoval {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
         self.ruin(solution);
 
-        let mut greedy = GreedyWithBlinks::new(self.config.blink_rate);
+        let greedy = GreedyWithBlinks::new(self.config.blink_rate);
+
+        let mut best = (
+            solution.warp(),
+            FloatOrd(solution.violation()),
+            FloatOrd(solution.cost() - solution.revenue()),
+        );
+
+        while let Some(((v, visit), obj)) = greedy.insert_best(
+            solution,
+            self.config.epsilon,
+            &self.candidates(solution),
+            best,
+        ) {
+            best = obj;
+            let mut solution = solution.mutate();
+            solution[v].mutate().push(visit);
+        }
     }
 }
