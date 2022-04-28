@@ -83,7 +83,7 @@ impl Sets {
             trace!("closest prod: {:?}", closest_prod.index());
             // time to load - sail - unload - sail back to depot
             let round_trip_time =
-                2 + 2 * problem.travel_time(closest_prod.index(), node.index(), slowest_vessel);
+                2 * problem.travel_time(closest_prod.index(), node.index(), slowest_vessel);
             trace!("rtt: {:?}", round_trip_time);
             trace!("num timesteps {:?}", problem.timesteps());
             let num_trips = (problem.timesteps() as f64 / round_trip_time as f64).floor() as usize;
