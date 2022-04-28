@@ -390,6 +390,7 @@ impl CircleSector {
     /// creates the circle sector of the given `plan`
     fn from_route(plan: &Plan, problem: &Problem) -> CircleSector {
         let center = problem.center();
+        trace!("problem center: {:?}", problem.center());
         let points = plan
             .iter()
             .map(|visit| {
