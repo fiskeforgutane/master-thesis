@@ -3,6 +3,7 @@ use std::f64::consts::PI;
 use float_ord::FloatOrd;
 use itertools::{iproduct, Itertools};
 use log::trace;
+use num_complex::Complex;
 
 use crate::{
     ga::Mutation,
@@ -417,27 +418,12 @@ impl CircleSector {
         sector
     }
 
-    /// Returns the angle to add to the given cartesian coordinate depending on which quadrant it is in
-    fn quadrant(x: f64, y: f64) -> Option<f64> {
-        if x >= 0.0 && y >= 0.0 {
-            return Some(0.0);
-        } else if x < 0.0 && y > 0.0 {
-            return Some(PI);
-        } else if x < 0.0 && y < 0.0 {
-            return Some(PI);
-        } else if x > 0.0 && y < 0.0 {
-            return Some(2.0 * PI);
-        }
-        None
-    }
-
     /// Returns the polar angle in radians
     fn cartesian_to_polar(x: f64, y: f64) -> Option<f64> {
-        let q = Self::quadrant(x, y);
-        match q {
-            Some(q) => Some((y / x).atan() + q),
-            None => None,
+        if x == 0.0 && y == 0.0 {
+            return None;
         }
+        Some(Complex::new(x, y).to_polar().1)
     }
 }
 
