@@ -523,6 +523,7 @@ pub struct Node {
     cumulative_inventory: Vec<Vec<Quantity>>,
     /// The initial inventory of the node
     initial_inventory: FixedInventory,
+    #[pyo3(get)]
     /// the coordinates of the node, relative the the mass center of the production nodes
     coordinates: (f64, f64),
 }
