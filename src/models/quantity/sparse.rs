@@ -1,10 +1,11 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     ops::{Range, RangeInclusive},
 };
 
-use grb::{add_ctsvar, c, expr::GurobiSum, Model, Var};
+use grb::{add_ctsvar, c, expr::GurobiSum, Expr, Model, Var};
 use itertools::{iproduct, Itertools};
+use slice_group_by::GroupBy;
 
 use crate::{
     models::utils::AddVars,
@@ -33,179 +34,6 @@ pub struct SparseQuantityLp {
 }
 
 impl SparseQuantityLp {
-    fn inventory_constraints(
-        model: &mut Model,
-        problem: &Problem,
-        s: &[Vec<Vec<Var>>],
-        w: &[Vec<Vec<Var>>],
-        x: &[Vec<Vec<Vec<Var>>>],
-        a: &[Vec<Vec<Var>>],
-        t: usize,
-        n: usize,
-        v: usize,
-        p: usize,
-    ) -> grb::Result<()> {
-        for (n, p) in iproduct!(0..n, 0..p) {
-            let s0 = problem.nodes()[n].initial_inventory()[p];
-            let name = &format!("s_init_{:?}", (n, p));
-            model.add_constr(name, c!(s[0][n][p] == s0))?;
-        }
-
-        for (t, n, p) in iproduct!(0..=t, 0..n, 0..p) {
-            let node = &problem.nodes()[n];
-            // Whether to enable/disable upper and lower soft constraint, respectively
-            let (u, l): (f64, f64) = match node.r#type() {
-                NodeType::Consumption => (0.0, 1.0),
-                NodeType::Production => (1.0, 0.0),
-            };
-
-            let ub = node.capacity()[p];
-            let lb = 0.0;
-
-            let c_ub = c!(s[t][n][p] <= ub + u * w[t][n][p]);
-            let c_lb = c!(s[t][n][p] >= lb - l * w[t][n][p]);
-
-            model.add_constr(&format!("s_ub_{:?}", (t, n, p)), c_ub)?;
-            model.add_constr(&format!("s_lb_{:?}", (t, n, p)), c_lb)?;
-        }
-
-        for (t, n, p) in iproduct!(1..=t, 0..n, 0..p) {
-            let node = &problem.nodes()[n];
-            let i = Self::multiplier(node.r#type());
-            let external = (0..v).map(|v| x[t - 1][n][v][p]).grb_sum();
-            let internal = node.inventory_changes()[t - 1][p];
-            let spot = a
-                .get(t)
-                .map(|at| 1.0 * at[n][p])
-                .unwrap_or(0.0 * a[0][0][0]);
-            let constr = c!(s[t][n][p] == s[t - 1][n][p] + internal - i * (external + spot));
-            model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
-        }
-
-        Ok(())
-    }
-
-    fn load_constraints(
-        model: &mut Model,
-        problem: &Problem,
-        l: &[Vec<Vec<Var>>],
-        x: &[Vec<Vec<Vec<Var>>>],
-        t: usize,
-        n: usize,
-        v: usize,
-        p: usize,
-    ) -> grb::Result<()> {
-        for (v, p) in iproduct!(0..v, 0..p) {
-            let initial = &problem.vessels()[v].initial_inventory()[p];
-            let name = format!("l_init_{:?}", (v, p));
-            model.add_constr(&name, c!(l[0][v][p] == initial))?;
-        }
-
-        for (t, v) in iproduct!(0..=t, 0..v) {
-            let vessel = &problem.vessels()[v];
-            let name = format!("l_ub_{:?}", (t, v));
-            let used = (0..p).map(|p| l[t][v][p]).grb_sum();
-
-            model.add_constr(&name, c!(used <= vessel.capacity()))?;
-        }
-
-        for (t, v, p) in iproduct!(1..=t, 0..v, 0..p) {
-            let i = |i: usize| Self::multiplier(problem.nodes()[i].r#type());
-            let name = format!("l_bal_{:?}", (t, v, p));
-            let lhs = l[t][v][p];
-            let rhs = l[t - 1][v][p] + (0..n).map(|n| i(n) * x[t - 1][n][v][p]).grb_sum();
-            model.add_constr(&name, c!(lhs == rhs))?;
-        }
-
-        Ok(())
-    }
-
-    fn rate_constraints(
-        model: &mut Model,
-        problem: &Problem,
-        x: &[Vec<Vec<Vec<Var>>>],
-        t: usize,
-        n: usize,
-        v: usize,
-        p: usize,
-    ) -> grb::Result<()> {
-        for t in 0..t {
-            for n in 0..n {
-                for v in 0..v {
-                    let lhs = (0..p).map(|p| x[t][n][v][p]).grb_sum();
-                    let rhs = problem.nodes()[n].max_loading_amount();
-                    let name = format!("x_rate_{:?}", (t, n, v));
-                    model.add_constr(&name, c!(lhs <= rhs))?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn berth_capacity(
-        model: &mut Model,
-        problem: &Problem,
-        x: &[Vec<Vec<Vec<Var>>>],
-        t: usize,
-        n: usize,
-        v: usize,
-        p: usize,
-        b: &[Vec<Vec<Var>>],
-    ) -> grb::Result<()> {
-        for (node, time) in iproduct!(0..n, 0..t) {
-            let berth_cap = problem.nodes()[node].port_capacity()[time];
-            model.add_constr(
-                &format!("berth_{}_{}", node, time),
-                c!(b[time][node].iter().grb_sum() <= berth_cap),
-            )?;
-        }
-
-        for (node, time, vessel) in iproduct!(0..n, 0..t, 0..v) {
-            let kind = problem.nodes()[node].r#type();
-            let big_m = match kind {
-                NodeType::Consumption => problem.nodes()[node].max_loading_amount(),
-                NodeType::Production => (0..p).map(|p| problem.nodes()[node].capacity()[p]).sum(),
-            };
-            model.add_constr(
-                &format!("force_berth_{}_{}_{}", node, time, vessel),
-                c!(x[time][node][vessel].iter().grb_sum() <= big_m * b[time][node][vessel]),
-            )?;
-        }
-
-        Ok(())
-    }
-
-    fn alpha_limits(
-        model: &mut Model,
-        problem: &Problem,
-        a: &[Vec<Vec<Var>>],
-        t: usize,
-        n: usize,
-    ) -> grb::Result<()> {
-        // Restrict the amount of alpha we can use in any particular time period.
-        for n in 0..n {
-            let node = &problem.nodes()[n];
-
-            // Limit of alpha usage per time step
-            for t in 0..n {
-                model.add_constr(
-                    &format!("alpha_period_ub_{}_{}", t, n),
-                    c!(a[t][n].iter().grb_sum() <= node.spot_market_limit_per_time()),
-                )?;
-            }
-
-            // Limit for alpha usage across all time steps
-            let sum = (0..t).flat_map(|t| a[t][n].iter()).grb_sum();
-            model.add_constr(
-                &format!("alpha_ub_{}", n),
-                c!(sum <= node.spot_market_limit()),
-            )?;
-        }
-
-        Ok(())
-    }
-
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
             NodeType::Consumption => -1.0,
@@ -214,7 +42,7 @@ impl SparseQuantityLp {
     }
 
     pub fn new(problem: &Problem) -> grb::Result<Self> {
-        let mut model = Model::new(&format!("quantities"))?;
+        let mut model = Model::new(&format!("quantities-sparse"))?;
         // Disable output logging.
         model.set_param(grb::param::OutputFlag, 0)?;
         // Use primal simplex, instead of the default concurrent solver. Reason: we will use multiple concurrent GAs
@@ -271,98 +99,191 @@ impl SparseQuantityLp {
     pub fn configure(
         &mut self,
         solution: &RoutingSolution,
-        semicont: bool,
-        berth: bool,
+        _semicont: bool,
+        _berth: bool,
     ) -> grb::Result<()> {
-        self.semicont = semicont;
-
-        self.berth = berth;
-
-        // By default: disable `all` variables
+        // Some stuff that will be useful later
         let model = &mut self.model;
         let problem = solution.problem();
+        let p = problem.products();
+        let t = problem.timesteps();
+        let v = problem.vessels().len();
+        let n = problem.nodes().len();
 
-        // The timelines for each node (where stuff happens)
-        let mut t_n = vec![HashSet::new(); problem.nodes().len()];
+        macro_rules! insert {
+            ($m: expr, $k: expr, $b: expr) => {{
+                let x: grb::Result<&mut Var> = match $m.entry($k) {
+                    Entry::Occupied(e) => Ok(e.into_mut()),
+                    Entry::Vacant(e) => Ok(e.insert(add_ctsvar!(
+                        model,
+                        name: &format!("{}_{:?}", stringify!($m), $k),
+                        bounds: $b
+                    )?)),
+                };
+                x
+            }};
+        }
+
+        // The timelines for each node and each vessel (when stuff happens)
+        // Note that to ensure inventory is not violated, we will define t_n for [0, t] as well.
+        let mut t_n = vec![[0, t - 1].into_iter().collect::<HashSet<_>>(); problem.nodes().len()];
         let mut t_v = vec![Vec::new(); problem.vessels().len()];
 
+        // The loading/unloading variables
         let mut x = HashMap::new();
-        let mut l = HashMap::new();
-        let mut w = HashMap::new();
-        let mut a = HashMap::new();
-        let mut s = HashMap::new();
+        let mut revenue: Expr = 0.0_f64.into();
 
+        // Note: t_v will be constructed in order of increasing t with this, since it is
+        // based on walking through the plan in-order
         for (v, nodes) in Self::active(solution) {
-            let vessel = problem.vessels()[v];
-            let l_cap = vessel.capacity();
-            let available = vessel.available_from();
+            let l_cap = problem.vessels()[v].capacity();
             for (n, times) in nodes {
-                let node = problem.nodes()[n];
+                let node = &problem.nodes()[n];
+                let unit_revenue = node.revenue();
                 let x_cap = node.max_loading_amount();
-                let pre = (*times).start().min(1) - 1;
-                let post = *times.end() + 1;
-                let a_cap = node.spot_market_limit_per_time();
-                let a_tot = node.spot_market_limit();
+                // We need to include enough time before arrival to include the possibility of avoiding shortage
+                // by using the spot market
+                let a_maxt = node.spot_market_limit_per_time();
+                let a_max = node.spot_market_limit();
+                let spot = (a_max / a_maxt).ceil() as usize;
+                let pre = spot.min(*times.start()) - spot;
+                for t in pre..*times.start() {
+                    t_n[n].insert(t);
+                }
 
                 for t in times {
                     t_v[v].push(t);
                     t_n[n].insert(t);
 
                     for p in 0..problem.products() {
-                        x.insert(
-                            (t, n, v, p),
-                            add_ctsvar!(model, bounds: 0.0..l_cap.min(x_cap)),
-                        );
-                        l.entry((t, v, p))
-                            .or_insert_with(|| add_ctsvar!(model, bounds: 0.0..l_cap));
-
-                        a.entry((t, n, p))
-                            .or_insert_with(|| add_ctsvar!(model, bounds: 0.0..a_cap));
-
-                        // TODO: should probably sum over capacity. However it doesn't matter for MIRPLIB, since there
-                        // is only one produ dct.
-                        s.entry((t, n, p))
-                            .or_insert_with(|| add_ctsvar!(model, bounds: 0.0..x_cap));
+                        let var = *insert!(x, (t, n, v, p), 0.0..l_cap.min(x_cap)).unwrap();
+                        revenue = revenue + var * unit_revenue;
                     }
-                }
-
-                // The load should be available in the timestep before and after, so that we can link them together
-                for p in (0..problem.products()) {
-                    l.entry((pre, v, p))
-                        .or_insert_with(|| add_ctsvar!(model, name: "", bounds: 0.0..l_cap));
-                    l.entry((post, v, p))
-                        .or_insert_with(|| add_ctsvar!(model, name: "", bounds: 0.0..l_cap));
-                }
-
-                // Violation should be available for enough time before arriving to be able to do something to stop shortage from occuring
-                let mut cumulative = 0.0;
-                for t in (0..=pre).rev() {
-                    if cumulative > a_cap {
-                        break;
-                    }
-
-                    for p in 0..problem.products() {
-                        a.entry((t, n, p))
-                            .or_insert_with(|| add_ctsvar!(model, bounds: 0.0..a_cap));
-                    }
-
-                    cumulative += node.inventory_changes()[t]
                 }
             }
         }
 
-        // Should be defined over `active`
-        let x = (t, n, v, p).cont(&mut model, "x")?;
-        // B is only needed when berth == true, and should be defined over active (no p though)
-        // let b = (t, n, v).cont(&mut model, "b")?;
-        // Load should be defined over active, plus the timestep after it leaves
-        let l = (t + 1, v, p).cont(&mut model, "l")?;
-        // Violation should be defined over active. plus the timestep before + after
-        let w = (t + 1, n, p).cont(&mut model, "w")?;
-        // Storage should be defined over active, plus the timestep before + after
-        let s = (t + 1, n, p).free(&mut model, "s")?;
-        // Spot market should be defined over `active`, plus the maximum number of time periods it could supply spot at maximum rate.
-        let a = (t, n, p).cont(&mut model, "a")?;
+        // The timeline of each node needs to be ordered by time
+        let t_n: Vec<Vec<usize>> = t_n
+            .into_iter()
+            .map(|xs| xs.into_iter().sorted().collect())
+            .collect();
+
+        // Both l and s are at the `start` of the period, i.e. before any loading/unloading happens.
+        let mut l = HashMap::new();
+        for (v, timeline) in t_v.iter().enumerate() {
+            let cap = problem.vessels()[v].capacity();
+            // For every "discontuity", we need to include the timestep after, to prevent the vessel from "cheating", its inventory by loading in the last possible timestep
+            // Each group is a non-empty continuous range, by construction
+            for group in timeline.linear_group_by(|&a, &b| a + 1 == b) {
+                let first = *group.first().unwrap();
+                let last = *group.last().unwrap();
+                for t in first..=(last + 1).min(t) {
+                    for p in 0..p {
+                        insert!(l, (t, v, p), 0.0..cap)?;
+                    }
+                }
+            }
+        }
+
+        let mut s = HashMap::new();
+        let mut w = HashMap::new();
+        let mut a = HashMap::new();
+
+        for (n, timeline) in t_n.iter().enumerate() {
+            let node = &problem.nodes()[n];
+            let cap = node.capacity();
+            let a_maxt = node.spot_market_limit_per_time();
+            let a_max = node.spot_market_limit();
+            let mut a_tot = Expr::from(0.0_f64);
+
+            for group in timeline.linear_group_by(|&a, &b| a + 1 == b) {
+                for &t in group {
+                    for p in 0..p {
+                        insert!(s, (t, n, p), 0.0..cap[p])?;
+                        insert!(w, (t, n, p), 0.0..)?;
+                        a_tot = a_tot + *insert!(a, (t, n, p), 0.0..a_maxt)?;
+                    }
+                }
+
+                // We need to observe whether violation occurs AFTER day `last` = `end - 1`
+                let end = group.last().unwrap() + 1;
+                for p in 0..p {
+                    insert!(s, (end, n, p), ..)?;
+                    insert!(w, (end, n, p), 0.0..cap[p])?;
+                }
+            }
+
+            // Total `a` can not exceed the limit
+            model.add_constr(&format!("c_a_{n}"), c!(a_tot <= a_max))?;
+        }
+
+        // Initial inventory for vessels
+        for (v, p) in iproduct!(0..v, 0..p) {
+            let vessel = &problem.vessels()[v];
+            let t0 = vessel.available_from();
+            let initial = vessel.initial_inventory()[p];
+            let name = format!("l_init_{:?}", (v, p));
+            model.add_constr(&name, c!(l[&(t0, v, p)] == initial))?;
+        }
+
+        // Inventory conservation for vessels
+        for (v, timeline) in t_v.iter().enumerate() {
+            for (&t1, &t2) in timeline.iter().zip(&timeline[1..]) {
+                for p in 0..p {
+                    let i = |i: usize| Self::multiplier(problem.nodes()[i].r#type());
+                    let name = format!("l_bal_{:?}", (t, v, p));
+                    let lhs = l[&(t2, v, p)];
+                    let rhs = l[&(t1, v, p)] + (0..n).map(|n| i(n) * x[&(t1, n, v, p)]).grb_sum();
+                    model.add_constr(&name, c!(lhs == rhs))?;
+                }
+            }
+        }
+
+        // Initial inventory for nodes
+        for (n, p) in iproduct!(0..n, 0..p) {
+            let s0 = problem.nodes()[n].initial_inventory()[p];
+            let name = &format!("s_init_{:?}", (n, p));
+            model.add_constr(name, c!(s[&(0, n, p)] == s0))?;
+        }
+
+        // Soft and hard inventory constraints
+        for (&(t, n, p), &s) in &s {
+            let node = &problem.nodes()[n];
+            let w = w[&(t, n, p)];
+            // Whether to enable/disable upper and lower soft constraint, respectively
+            let (u, l): (f64, f64) = match node.r#type() {
+                NodeType::Consumption => (0.0, 1.0),
+                NodeType::Production => (1.0, 0.0),
+            };
+
+            let ub = node.capacity()[p];
+            let lb = 0.0;
+
+            let c_ub = c!(s <= ub + u * w);
+            let c_lb = c!(s >= lb - l * w);
+
+            model.add_constr(&format!("s_ub_{:?}", (t, n, p)), c_ub)?;
+            model.add_constr(&format!("s_lb_{:?}", (t, n, p)), c_lb)?;
+        }
+
+        // Inventory conservation for nodes
+        for (n, timeline) in t_n.iter().enumerate() {
+            let node = &problem.nodes()[n];
+            let i = Self::multiplier(node.r#type());
+
+            for (&t1, &t2) in timeline.iter().zip(timeline) {
+                for p in 0..p {
+                    let external = (0..v).map(|v| x[&(t1, n, v, p)]).grb_sum();
+                    let internal = node.inventory_change(t1, t2, p);
+                    let spot = a[&(t1, n, p)];
+                    let constr =
+                        c!(s[&(t2, n, p)] == s[&(t1, n, p)] + internal - i * (external + spot));
+
+                    model.add_constr(&format!("s_bal_{:?}", (t, n, p)), constr)?;
+                }
+            }
+        }
 
         Ok(())
     }
@@ -372,6 +293,6 @@ impl SparseQuantityLp {
     pub fn solve(&mut self) -> grb::Result<()> {
         self.model.optimize()?;
 
-        Ok(&self.vars)
+        Ok(())
     }
 }
