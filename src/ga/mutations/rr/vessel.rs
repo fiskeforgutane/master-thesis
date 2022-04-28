@@ -1,5 +1,4 @@
 use float_ord::FloatOrd;
-use log::trace;
 use rand::{
     prelude::{IteratorRandom, StdRng},
     Rng, SeedableRng,
@@ -71,28 +70,19 @@ impl Mutation for Vessel {
             FloatOrd(solution.cost() - solution.revenue()),
         );
         let mut idx = 0;
-        while idx < solution[vessel].len() {
+        loop {
             let candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
             // Gredily construct a new vessel plan based on greedy insertion with blinks
             let greedy = GreedyWithBlinks::new(self.blink_rate);
 
             // choose the best among the candidates
-            match greedy.choose_inc_obj(solution, candidates.into_iter()) {
-                Some((idx, obj)) => {
-                    let dv = best.1 .0 - obj.1 .0;
-                    let dl = best.2 .0 - obj.2 .0;
-
-                    if (dv, dl) <= self.epsilon || obj.0 > best.0 {
-                        trace!("Iterative converge done");
-                        return;
-                    }
+            match greedy.insert_best(solution, self.epsilon, &candidates, best) {
+                Some((_, obj)) => {
                     best = obj;
-                    let mutator = &mut solution.mutate();
-                    mutator[idx.0].mutate().push(idx.1);
+                    idx += 1;
                 }
-                None => (),
+                None => return,
             }
-            idx += 1
         }
     }
 }

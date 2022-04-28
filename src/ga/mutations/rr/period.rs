@@ -1,4 +1,5 @@
-use itertools::iproduct;
+use float_ord::FloatOrd;
+
 use rand::{
     prelude::{IteratorRandom, StdRng},
     SeedableRng,
@@ -6,7 +7,7 @@ use rand::{
 
 use crate::{
     ga::{initialization::GreedyWithBlinks, Mutation},
-    problem::{Node, Vessel},
+    problem::Vessel,
     solution::{routing::Plan, Visit},
 };
 
@@ -19,16 +20,18 @@ pub struct Period {
     removal_rate: f64,
     epsilon: (f64, f64),
     max_size: usize,
+    c: usize,
 }
 
 impl Period {
-    pub fn new(blink_rate: f64, removal_rate: f64, max_size: usize) -> Self {
+    pub fn new(blink_rate: f64, removal_rate: f64, max_size: usize, c: usize) -> Self {
         Self {
             rng: StdRng::from_entropy(),
             blink_rate,
             removal_rate,
             epsilon: (1.0, 1.0),
             max_size,
+            c,
         }
     }
 }
@@ -54,16 +57,38 @@ impl Mutation for Period {
             }
         }
 
-        // Recreate it again
-        let candidates = iproduct!(
-            problem.indices::<Vessel>(),
-            problem.indices::<Node>(),
-            period
-        )
-        .filter(|&(v, _, t)| t > problem.vessels()[v].available_from())
-        .map(|(v, node, time)| (v, Visit { node, time }))
-        .collect();
-
-        GreedyWithBlinks::new(self.blink_rate).converge(solution, self.epsilon, candidates)
+        let mut best = (
+            solution.warp(),
+            FloatOrd(solution.violation()),
+            FloatOrd(solution.cost() - solution.revenue()),
+        );
+        let mut indices = vec![0; problem.vessels().len()];
+        let mut candidates = problem
+            .indices::<Vessel>()
+            .map(|v| {
+                solution
+                    .candidates(indices[v], v, self.c)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let mut v = 0;
+        loop {
+            let greedy = GreedyWithBlinks::new(self.blink_rate);
+            candidates[v] = solution.candidates(indices[v], v, self.c).collect();
+            // choose the best among the candidates
+            match greedy.insert_best(
+                solution,
+                self.epsilon,
+                &candidates.iter().flatten().cloned().collect(),
+                best,
+            ) {
+                Some((idx, obj)) => {
+                    best = obj;
+                    indices[idx.0] += 1;
+                    v = idx.0
+                }
+                None => return,
+            }
+        }
     }
 }
