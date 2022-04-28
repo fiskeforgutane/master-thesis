@@ -543,8 +543,10 @@ impl RoutingSolution {
                             // NOTE2: might consider batching this Gurobi call.
                             let t = v2.time;
                             for p in 0..p {
-                                inventory[p] =
-                                    lp.model.get_obj_attr(grb::attr::X, &load[t][v][p]).unwrap();
+                                inventory[p] = lp
+                                    .model
+                                    .get_obj_attr(grb::attr::X, &load[&(t, v, p)])
+                                    .unwrap();
                             }
 
                             let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);

@@ -22,6 +22,7 @@ impl AddSmart {
     /// * `solution` - The routing solution that should be investigated
     pub fn most_significant_violation(solution: &RoutingSolution) -> (NodeIndex, TimeIndex) {
         let lp = solution.quantities();
+        let lp: &QuantityLp = todo!("must be changed after introduction of sparse QuantityLp");
         let w = &lp.vars.w;
 
         let get = |var: &grb::Var| -> f64 {

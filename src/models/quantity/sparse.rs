@@ -14,16 +14,16 @@ use crate::{
 };
 
 pub struct Variables {
-    pub w: Vec<Vec<Vec<Var>>>,
-    pub x: Vec<Vec<Vec<Vec<Var>>>>,
-    pub s: Vec<Vec<Vec<Var>>>,
-    pub l: Vec<Vec<Vec<Var>>>,
-    pub b: Vec<Vec<Vec<Var>>>,
-    pub a: Vec<Vec<Vec<Var>>>,
+    pub w: HashMap<(TimeIndex, NodeIndex, ProductIndex), Var>,
+    pub x: HashMap<(TimeIndex, NodeIndex, VesselIndex, ProductIndex), Var>,
+    pub s: HashMap<(TimeIndex, NodeIndex, ProductIndex), Var>,
+    pub l: HashMap<(TimeIndex, VesselIndex, ProductIndex), Var>,
+    pub a: HashMap<(TimeIndex, NodeIndex, ProductIndex), Var>,
     pub violation: Var,
     pub spot: Var,
     pub revenue: Var,
     pub timing: Var,
+    // pub b: Vec<Vec<Vec<Var>>>,
 }
 
 pub struct QuantityLp {
@@ -131,7 +131,7 @@ impl QuantityLp {
 
         // The loading/unloading variables
         let mut x = HashMap::new();
-        let mut revenue: Expr = 0.0_f64.into();
+        let mut revenue_expr: Expr = 0.0_f64.into();
 
         // Note: t_v will be constructed in order of increasing t with this, since it is
         // based on walking through the plan in-order
@@ -157,7 +157,7 @@ impl QuantityLp {
 
                     for p in 0..problem.products() {
                         let var = *insert!(x, (t, n, v, p), 0.0..l_cap.min(x_cap)).unwrap();
-                        revenue = revenue + var * unit_revenue;
+                        revenue_expr = revenue_expr + var * unit_revenue;
                     }
                 }
             }
@@ -285,14 +285,36 @@ impl QuantityLp {
             }
         }
 
+        let revenue = add_ctsvar!(model, name: "revenue", bounds: 0.0..)?;
+        let violation = add_ctsvar!(model, name: "violation", bounds: 0.0..)?;
+        let spot = add_ctsvar!(model, name: "spot", bounds: 0.0..)?;
+        let timing = add_ctsvar!(model, name: "timing", bounds: 0.0..)?;
+
+        model.add_constr("c_revenue", c!(revenue == revenue_expr))?;
+        model.add_constr("c_violation", c!(violation == w.values().grb_sum()))?;
+        model.add_constr("c_spot", c!(spot == a.values().grb_sum()))?;
+        model.add_constr("c_timing", c!(timing == 0.0_f64));
+
+        self.vars = Variables {
+            w,
+            x,
+            s,
+            l,
+            a,
+            violation,
+            spot,
+            revenue,
+            timing,
+        };
+
         Ok(())
     }
 
     /// Solves the model for the current configuration. Returns the variables
     /// Should also include dual variables for the upper bounds on x, but this is not implemented yet
-    pub fn solve(&mut self) -> grb::Result<()> {
+    pub fn solve(&mut self) -> grb::Result<&Variables> {
         self.model.optimize()?;
 
-        Ok(())
+        Ok(&self.vars)
     }
 }

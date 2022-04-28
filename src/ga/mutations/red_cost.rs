@@ -7,6 +7,7 @@ use rand::prelude::*;
 
 use crate::{
     ga::Mutation,
+    models::quantity::QuantityLp,
     problem::Problem,
     solution::routing::{Plan, RoutingSolution},
 };
@@ -107,7 +108,7 @@ impl RedCost {
         solution: &RoutingSolution,
     ) -> Vec<(usize, MoveDirection)> {
         let quant_lp = &mut solution.quantities();
-
+        let quant_lp: &mut QuantityLp = todo!("must be changed after introduction of sparse");
         let model = &quant_lp.model;
         let vars = &quant_lp.vars;
 
