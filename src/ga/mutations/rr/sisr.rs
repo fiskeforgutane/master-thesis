@@ -98,7 +98,7 @@ impl SlackInductionByStringRemoval {
             .enumerate()
             .filter(|(v, _)| !vehicles_used.contains(&v))
             .flat_map(|(v, route)| {
-                route.iter().enumerate().filter_map(move |(i, visit)| {
+                route[1..].iter().enumerate().filter_map(move |(i, visit)| {
                     match time_period.contains(&visit.time) {
                         true => Some((v, i)),
                         false => None,
@@ -179,14 +179,14 @@ impl SlackInductionByStringRemoval {
             // and let min_offset be the smallest offset such that idx + l - offset <= t
             // i.e. offset >= idx + l - t and offset >= 0
             let ub = (l + 1).min(idx);
-            let lb = ((idx + l - t) as isize).max(0) as usize;
+            let lb = ((idx + l - t) as isize).max(1) as usize;
             // The range of allowed offsets that also gives a slice of size `l`
             let range = lb..ub;
 
             trace!("L = {}, idx = {}, allowed offsets = {:?}", l, idx, range);
 
             let chosen = match range.is_empty() {
-                true => 0..t,
+                true => 1..t,
                 false => {
                     let offset = rand::thread_rng().gen_range(range);
                     idx - offset..idx + l - offset
@@ -195,7 +195,7 @@ impl SlackInductionByStringRemoval {
 
             // This should hold, unless there's a bug in the above calculations.
             assert!(
-                ((lb..ub).is_empty() && chosen.len() == t)
+                ((lb..ub).is_empty() && chosen.len() == t - 1)
                     | (!(lb..ub).is_empty() && chosen.len() == l)
             );
 
@@ -250,15 +250,15 @@ impl Mutation for SlackInductionByStringRemoval {
             FloatOrd(solution.cost() - solution.revenue()),
         );
 
+        trace!("SISR start = {:?}", solution.to_vec());
         while let Some(((v, visit), obj)) = greedy.insert_best(
             solution,
             self.config.epsilon,
             &self.candidates(solution),
             best,
         ) {
+            trace!("\tinserting v = {v}: {visit:?}");
             best = obj;
-            let mut solution = solution.mutate();
-            solution[v].mutate().push(visit);
         }
     }
 }

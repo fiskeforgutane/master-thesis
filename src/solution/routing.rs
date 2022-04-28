@@ -1,7 +1,7 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::ops::{DerefMut, Range};
+use std::ops::{DerefMut, Range, RangeInclusive};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
@@ -609,7 +609,7 @@ impl RoutingSolution {
     ) -> impl Iterator<
         Item = (
             VesselIndex,
-            impl Iterator<Item = (NodeIndex, Range<usize>)> + '_,
+            impl Iterator<Item = (NodeIndex, RangeInclusive<usize>)> + '_,
         ),
     > + '_ {
         let problem = self.problem();
@@ -630,8 +630,8 @@ impl RoutingSolution {
 
                                 // TODO: check off by one (?)
                                 let earliest_arrival = v1.time + t1;
-                                let latest_departure = v2.time.min(t2) - t2;
-                                let available = earliest_arrival..latest_departure;
+                                let latest_departure = v2.time.max(t2) - t2;
+                                let available = earliest_arrival..=latest_departure;
 
                                 match available.is_empty() {
                                     true => None,
