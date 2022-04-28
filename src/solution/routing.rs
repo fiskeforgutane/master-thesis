@@ -430,7 +430,7 @@ impl RoutingSolution {
         let cached = &self.cache.warp;
 
         if cached.get().is_none() {
-            self.update();
+            self.update_warp();
         }
 
         cached.get().unwrap()
@@ -535,7 +535,8 @@ impl RoutingSolution {
             .enumerate()
             .map(|(v, plan)| {
                 problem.nodes()[problem.vessels()[v].origin()].port_fee()
-                    + plan.iter()
+                    + plan
+                        .iter()
                         .tuple_windows()
                         .map(|(v1, v2)| {
                             // NOTE: the time might be an off-by-one error
