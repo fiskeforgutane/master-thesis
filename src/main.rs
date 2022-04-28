@@ -1,13 +1,12 @@
+use chrono::Local;
+use env_logger::Builder;
 use float_ord::FloatOrd;
-use rand;
+use log::{info, LevelFilter};
+use std::io::Write;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use std::io::Write;
-use chrono::Local;
-use env_logger::Builder;
-use log::{LevelFilter, trace, log_enabled, info};
 
 pub mod ga;
 pub mod models;
@@ -146,8 +145,8 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
             Stochastic::new(0.03, Bounce::new(3, BounceMode::All)),
             Stochastic::new(0.03, Bounce::new(3, BounceMode::Random)),
             Stochastic::new(0.03, AddSmart),
-            Stochastic::new(0.01, rr::Period::new(0.1, 0.50, 15)),
-            Stochastic::new(0.01, rr::Vessel::new(0.1, 0.75))
+            Stochastic::new(0.01, rr::Period::new(0.1, 0.50, 15, 3)),
+            Stochastic::new(0.01, rr::Vessel::new(0.1, 0.75, 3))
         ),
         selection: survival_selection::Elite(
             1,
@@ -218,12 +217,12 @@ pub enum Termination {
 }
 
 pub fn main() {
-    //env_logger::init();     
-    
+    //env_logger::init();
 
     Builder::new()
         .format(|buf, record| {
-            writeln!(buf,
+            writeln!(
+                buf,
                 "{} [{}] - {}",
                 Local::now().format("%Y-%m-%dT%H:%M:%S"),
                 record.level(),
@@ -234,7 +233,6 @@ pub fn main() {
         .init();
     info!("test");
 
-    
     let args = std::env::args().collect::<Vec<_>>();
     let path = std::path::Path::new(&args[1]);
 

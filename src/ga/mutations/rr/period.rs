@@ -1,4 +1,5 @@
-use itertools::iproduct;
+use float_ord::FloatOrd;
+
 use rand::{
     prelude::{IteratorRandom, StdRng},
     SeedableRng,
@@ -6,7 +7,7 @@ use rand::{
 
 use crate::{
     ga::{initialization::GreedyWithBlinks, Mutation},
-    problem::{Node, Vessel},
+    problem::Vessel,
     solution::{routing::Plan, Visit},
 };
 
@@ -19,16 +20,18 @@ pub struct Period {
     removal_rate: f64,
     epsilon: (f64, f64),
     max_size: usize,
+    c: usize,
 }
 
 impl Period {
-    pub fn new(blink_rate: f64, removal_rate: f64, max_size: usize) -> Self {
+    pub fn new(blink_rate: f64, removal_rate: f64, max_size: usize, c: usize) -> Self {
         Self {
             rng: StdRng::from_entropy(),
             blink_rate,
             removal_rate,
             epsilon: (1.0, 1.0),
             max_size,
+            c,
         }
     }
 }
@@ -54,16 +57,51 @@ impl Mutation for Period {
             }
         }
 
-        // Recreate it again
-        let candidates = iproduct!(
-            problem.indices::<Vessel>(),
-            problem.indices::<Node>(),
-            period
-        )
-        .filter(|&(v, _, t)| t > problem.vessels()[v].available_from())
-        .map(|(v, node, time)| (v, Visit { node, time }))
-        .collect();
+        let mut best = (
+            solution.warp(),
+            FloatOrd(solution.violation()),
+            FloatOrd(solution.cost() - solution.revenue()),
+        );
 
-        GreedyWithBlinks::new(self.blink_rate).converge(solution, self.epsilon, candidates)
+        // The indices of the last visit evaluated in every plan
+        let mut indices = problem
+            .indices::<Vessel>()
+            .map(|v| {
+                match solution[v].binary_search_by_key(&period.start, |visit| visit.time) {
+                    Ok(x) => x,
+                    // since the index where an element can be inserted is returned if the key is not found, this will be the first visit time > period.
+                    // therefore the one before is x-1
+                    Err(x) => 0.max(x - 1),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // gets candidates and filteres out the ones outside the range.
+        let get_candidates =
+            |v, solution: &crate::solution::routing::RoutingSolution, indices: &Vec<usize>| {
+                solution
+                    .candidates(indices[v], v, self.c)
+                    .filter(|(_, v)| period.contains(&v.time))
+                    .collect::<Vec<_>>()
+            };
+
+        let mut candidates = problem
+            .indices::<Vessel>()
+            .map(|v| get_candidates(v, solution, &indices))
+            .collect::<Vec<_>>();
+
+        let greedy = GreedyWithBlinks::new(self.blink_rate);
+        while let Some((idx, obj)) = greedy.insert_best(
+            solution,
+            self.epsilon,
+            &candidates.iter().flatten().cloned().collect(),
+            best,
+        ) {
+            best = obj;
+            indices[idx.0] += 1;
+            // the index of the vessel changed, this is the one we must get new candidates for
+            let v = idx.0;
+            candidates[v] = get_candidates(v, solution, &indices);
+        }
     }
 }

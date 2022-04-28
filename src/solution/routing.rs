@@ -430,7 +430,7 @@ impl RoutingSolution {
         let cached = &self.cache.warp;
 
         if cached.get().is_none() {
-            self.update();
+            self.update_warp();
         }
 
         cached.get().unwrap()
@@ -642,6 +642,72 @@ impl RoutingSolution {
                 )
             })
     }
+
+    pub fn duration(&self, plan_idx: usize, visit_idx: usize) -> usize {
+        let lp = &self.quantities();
+        let visit = &self[plan_idx][visit_idx];
+
+        let mut count = 0;
+        for t in visit.time..self.problem().timesteps() {
+            if !lp
+                .model
+                .get_obj_attr_batch(
+                    grb::attr::X,
+                    (0..self.problem.products()).map(|p| lp.vars.x[t][visit.node][plan_idx][p]),
+                )
+                .expect("failed to retrieve variables")
+                .into_iter()
+                .any(|v| v > 1e-5)
+            {
+                break;
+            }
+            count += 1;
+        }
+
+        count
+    }
+
+    pub fn candidates<'a>(
+        &'a self,
+        visit_idx: usize,
+        plan_idx: usize,
+        c: usize,
+    ) -> impl Iterator<Item = (VesselIndex, Visit)> + 'a {
+        let current_visit = &self[plan_idx][visit_idx];
+
+        let vessel = &self.problem().vessels()[plan_idx];
+        // the time period of the next visit, if none, the length of the planning period
+        let time_bound = match self[plan_idx].get(visit_idx + 1) {
+            Some(v) => v.time,
+            None => self.problem().timesteps(),
+        };
+        self.problem()
+            .nodes()
+            .into_iter()
+            .filter(|n| n.index() != current_visit.node)
+            .filter_map(move |n| {
+                let travel_time = self
+                    .problem()
+                    .travel_time(current_visit.node, n.index(), vessel);
+
+                let arrival = current_visit.time + travel_time;
+                match arrival < time_bound {
+                    true => Some(
+                        (arrival..(arrival + c).min(self.problem.timesteps() - 1)).map(move |t| {
+                            (
+                                plan_idx,
+                                Visit {
+                                    node: n.index(),
+                                    time: t,
+                                },
+                            )
+                        }),
+                    ),
+                    false => None,
+                }
+            })
+            .flatten()
+    }
 }
 
 impl<'a> IntoIterator for &'a RoutingSolution {
@@ -679,10 +745,14 @@ impl Drop for RoutingSolutionMut<'_> {
         // Check that the visit times are correct
         for (v, plan) in self.0.routes.iter().enumerate() {
             // Ensure that the last timestep is within the planning period.
-            assert!(match plan.last() {
-                Some(visit) => visit.time < timesteps,
-                None => true,
-            });
+            assert!(
+                match plan.last() {
+                    Some(visit) => visit.time < timesteps,
+                    None => true,
+                },
+                "Some(visit) => visit.time < timesteps, None => true, visit:{:?}",
+                plan.last()
+            );
             // Assert that the first visit of each vessel's plan corresponds to its origin visit.
             assert!(plan
                 .first()
