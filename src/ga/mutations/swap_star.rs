@@ -163,6 +163,9 @@ impl SwapStar {
         plan2: &Plan,
         problem: &Problem,
     ) -> Option<((usize, usize), (usize, usize))> {
+        if plan1.len() < 3 || plan2.len() <3{
+            return None
+        }
         // best indices in plan1 to insert visits from plan2
         let best_plan1 = plan2
             .iter()
