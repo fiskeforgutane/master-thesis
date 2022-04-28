@@ -11,9 +11,9 @@ use rand::{self, prelude::Distribution};
 use rand::{distributions::Uniform, Rng};
 
 use crate::{
-    ga::Mutation,
+    ga::{initialization::GreedyWithBlinks, Mutation},
     problem::{NodeIndex, Problem, TimeIndex, VesselIndex},
-    solution::routing::RoutingSolution,
+    solution::{routing::RoutingSolution, Visit},
 };
 /// Implements a variant of the SISRs R&R algorithm presented by J. Christiaens and
 /// G. V. Berge adapted for use in a VRP variant with MIRP-style time windows.
@@ -34,6 +34,8 @@ pub struct Config {
     pub alpha: f64,
     /// The probability of a "blink" during the greedy insertion
     pub blink_rate: f64,
+    /// We only consider the first `n` times in each continuous range of insertion points
+    pub first_n: usize,
     // The initial temperature
     // pub t0: f64,
     // The end temperature
@@ -228,10 +230,25 @@ impl SlackInductionByStringRemoval {
             drop(plan.drain(range));
         }
     }
+
+    fn candidates(&self, solution: &RoutingSolution) -> Vec<(usize, Visit)> {
+        solution
+            .available()
+            .flat_map(|(v, it)| {
+                it.flat_map(move |(node, range)| {
+                    range
+                        .take(self.config.first_n)
+                        .map(move |time| (v, Visit { node, time }))
+                })
+            })
+            .collect()
+    }
 }
 
 impl Mutation for SlackInductionByStringRemoval {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
         self.ruin(solution);
+
+        let mut greedy = GreedyWithBlinks::new(self.config.blink_rate);
     }
 }
