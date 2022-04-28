@@ -142,12 +142,11 @@ impl SwapStar {
             res = costs;
         } else {
             // find the three cheapest insertions
-            let mut res = Vec::new();
             for _ in 0..3 {
                 let (index_to_remove, element) = costs
                     .iter()
                     .enumerate()
-                    .max_by_key(|(_, e)| FloatOrd(e.1))
+                    .min_by_key(|(_, e)| FloatOrd(e.1))
                     .unwrap();
                 trace!("element:{:?}", element);
                 res.push(*element);
