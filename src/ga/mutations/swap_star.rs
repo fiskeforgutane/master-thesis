@@ -164,6 +164,8 @@ impl SwapStar {
         plan2: &Plan,
         problem: &Problem,
     ) -> Option<((usize, usize), (usize, usize))> {
+        trace!("plan1.len():{}",plan1.len());
+        trace!("plan2.len():{}",plan2.len());
         if plan1.len() < 3 || plan2.len() <3{
             return None
         }
