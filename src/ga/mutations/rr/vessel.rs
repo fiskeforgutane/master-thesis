@@ -1,14 +1,11 @@
-use itertools::iproduct;
+use float_ord::FloatOrd;
+use log::trace;
 use rand::{
     prelude::{IteratorRandom, StdRng},
     Rng, SeedableRng,
 };
 
-use crate::{
-    ga::{initialization::GreedyWithBlinks, Mutation},
-    problem::Node,
-    solution::Visit,
-};
+use crate::ga::{initialization::GreedyWithBlinks, Mutation};
 
 pub trait Dropout<T> {
     fn dropout<F: Fn(T) -> bool>(&mut self, eligible: F, removal_rate: f64);
@@ -36,15 +33,18 @@ pub struct Vessel {
     blink_rate: f64,
     removal_rate: f64,
     epsilon: (f64, f64),
+    /// The number of candidates generated for one node out from the previous, typically set to 2-4.
+    c: usize,
 }
 
 impl Vessel {
-    pub fn new(blink_rate: f64, removal_rate: f64) -> Self {
+    pub fn new(blink_rate: f64, removal_rate: f64, c: usize) -> Self {
         Self {
             rng: StdRng::from_entropy(),
             blink_rate,
             removal_rate,
             epsilon: (1.0, 1.0),
+            c,
         }
     }
 }
@@ -65,16 +65,34 @@ impl Mutation for Vessel {
             plan.dropout(|x| x != origin, self.removal_rate);
         }
 
-        // Find the insertion candidates
-        let available = problem.vessels()[vessel].available_from();
-        let nodes = problem.indices::<Node>();
-        let time = available + 1..problem.timesteps();
-        let candidates = iproduct!(nodes, time)
-            .map(|(node, time)| (vessel, Visit { node, time }))
-            .collect();
+        let mut best = (
+            solution.warp(),
+            FloatOrd(solution.violation()),
+            FloatOrd(solution.cost() - solution.revenue()),
+        );
+        let mut idx = 0;
+        while idx < solution[vessel].len() {
+            let candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
+            // Gredily construct a new vessel plan based on greedy insertion with blinks
+            let greedy = GreedyWithBlinks::new(self.blink_rate);
 
-        // Gredily construct a new vessel plan based on greedy insertion with blinks
-        let greedy = GreedyWithBlinks::new(self.blink_rate);
-        greedy.converge(solution, self.epsilon, candidates);
+            // choose the best among the candidates
+            match greedy.choose_inc_obj(solution, candidates.into_iter()) {
+                Some((idx, obj)) => {
+                    let dv = best.1 .0 - obj.1 .0;
+                    let dl = best.2 .0 - obj.2 .0;
+
+                    if (dv, dl) <= self.epsilon || obj.0 > best.0 {
+                        trace!("Iterative converge done");
+                        return;
+                    }
+                    best = obj;
+                    let mutator = &mut solution.mutate();
+                    mutator[idx.0].mutate().push(idx.1);
+                }
+                None => (),
+            }
+            idx += 1
+        }
     }
 }
