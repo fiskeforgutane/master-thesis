@@ -287,7 +287,7 @@ impl QuantityLp {
             .grb_sum();
 
         let timing_expr = iproduct!(0..t, 0..n, 0..v, 0..p)
-            .map(|(t, n, v, p)| x[t][n][v][p] * discount.recip() * t as i32)
+            .map(|(t, n, v, p)| -x[t][n][v][p] * t as i32)
             .grb_sum();
 
         model.add_constr("spot", c!(spot == spot_expr))?;
