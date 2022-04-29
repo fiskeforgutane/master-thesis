@@ -295,7 +295,7 @@ impl QuantityLp {
         model.add_constr("violation", c!(violation == violation_expr))?;
         model.add_constr("timing", c!(timing == timing_expr))?;
 
-        let obj = violation + 0.5 * spot - 1e-6 * revenue + 1e-6 * timing;
+        let obj = violation + 0.5 * spot - 1e-6 * revenue + 1e-12 * timing;
         model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
