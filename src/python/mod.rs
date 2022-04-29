@@ -391,6 +391,22 @@ pub fn objective_terms(
     })
 }
 
+#[pyfunction]
+pub fn write_model(
+    filename: &str,
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+    semicont: bool,
+    berth: bool,
+) -> PyResult<()> {
+    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.model.write(filename).map_err(pyerr);
+
+    Ok(())
+}
+
 #[pyclass]
 pub struct ObjectiveTerms {
     #[pyo3(get)]
