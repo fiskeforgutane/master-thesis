@@ -58,6 +58,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(remove_random, m)?)?;
     m.add_function(wrap_pyfunction!(add_smart, m)?)?;
     m.add_function(wrap_pyfunction!(time_setter, m)?)?;
+    m.add_function(wrap_pyfunction!(write_model, m)?)?;
 
     // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;

@@ -402,7 +402,7 @@ pub fn write_model(
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     lp.configure(&solution, semicont, berth).map_err(pyerr)?;
-    lp.model.write(filename).map_err(pyerr);
+    lp.model.write(filename).map_err(pyerr)?;
 
     Ok(())
 }
