@@ -287,7 +287,7 @@ impl QuantityLp {
             .grb_sum();
 
         let timing_expr = iproduct!(0..t, 0..n, 0..v, 0..p)
-            .map(|(t, n, v, p)| -x[t][n][v][p] * t as i32)
+            .map(|(t, n, v, p)| x[t][n][v][p] * t as i32)
             .grb_sum();
 
         model.add_constr("spot", c!(spot == spot_expr))?;
@@ -295,7 +295,7 @@ impl QuantityLp {
         model.add_constr("violation", c!(violation == violation_expr))?;
         model.add_constr("timing", c!(timing == timing_expr))?;
 
-        let obj = violation + 0.5 * spot - 1e-6 * (revenue + timing);
+        let obj = violation + 0.5 * spot - 1e-6 * revenue + 1e-9 * timing;
         model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
