@@ -22,14 +22,24 @@ pub struct SwapStar;
 
 impl SwapStar {
     /// Evaluates the cost of inserting the given `visit` into the given `idx` in the given `plan`
+    /// If the visit is inserted next to a visit to the same node, infinity is returned
     fn evaluate(idx: usize, visit: &Visit, plan: &Plan, problem: &Problem) -> f64 {
         let dist = |n1, n2| problem.distance(n1, n2);
         if idx == plan.len() {
             let prev = plan[idx - 1];
-            dist(prev.node, visit.node)
+            if prev.node == visit.node {
+                f64::INFINITY
+            } else {
+                dist(prev.node, visit.node)
+            }
         } else {
             let (prev, next) = (plan[idx - 1], plan[idx]);
-            dist(prev.node, visit.node) + dist(visit.node, next.node) - dist(prev.node, next.node)
+            if prev.node == visit.node || next.node == visit.node {
+                f64::INFINITY
+            } else {
+                dist(prev.node, visit.node) + dist(visit.node, next.node)
+                    - dist(prev.node, next.node)
+            }
         }
     }
 
