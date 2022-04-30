@@ -1,4 +1,5 @@
 use float_ord::FloatOrd;
+
 use rand;
 use std::{
     path::{Path, PathBuf},
@@ -16,7 +17,7 @@ use crate::ga::{
     fitness::{self},
     mutations::{
         AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
-        TimeSetter, Twerk, TwoOpt, TwoOptMode,
+        TimeSetter, Twerk, TwoOpt, TwoOptMode,SwapStar
     },
     parent_selection,
     recombinations::PIX,
@@ -141,7 +142,8 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
             Stochastic::new(0.03, TimeSetter::new(0.0).unwrap()), // Stochastic::new(0.05, mutations::AddSmart)
             Stochastic::new(0.03, Bounce::new(3, BounceMode::All)),
             Stochastic::new(0.03, Bounce::new(3, BounceMode::Random)),
-            Stochastic::new(0.03, AddSmart)
+            Stochastic::new(0.03, AddSmart),
+            Stochastic::new(0.03, SwapStar)
         ),
         selection: survival_selection::Elite(
             1,
@@ -150,7 +152,7 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
         fitness,
     };
 
-    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 8);
+    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, 1);
 
     let mut last_migration = 0;
 

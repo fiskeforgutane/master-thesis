@@ -166,6 +166,18 @@ impl SwapStar {
             .collect(),
             problem,
         );
+        let e = vec![
+            plan.get(to_remove_idx - 1),
+            Some(visit_to_remove),
+            plan.get(to_remove_idx + 1),
+        ]
+        .into_iter()
+        .filter_map(|v| match v {
+            Some(x) => Some(*x),
+            None => None,
+        })
+        .collect::<Vec<_>>();
+       
         if cost1 < cost2 {
             (pos1, cost1 - gain)
         } else {
@@ -241,7 +253,6 @@ impl SwapStar {
 
         let top_three = |from_plan:&Plan, to_plan| from_plan
             .iter()
-            .skip(1)
             .map(|visit| Self::find_top_three(visit, to_plan, problem))
             .collect::<Vec<_>>();
 
@@ -252,8 +263,8 @@ impl SwapStar {
 
         let mut best = 0.0;
         let mut best_swap = None;
-        for (i, visit1) in plan1[1..].iter().enumerate() {
-            for (j, visit2) in plan2[1..].iter().enumerate() {
+        for (i, visit1) in plan1.iter().enumerate().skip(1) {
+            for (j, visit2) in plan2.iter().enumerate().skip(1) {
                 // the best place to insert visit1 in plan2, that is not right before, nor after visit2
                 let k = Self::best_without_v(&best_plan2[i], plan2, visit2);
                 // the best place to insert visit2 in plan1, that is not right before, nor after visit1
@@ -337,13 +348,15 @@ impl SwapStar {
         let (plan1, plan2) = mutator.get_pair_mut(plan1_idx, plan2_idx);
 
         // start by removing visit1 from plan1 and visit2 from plan2
-        plan1.mutate().remove(remove_from_1);
-        plan2.mutate().remove(remove_from_2);
+        let mut plan1 = plan1.mutate();
+        let mut plan2 = plan2.mutate();
+        plan1.remove(remove_from_1);
+        plan2.remove(remove_from_2);
 
-        plan1.mutate().push(into_plan1);
-        plan1.mutate().fix();
-        plan2.mutate().push(into_plan2);
-        plan2.mutate().fix();
+        plan1.push(into_plan1);
+        plan1.fix();
+        plan2.push(into_plan2);
+        plan2.fix();
     }
 
     /// Checks if the plans at index `i` and `j` have overlapping polar sectors
@@ -369,9 +382,15 @@ impl SwapStar {
 
 impl Mutation for SwapStar {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+       
         let routes = Self::swap_star_plans(problem, solution).collect::<Vec<_>>();
         for (r1, r2) in routes {
             let swap = Self::best_swap(&solution[r1], &solution[r2], problem);
+            match swap {
+                Some(x) => println!("found swap: {:?}", swap),
+                None => (),
+            }
+            
             if let Some(((v1, p1), (v2, p2))) = swap {
                 let into_plan2 = Self::new_visit(r2, p1, solution[r1][v1], &solution);
                 let into_plan1 = Self::new_visit(r1, p2, solution[r2][v2], &solution);
