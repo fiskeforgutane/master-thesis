@@ -224,6 +224,15 @@ impl SwapStar {
     ) -> Option<((usize, usize), (usize, usize))> {
         trace!("plan1.len():{}", plan1.len());
         trace!("plan2.len():{}", plan2.len());
+        trace!(
+            "plan1 {:?}",
+            plan1.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
+        );
+        trace!(
+            "plan2 {:?}",
+            plan2.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
+        );
+
         if plan1.len() < 3 || plan2.len() < 3 {
             return None;
         }
