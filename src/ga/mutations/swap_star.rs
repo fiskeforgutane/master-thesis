@@ -236,18 +236,17 @@ impl SwapStar {
         if plan1.len() < 3 || plan2.len() < 3 {
             return None;
         }
+
+        let top_three = |from_plan:&Plan, to_plan| from_plan
+            .iter()
+            .skip(1)
+            .map(|visit| Self::find_top_three(visit, to_plan, problem))
+            .collect::<Vec<_>>();
+
         // best indices in plan1 to insert visits from plan2
-        let best_plan1 = plan2
-            .iter()
-            .skip(1)
-            .map(|visit| Self::find_top_three(visit, plan1, problem))
-            .collect::<Vec<_>>();
+        let best_plan1 = top_three(plan2,plan1);
         // best indices in plan2 to insert visits from plan1
-        let best_plan2 = plan1
-            .iter()
-            .skip(1)
-            .map(|visit| Self::find_top_three(visit, plan2, problem))
-            .collect::<Vec<_>>();
+        let best_plan2 = top_three(plan1,plan2);
 
         let mut best = 0.0;
         let mut best_swap = None;
