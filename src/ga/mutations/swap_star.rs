@@ -230,11 +230,13 @@ impl SwapStar {
         // best indices in plan1 to insert visits from plan2
         let best_plan1 = plan2
             .iter()
+            .skip(1)
             .map(|visit| Self::find_top_three(visit, plan1, problem))
             .collect::<Vec<_>>();
         // best indices in plan2 to insert visits from plan1
         let best_plan2 = plan1
             .iter()
+            .skip(1)
             .map(|visit| Self::find_top_three(visit, plan2, problem))
             .collect::<Vec<_>>();
 
