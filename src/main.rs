@@ -210,13 +210,7 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination,
         serde_json::to_writer(file, &visits).expect("writing failed");
 
         // Whether we should terminate now
-        let terminate = match termination {
-            Termination::NoViolation => best.violation() <= 1e-3,
-            Termination::Never => false,
-            Termination::Epochs(x) => epochs > x,
-        };
-
-        if terminate {
+        if termination.should_terminate(epochs, &best) {
             break;
         }
 
@@ -234,9 +228,33 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination,
 }
 
 pub enum Termination {
+    /// Terminate after a given number of epochs
     Epochs(u64),
+    /// Terminate upon finding a solution with no violation
     NoViolation,
+    /// Run forever
     Never,
+    /// Terminate if either of the two termination criteria
+    /// tells it to terminate
+    Any(Box<Termination>, Box<Termination>),
+    /// Terminate when both of the criteria tells it to terminate
+    All(Box<Termination>, Box<Termination>),
+}
+
+impl Termination {
+    pub fn should_terminate(&self, epoch: u64, solution: &RoutingSolution) -> bool {
+        match self {
+            Termination::Epochs(e) => *e > epoch,
+            Termination::NoViolation => solution.warp() == 0 && solution.violation() < 1e-3,
+            Termination::Never => false,
+            Termination::Any(one, two) => {
+                one.should_terminate(epoch, solution) || two.should_terminate(epoch, solution)
+            }
+            Termination::All(one, two) => {
+                one.should_terminate(epoch, solution) && two.should_terminate(epoch, solution)
+            }
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
