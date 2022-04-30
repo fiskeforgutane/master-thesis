@@ -232,6 +232,8 @@ pub enum Termination {
     Epochs(u64),
     /// Terminate upon finding a solution with no violation
     NoViolation,
+    /// Maximum running time from `Instant`
+    Timeout(std::time::Instant, std::time::Duration),
     /// Run forever
     Never,
     /// Terminate if either of the two termination criteria
@@ -244,6 +246,7 @@ pub enum Termination {
 impl Termination {
     pub fn should_terminate(&self, epoch: u64, solution: &RoutingSolution) -> bool {
         match self {
+            Termination::Timeout(from, duration) => (std::time::Instant::now() - *from) > *duration,
             Termination::Epochs(e) => *e > epoch,
             Termination::NoViolation => solution.warp() == 0 && solution.violation() < 1e-3,
             Termination::Never => false,
