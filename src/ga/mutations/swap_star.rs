@@ -178,7 +178,7 @@ impl SwapStar {
     /// the plan is shorter than 3
     pub fn find_top_three(visit: &Visit, plan: &Plan, problem: &Problem) -> Vec<usize> {
         trace!(
-            "finding top three of inserting {:?}, from plan {:?}",
+            "finding top three of inserting {:?}, into plan {:?}",
             visit,
             plan.iter().map(|v| (v.node, v.time)).collect::<Vec<_>>()
         );

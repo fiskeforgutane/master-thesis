@@ -388,6 +388,7 @@ pub fn swap_star_test(
     let overlapping = SwapStar::overlapping(r1, r2, &solution, &arc);
     trace!("overlapping: {:?}", overlapping);
     let best_swap = SwapStar::best_swap(&solution[r1], &solution[r2], &arc);
+    trace!("Best identified swap: {:?}", best_swap);
     if let Some(((v1, p1), (v2, p2))) = best_swap {
         let into_plan2 = SwapStar::new_visit(r2, p1, solution[r1][v1], &solution);
         let into_plan1 = SwapStar::new_visit(r1, p2, solution[r2][v2], &solution);
