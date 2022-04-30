@@ -207,10 +207,12 @@ impl SwapStar {
             }
         }
 
-        res.into_iter()
+        let a = res.into_iter()
             .sorted_by_key(|(_, cost)| FloatOrd(*cost))
             .map(|(i, _)| i)
-            .collect()
+            .collect();
+        trace!("top three: {:?}", a);
+        a
     }
 
     /// Returns the best swap to perform between `plan1` and `plan2`
