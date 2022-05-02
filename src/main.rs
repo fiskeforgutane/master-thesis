@@ -1,7 +1,9 @@
 use chrono::Local;
 use env_logger::Builder;
 use float_ord::FloatOrd;
+
 use log::{info, LevelFilter};
+use rand;
 use serde::Serialize;
 use std::fs::OpenOptions;
 use std::io::Write;

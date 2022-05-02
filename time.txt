@@ -1,0 +1,6 @@
+../master-playground/mirplib-rs/t60/LR1_1_DR1_4_VC3_V11a.json: 252017 ms
+../master-playground/mirplib-rs/t60/LR1_1_DR1_4_VC3_V8a.json: 454530 ms
+../master-playground/mirplib-rs/t60/LR1_2_DR1_3_VC3_V8a.json: 297887 ms
+../master-playground/mirplib-rs/t60/LR1_1_DR1_4_VC3_V12a.json: 546310 ms
+../master-playground/mirplib-rs/t60/LR1_1_DR1_4_VC3_V9a.json: 198878 ms
+../master-playground/mirplib-rs/t60/LR2_22_DR3_333_VC4_V14a.json: 63232430 ms
