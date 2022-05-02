@@ -3,7 +3,6 @@ pub mod ga;
 
 use crate::ga::chromosome::Chromosome;
 use crate::ga::mutations::SwapStar;
-use crate::ga::Mutation;
 use crate::models::quantity::F64Variables;
 use crate::models::quantity::QuantityLp;
 use crate::problem::Compartment;

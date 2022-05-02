@@ -166,18 +166,7 @@ impl SwapStar {
             .collect(),
             problem,
         );
-        let e = vec![
-            plan.get(to_remove_idx - 1),
-            Some(visit_to_remove),
-            plan.get(to_remove_idx + 1),
-        ]
-        .into_iter()
-        .filter_map(|v| match v {
-            Some(x) => Some(*x),
-            None => None,
-        })
-        .collect::<Vec<_>>();
-       
+
         if cost1 < cost2 {
             (pos1, cost1 - gain)
         } else {
@@ -219,7 +208,8 @@ impl SwapStar {
             }
         }
 
-        let a = res.into_iter()
+        let a = res
+            .into_iter()
             .sorted_by_key(|(_, cost)| FloatOrd(*cost))
             .map(|(i, _)| i)
             .collect();
@@ -251,15 +241,17 @@ impl SwapStar {
             return None;
         }
 
-        let top_three = |from_plan:&Plan, to_plan| from_plan
-            .iter()
-            .map(|visit| Self::find_top_three(visit, to_plan, problem))
-            .collect::<Vec<_>>();
+        let top_three = |from_plan: &Plan, to_plan| {
+            from_plan
+                .iter()
+                .map(|visit| Self::find_top_three(visit, to_plan, problem))
+                .collect::<Vec<_>>()
+        };
 
         // best indices in plan1 to insert visits from plan2
-        let best_plan1 = top_three(plan2,plan1);
+        let best_plan1 = top_three(plan2, plan1);
         // best indices in plan2 to insert visits from plan1
-        let best_plan2 = top_three(plan1,plan2);
+        let best_plan2 = top_three(plan1, plan2);
 
         let mut best = 0.0;
         let mut best_swap = None;
@@ -309,7 +301,7 @@ impl SwapStar {
             }
             None => prev.time + required_diff,
         };
-        t.min(solution.problem().timesteps()-1)
+        t.min(solution.problem().timesteps() - 1)
     }
 
     /// Create a new visit to insert into `plan_idx` at `into_idx`
@@ -383,12 +375,10 @@ impl SwapStar {
 
 impl Mutation for SwapStar {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-       
         let routes = Self::swap_star_plans(problem, solution).collect::<Vec<_>>();
         for (r1, r2) in routes {
             let swap = Self::best_swap(&solution[r1], &solution[r2], problem);
-            
-            
+
             if let Some(((v1, p1), (v2, p2))) = swap {
                 let into_plan2 = Self::new_visit(r2, p1, solution[r1][v1], &solution);
                 let into_plan1 = Self::new_visit(r1, p2, solution[r2][v2], &solution);
