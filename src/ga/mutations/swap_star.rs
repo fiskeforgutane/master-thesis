@@ -299,16 +299,17 @@ impl SwapStar {
         let required_diff = solution
             .problem()
             .travel_time(prev.node, to_insert.node, vessel);
-        match next {
+        let t = match next {
             Some(v) => {
                 if v.time - prev.time > required_diff {
                     prev.time + required_diff
                 } else {
-                    (v.time - prev.time) / 2
+                    prev.time + (v.time - prev.time) / 2
                 }
             }
             None => prev.time + required_diff,
-        }
+        };
+        t.min(solution.problem().timesteps()-1)
     }
 
     /// Create a new visit to insert into `plan_idx` at `into_idx`
@@ -386,14 +387,13 @@ impl Mutation for SwapStar {
         let routes = Self::swap_star_plans(problem, solution).collect::<Vec<_>>();
         for (r1, r2) in routes {
             let swap = Self::best_swap(&solution[r1], &solution[r2], problem);
-            match swap {
-                Some(x) => println!("found swap: {:?}", swap),
-                None => (),
-            }
+            
             
             if let Some(((v1, p1), (v2, p2))) = swap {
                 let into_plan2 = Self::new_visit(r2, p1, solution[r1][v1], &solution);
                 let into_plan1 = Self::new_visit(r1, p2, solution[r2][v2], &solution);
+                //println!("inserting {:?}, into plan2 with origin {:?}", into_plan2, solution[r2].origin());
+                //println!("inserting {:?}, into plan1 with origin {:?}", into_plan1, solution[r1].origin());
                 Self::apply_swap(solution, r1, r2, into_plan1, into_plan2, v1, v2);
             }
         }
