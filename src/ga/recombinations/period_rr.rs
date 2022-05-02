@@ -103,6 +103,11 @@ impl Recombination for PeriodRR {
         self.rebuild(right, period);
 
         // perform the swap part
+        for vessel in 0..problem.vessels().len() {
+            for visit in left[vessel].iter().skip(1) {
+                if v.time < period.start {}
+            }
+        }
 
         let mut best = (
             solution.warp(),
