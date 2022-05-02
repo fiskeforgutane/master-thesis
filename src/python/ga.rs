@@ -409,8 +409,23 @@ impl PyGA {
                 let s = lp.vars.s.convert(&lp.model).unwrap();
                 let l = lp.vars.l.convert(&lp.model).unwrap();
                 let w = lp.vars.w.convert(&lp.model).unwrap();
+                let revenue = lp.vars.revenue.convert(&lp.model).unwrap();
+                let spot = lp.vars.spot.convert(&lp.model).unwrap();
+                let violation = lp.vars.violation.convert(&lp.model).unwrap();
+                let timing = lp.vars.timing.convert(&lp.model).unwrap();
+                let a = lp.vars.a.convert(&lp.model).unwrap();
 
-                let v = F64Variables { w, x, s, l };
+                let v = F64Variables {
+                    w,
+                    x,
+                    s,
+                    l,
+                    revenue,
+                    spot,
+                    violation,
+                    timing,
+                    a,
+                };
 
                 let obj = (
                     solution.warp() as f64,

@@ -6,7 +6,7 @@ use std::{
 use itertools::Itertools;
 use rand::prelude::SliceRandom;
 
-use crate::solution::routing::{Plan, RoutingSolution};
+use crate::solution::{routing::RoutingSolution, Visit};
 
 use super::{
     initialization::Initialization, Config, Fitness, GeneticAlgorithm, Mutation, ParentSelection,
@@ -34,7 +34,7 @@ pub enum StmMessage {
 }
 
 /// A set of plans without the reference to GRBEnv. GRBEnv makes it impossible to send RoutingSolutions between threads
-type ThinSolution = Vec<Plan>;
+type ThinSolution = Vec<Vec<Visit>>;
 
 pub struct IslandGA<PS, R, M, S, F> {
     /// The config used for each GA instance
@@ -110,19 +110,16 @@ where
                                 message: StmMessage::Population(
                                     ga.population
                                         .iter()
-                                        .map(|solution| solution[..].to_vec())
+                                        .map(|solution| solution.to_vec())
                                         .collect(),
                                 ),
                             })
                             .unwrap(),
                         Ok(Mts::Migration(migration)) => {
-                            ga.population.extend(migration.iter().map(|plans| {
+                            ga.population.extend(migration.into_iter().map(|plans| {
                                 RoutingSolution::new_with_model(
                                     problem.clone(),
-                                    plans
-                                        .iter()
-                                        .map(|plan| plan.iter().cloned().collect())
-                                        .collect(),
+                                    plans,
                                     ga.quantities.clone(),
                                 )
                             }))
@@ -143,7 +140,7 @@ where
                     let mut best = mutex.lock().unwrap();
 
                     if island_fitness <= best.1 {
-                        best.0.clone_from_slice(&island_best[..]);
+                        best.0.clone_from_slice(&island_best.to_vec());
                         best.1 = island_fitness;
                     }
                 }
@@ -168,8 +165,33 @@ where
     }
 
     /// Returns the current best solution
-    pub fn best(&self) -> MutexGuard<(Vec<Plan>, f64)> {
+    pub fn best(&self) -> MutexGuard<(ThinSolution, f64)> {
         self.best.lock().unwrap()
+    }
+
+    /// Get the population of each island
+    pub fn populations(&mut self) -> Vec<Vec<ThinSolution>> {
+        let mut populations = vec![Vec::new(); self.island_count()];
+        // Ask for the population of each island
+        for tx in &self.txs {
+            tx.send(Mts::GetPopulation).unwrap();
+        }
+
+        // Wait for a response from each island.
+        for _ in 0..self.island_count() {
+            let Stm { slave, message } = self.rx.recv().unwrap();
+
+            match message {
+                StmMessage::Population(population) => {
+                    populations[slave] = population
+                        .into_iter()
+                        .map(|x| x.into_iter().map(|x| x[..].to_vec()).collect())
+                        .collect()
+                }
+            }
+        }
+
+        populations
     }
 
     /// Initiate migrations between islands
@@ -206,6 +228,16 @@ where
                     .collect(),
             ))
             .unwrap();
+        }
+    }
+
+    /// Migrate a provided set of solutions into the islands
+    pub fn insert(&mut self, mut individuals: Vec<Vec<Vec<Visit>>>) {
+        individuals.shuffle(&mut rand::thread_rng());
+
+        let size = individuals.len() / (self.island_count() + 1);
+        for (chunk, tx) in individuals.chunks(size).zip(&self.txs) {
+            tx.send(Mts::Migration(chunk.to_vec())).unwrap();
         }
     }
 }

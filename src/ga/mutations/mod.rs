@@ -9,6 +9,7 @@ pub mod intra_swap;
 pub mod red_cost;
 pub mod remove_random;
 pub mod replace_node;
+pub mod rr;
 pub mod swap_star;
 pub mod time_setter;
 pub mod twerk;

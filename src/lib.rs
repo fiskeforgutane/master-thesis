@@ -27,6 +27,7 @@ use pyo3::prelude::*;
 use pyo3::wrap_pymodule;
 use pyo3_log;
 use pyo3_log::Logger;
+use python::distributed::ComputeNode;
 use quants::Order;
 use solution::{Delivery, Evaluation, Visit};
 
@@ -58,6 +59,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(add_smart, m)?)?;
     m.add_function(wrap_pyfunction!(time_setter, m)?)?;
     m.add_function(wrap_pyfunction!(python::ga::swap_star, m)?)?;
+    m.add_function(wrap_pyfunction!(write_model, m)?)?;
 
     // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;
@@ -86,6 +88,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyElite>()?;
     m.add_class::<Weighted>()?;
     m.add_class::<PyGA>()?;
+    m.add_class::<ComputeNode>()?;
 
     Ok(())
 }
@@ -106,6 +109,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(objective_terms, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(python::swap_star_test, m)?)?;
     m.add_class::<Problem>()?;
@@ -120,6 +124,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
+    m.add_class::<ObjectiveTerms>()?;
 
     Ok(())
 }

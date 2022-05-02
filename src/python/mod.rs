@@ -1,3 +1,4 @@
+pub mod distributed;
 pub mod ga;
 
 use crate::ga::chromosome::Chromosome;
@@ -398,4 +399,58 @@ pub fn swap_star_test(
         .iter()
         .map(|plan| plan.iter().cloned().collect())
         .collect()
+}
+
+#[pyfunction]
+pub fn objective_terms(
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+    semicont: bool,
+    berth: bool,
+) -> PyResult<ObjectiveTerms> {
+    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    let res = lp.solve_python().map_err(pyerr)?;
+
+    Ok(ObjectiveTerms {
+        revenue: res.revenue,
+        violation: res.violation,
+        spot: res.spot,
+        cost: solution.cost(),
+        timing: res.timing,
+        warp: solution.warp() as f64,
+    })
+}
+
+#[pyfunction]
+pub fn write_model(
+    filename: &str,
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+    semicont: bool,
+    berth: bool,
+) -> PyResult<()> {
+    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.model.write(filename).map_err(pyerr)?;
+
+    Ok(())
+}
+
+#[pyclass]
+pub struct ObjectiveTerms {
+    #[pyo3(get)]
+    pub revenue: f64,
+    #[pyo3(get)]
+    pub violation: f64,
+    #[pyo3(get)]
+    pub spot: f64,
+    #[pyo3(get)]
+    pub cost: f64,
+    #[pyo3(get)]
+    pub timing: f64,
+    #[pyo3(get)]
+    pub warp: f64,
 }
