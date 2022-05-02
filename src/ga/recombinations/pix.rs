@@ -1,9 +1,7 @@
 use rand::{seq::SliceRandom, Rng};
 use std::cmp::{max, min};
 
-use crate::problem::Vessel;
-
-use super::{Problem, Recombination, RoutingSolution};
+use crate::{problem::{Vessel, Problem}, ga::Recombination, solution::routing::RoutingSolution};
 
 #[derive(Debug, Clone)]
 pub struct PIX;
