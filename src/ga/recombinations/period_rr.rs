@@ -129,7 +129,7 @@ impl Recombination for PeriodRR {
 
                     let mut plan_mut = plan.mutate();
                     match i {
-                        Some(i) => plan_mut.drain(0..i).collect(),
+                        Some(i) => plan_mut.drain(1..i).collect(),
                         None => Vec::new(),
                     }
                 })
@@ -149,6 +149,17 @@ impl Recombination for PeriodRR {
         // swap
         let left_out = extract(left);
         let right_out = extract(right);
+        left.iter().for_each(|plan| {
+            plan.iter()
+                .skip(1)
+                .for_each(|x| assert!(x.time > period.start))
+        });
+        right.iter().for_each(|plan| {
+            plan.iter()
+                .skip(1)
+                .for_each(|x| assert!(x.time > period.start))
+        });
+
         add(left, right_out);
         add(right, left_out);
 
