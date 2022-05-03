@@ -7,7 +7,7 @@ use crate::{
     ga::{initialization::GreedyWithBlinks, mutations::rr::Dropout, Recombination},
     problem::{Problem, Vessel},
     solution::{
-        routing::{Plan, RoutingSolution},
+        routing::{Plan, RoutingSolution, RoutingSolutionMut},
         Visit,
     },
 };
@@ -99,61 +99,38 @@ impl Recombination for PeriodRR {
         ruin(left);
         ruin(right);
 
+        // extract visits satisfying the given predicate
+        let extract = |solution: &mut RoutingSolution| {
+            solution
+                .mutate()
+                .iter()
+                .map(|plan| {
+                    plan.into_iter()
+                        .enumerate()
+                        .skip(1)
+                        .filter(|(i, v)| v.time < period.start)
+                        .map(|(i, v)| plan.mutate().remove(i))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let add = |solution: &mut RoutingSolution, to_add: Vec<Vec<Visit>>| {
+            for vessel in problem.indices::<Vessel>() {
+                let mut plan_mut = solution.mutate()[vessel].mutate();
+                to_add[vessel]
+                    .into_iter()
+                    .for_each(|visit| plan_mut.push(visit));
+            }
+        };
+
+        // swap
+        let left_out = extract(&mut left);
+        let right_out = extract(&mut right);
+        add(left, right_out);
+        add(right, left_out);
+
         self.rebuild(left, period);
         self.rebuild(right, period);
-
-        // perform the swap part
-        for vessel in 0..problem.vessels().len() {
-            for visit in left[vessel].iter().skip(1) {
-                if v.time < period.start {}
-            }
-        }
-
-        let mut best = (
-            solution.warp(),
-            FloatOrd(solution.violation()),
-            FloatOrd(solution.cost() - solution.revenue()),
-        );
-
-        // The indices of the last visit evaluated in every plan
-        let mut indices = problem
-            .indices::<Vessel>()
-            .map(|v| {
-                match solution[v].binary_search_by_key(&period.start, |visit| visit.time) {
-                    Ok(x) => x,
-                    // since the index where an element can be inserted is returned if the key is not found, this will be the first visit time > period.
-                    // therefore the one before is x-1
-                    Err(x) => x.max(1) - 1,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        // gets candidates and filteres out the ones outside the range.
-        let get_candidates =
-            |v, solution: &crate::solution::routing::RoutingSolution, indices: &Vec<usize>| {
-                solution
-                    .candidates(indices[v], v, self.c)
-                    .filter(|(_, v)| period.contains(&v.time))
-                    .collect::<Vec<_>>()
-            };
-
-        let mut candidates = problem
-            .indices::<Vessel>()
-            .map(|v| get_candidates(v, solution, &indices))
-            .collect::<Vec<_>>();
-
-        let greedy = GreedyWithBlinks::new(self.blink_rate);
-        while let Some((idx, obj)) = greedy.insert_best(
-            solution,
-            self.epsilon,
-            &candidates.iter().flatten().cloned().collect(),
-            best,
-        ) {
-            best = obj;
-            indices[idx.0] += 1;
-            // the index of the vessel changed, this is the one we must get new candidates for
-            let v = idx.0;
-            candidates[v] = get_candidates(v, solution, &indices);
-        }
     }
 }
