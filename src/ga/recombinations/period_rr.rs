@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use float_ord::FloatOrd;
+use itertools::Itertools;
 use rand::{
     prelude::{IteratorRandom, StdRng},
     SeedableRng,
@@ -120,18 +121,17 @@ impl Recombination for PeriodRR {
                 .iter_mut()
                 .map(|plan| {
                     let i = plan
-                        .into_iter()
+                        .iter()
                         .enumerate()
                         .skip(1)
-                        .filter_map(|(i, v)| match v.time < period.start {
-                            true => Some(i),
-                            false => None,
-                        })
-                        .collect::<Vec<_>>();
+                        .find_or_last(|(_, x)| x.time > period.start)
+                        .map(|(i, _)| i);
+
                     let mut plan_mut = plan.mutate();
-                    i.into_iter()
-                        .map(|i| plan_mut.remove(i))
-                        .collect::<Vec<_>>()
+                    match i {
+                        Some(i) => plan_mut.drain(0..i).collect(),
+                        None => Vec::new(),
+                    }
                 })
                 .collect::<Vec<_>>()
         };
