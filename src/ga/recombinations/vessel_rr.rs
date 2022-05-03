@@ -2,7 +2,7 @@ use float_ord::FloatOrd;
 use rand::prelude::{IteratorRandom, StdRng};
 
 use crate::{
-    ga::{initialization::GreedyWithBlinks, mutations::rr::Dropout, Recombination},
+    ga::{initialization::GreedyWithBlinks, Mutation, Recombination},
     problem::{Problem, Vessel},
     solution::routing::RoutingSolution,
 };
@@ -45,17 +45,6 @@ impl Recombination for VesselRR {
         // Choose a random vessel index.
         let vessel = (0..problem.vessels().len()).choose(&mut self.rng).unwrap();
 
-        // Ruin left and right
-        let ruin = |solution: &mut RoutingSolution| {
-            let mut solution = solution.mutate();
-            let mut plan = solution[vessel].mutate();
-            let origin = plan.origin();
-            plan.dropout(|x| x != origin, self.removal_rate);
-        };
-
-        ruin(left);
-        ruin(right);
-
         let mut left_mut = left.mutate();
         let mut right_mut = right.mutate();
 
@@ -64,11 +53,12 @@ impl Recombination for VesselRR {
                 std::mem::swap(&mut left_mut[v], &mut right_mut[v])
             }
         }
+        let mut mutation =
+            crate::ga::mutations::rr::Vessel::new(self.blink_rate, self.removal_rate, self.c);
 
         drop(left_mut);
         drop(right_mut);
-
-        self.rebuild(left, vessel);
-        self.rebuild(right, vessel);
+        mutation.apply(problem, left);
+        mutation.apply(problem, right);
     }
 }
