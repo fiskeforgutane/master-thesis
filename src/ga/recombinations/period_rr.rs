@@ -7,7 +7,7 @@ use crate::{
     ga::{initialization::GreedyWithBlinks, mutations::rr::Dropout, Recombination},
     problem::{Problem, Vessel},
     solution::{
-        routing::{Plan, RoutingSolution, RoutingSolutionMut},
+        routing::{Plan, RoutingSolution},
         Visit,
     },
 };
@@ -23,7 +23,7 @@ pub struct PeriodRR {
 }
 
 impl PeriodRR {
-    pub fn rebuild(&self, solution: &mut RoutingSolution, period: Range<usize>) {
+    pub fn rebuild(&self, solution: &mut RoutingSolution, period: &Range<usize>) {
         let mut best = (
             solution.warp(),
             FloatOrd(solution.violation()),
@@ -101,36 +101,44 @@ impl Recombination for PeriodRR {
 
         // extract visits satisfying the given predicate
         let extract = |solution: &mut RoutingSolution| {
-            solution
-                .mutate()
-                .iter()
+            let mut sol_mut = solution.mutate();
+            sol_mut
+                .iter_mut()
                 .map(|plan| {
-                    plan.into_iter()
+                    let i = plan
+                        .into_iter()
                         .enumerate()
                         .skip(1)
-                        .filter(|(i, v)| v.time < period.start)
-                        .map(|(i, v)| plan.mutate().remove(i))
+                        .filter_map(|(i, v)| match v.time < period.start {
+                            true => Some(i),
+                            false => None,
+                        })
+                        .collect::<Vec<_>>();
+                    let mut plan_mut = plan.mutate();
+                    i.into_iter()
+                        .map(|i| plan_mut.remove(i))
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>()
         };
 
         let add = |solution: &mut RoutingSolution, to_add: Vec<Vec<Visit>>| {
+            let mut sol_mut = solution.mutate();
             for vessel in problem.indices::<Vessel>() {
-                let mut plan_mut = solution.mutate()[vessel].mutate();
+                let mut plan_mut = sol_mut[vessel].mutate();
                 to_add[vessel]
-                    .into_iter()
-                    .for_each(|visit| plan_mut.push(visit));
+                    .iter()
+                    .for_each(|visit| plan_mut.push(visit.clone()));
             }
         };
 
         // swap
-        let left_out = extract(&mut left);
-        let right_out = extract(&mut right);
+        let left_out = extract(left);
+        let right_out = extract(right);
         add(left, right_out);
         add(right, left_out);
 
-        self.rebuild(left, period);
-        self.rebuild(right, period);
+        self.rebuild(left, &period);
+        self.rebuild(right, &period);
     }
 }
