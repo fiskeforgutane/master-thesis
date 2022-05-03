@@ -1,7 +1,10 @@
 use std::ops::Range;
 
 use float_ord::FloatOrd;
-use rand::prelude::{IteratorRandom, StdRng};
+use rand::{
+    prelude::{IteratorRandom, StdRng},
+    SeedableRng,
+};
 
 use crate::{
     ga::{initialization::GreedyWithBlinks, mutations::rr::Dropout, Recombination},
@@ -23,6 +26,17 @@ pub struct PeriodRR {
 }
 
 impl PeriodRR {
+    pub fn new(blink_rate: f64, removal_rate: f64, max_size: usize, c: usize) -> Self {
+        Self {
+            rng: StdRng::from_entropy(),
+            blink_rate,
+            removal_rate,
+            epsilon: (1.0, 1.0),
+            max_size,
+            c,
+        }
+    }
+
     pub fn rebuild(&self, solution: &mut RoutingSolution, period: &Range<usize>) {
         let mut best = (
             solution.warp(),

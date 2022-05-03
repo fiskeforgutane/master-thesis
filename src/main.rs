@@ -27,7 +27,7 @@ use crate::ga::{
         TimeSetter, Twerk, TwoOpt, TwoOptMode,
     },
     parent_selection,
-    recombinations::PIX,
+    recombinations::{PeriodRR, PIX},
     survival_selection, Fitness, GeneticAlgorithm, Stochastic,
 };
 
@@ -111,7 +111,15 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
         population_size: CONF.population,
         child_count: CONF.children,
         parent_selection: parent_selection::Tournament::new(3).unwrap(),
-        recombination: Stochastic::new(CONF.pix, PIX),
+        recombination: Stochastic::new(
+            CONF.pix,
+            PeriodRR::new(
+                CONF.rr_period.1,
+                CONF.rr_period.2,
+                CONF.rr_period.3,
+                CONF.rr_period.4,
+            ),
+        ),
         mutation: chain!(
             Stochastic::new(CONF.add_random, AddRandom::new()),
             Stochastic::new(CONF.remove_random, RemoveRandom::new()),
