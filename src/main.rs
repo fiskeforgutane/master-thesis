@@ -458,8 +458,6 @@ enum Commands {
 }
 
 fn enable_logger(level: LevelFilter) {
-    env_logger::init();
-
     Builder::new()
         .format(|buf, record| {
             writeln!(
