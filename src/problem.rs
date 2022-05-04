@@ -74,6 +74,11 @@ impl Problem {
         self.distances[from][to]
     }
 
+    /// The distance matrix
+    pub fn distances(&self) -> &Vec<Vec<Distance>> {
+        &self.distances
+    }
+
     /// The number of elements of the given kind
     pub fn count<T>(&self) -> usize
     where
@@ -407,7 +412,7 @@ pub struct Vessel {
     /// The time step from which the vessel becomes available
     available_from: usize,
     /// The initial inventory available for this vessel
-    initial_inventory: FixedInventory,
+    pub initial_inventory: FixedInventory,
     #[pyo3(get)]
     /// The origin node of the vessel
     origin: usize,
