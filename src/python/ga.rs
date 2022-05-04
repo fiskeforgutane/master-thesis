@@ -35,8 +35,6 @@ use crate::ga::survival_selection::Elite;
 use crate::models::quantity::F64Variables;
 use crate::models::utils::ConvertVars;
 use crate::problem::Problem;
-use crate::python::Solution;
-use crate::solution::Delivery;
 use crate::solution::Visit;
 use log::trace;
 use pyo3::prelude::*;
@@ -54,27 +52,6 @@ pub struct PyMut {
 impl Mutation for PyMut {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
         self.inner.lock().unwrap().apply(problem, solution)
-    }
-}
-
-#[pymethods]
-impl PyMut {
-    pub fn py_apply(&self, problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<Solution> {
-        let arc = Arc::new(problem);
-        let mut solution = RoutingSolution::new(arc.clone(), routes);
-        self.inner
-            .lock()
-            .unwrap()
-            .apply(&arc.clone(), &mut solution);
-        let deliveries = solution
-            .iter()
-            .map(|r| {
-                r.iter()
-                    .map(|visit| Delivery::new(visit.node, 0, visit.time, 0.0))
-                    .collect()
-            })
-            .collect();
-        Ok(Solution::new(deliveries))
     }
 }
 

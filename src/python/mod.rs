@@ -12,15 +12,11 @@ use crate::problem::Node;
 use crate::problem::NodeType;
 use crate::problem::Problem;
 use crate::problem::Quantity;
-use crate::problem::TimeIndex;
 use crate::problem::Vessel;
-use crate::problem::VesselIndex;
 use crate::quants;
 use crate::quants::Order;
 use crate::quants::Quantities;
-use crate::solution;
 use crate::solution::Visit;
-use crate::solution::{Delivery, Evaluation};
 use log::trace;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -29,69 +25,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::solution::routing::RoutingSolution;
-
-#[pyclass]
-#[derive(Debug, Clone)]
-pub struct Solution {
-    #[pyo3(get, set)]
-    pub routes: Vec<Vec<Delivery>>,
-}
-
-#[pymethods]
-impl Solution {
-    #[new]
-    pub fn new(routes: Vec<Vec<Delivery>>) -> Self {
-        Self { routes }
-    }
-
-    pub fn __len__(&self) -> usize {
-        self.routes.len()
-    }
-
-    pub fn __getitem__(&self, idx: usize) -> Vec<Delivery> {
-        self.routes[idx].clone()
-    }
-
-    pub fn evaluate(&self, problem: &Problem) -> PyResult<solution::Evaluation> {
-        let solution = solution::FullSolution::new(problem, self.routes.clone())
-            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
-
-        Ok(solution.evaluation())
-    }
-
-    pub fn vessel_inventory_at(
-        &self,
-        problem: &Problem,
-        vessel: VesselIndex,
-        time: TimeIndex,
-    ) -> PyResult<Inventory> {
-        let solution = solution::FullSolution::new(problem, self.routes.clone())
-            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
-
-        Ok(solution.vessel_inventory_at(vessel, time))
-    }
-
-    pub fn node_product_inventory_at(
-        &self,
-        problem: &Problem,
-        node: usize,
-        product: usize,
-        time: usize,
-    ) -> PyResult<f64> {
-        let solution = solution::FullSolution::new(problem, self.routes.clone())
-            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
-
-        Ok(solution.node_product_inventory_at(node, product, time))
-    }
-
-    pub fn __str__(&self) -> String {
-        format!("{:#?}", self.routes)
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.__str__()
-    }
-}
 
 #[pymethods]
 impl Problem {
@@ -252,17 +185,6 @@ impl Compartment {
 
 pub fn pyerr<D: Debug>(err: D) -> PyErr {
     PyErr::new::<PyValueError, _>(format!("{:?}", err))
-}
-
-#[pymethods]
-impl Evaluation {
-    pub fn __str__(&self) -> String {
-        format!("{:#?}", self)
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.__str__()
-    }
 }
 
 #[pymethods]

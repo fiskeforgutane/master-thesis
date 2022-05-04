@@ -28,7 +28,7 @@ use pyo3_log;
 use pyo3_log::Logger;
 use python::distributed::ComputeNode;
 use quants::Order;
-use solution::{Delivery, Evaluation, Visit};
+use solution::Visit;
 
 #[pyfunction]
 pub fn test_logging() {
@@ -112,13 +112,10 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(python::swap_star_test, m)?)?;
     m.add_class::<Problem>()?;
-    m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
     m.add_class::<Node>()?;
     m.add_class::<NodeType>()?;
     m.add_class::<Compartment>()?;
-    m.add_class::<Delivery>()?;
-    m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
