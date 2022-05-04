@@ -63,8 +63,8 @@ struct Config {
 }
 
 static CONF: Config = Config {
-    population: 100,
-    children: 100,
+    population: 3,
+    children: 3,
     pix: 0.10,
     threads: 8,
     add_random: 0.03,
@@ -258,7 +258,7 @@ pub fn run_rolling_horizon(
     let reader = std::io::BufReader::new(file);
     let main_problem: Problem = serde_json::from_reader(reader).unwrap();
     let main_problem = Arc::new(main_problem);
-    let closure_problem = main_problem.clone();
+    let main_closure_problem = main_problem.clone();
 
     let num_subproblems = f64::ceil(
         ((*main_problem).timesteps() as f64 - subproblem_size as f64) / step_length as f64 + 1.0,
@@ -266,22 +266,22 @@ pub fn run_rolling_horizon(
 
     let rh = RollingHorizon::new(main_problem);
 
-    let mut initial_loads = closure_problem
+    let mut initial_loads = main_closure_problem
         .vessels()
         .iter()
         .map(|v| v.initial_inventory().clone())
         .collect();
-    let mut origins = closure_problem
+    let mut origins = main_closure_problem
         .vessels()
         .iter()
         .map(|v| v.origin())
         .collect();
-    let mut available_from = closure_problem
+    let mut available_from = main_closure_problem
         .vessels()
         .iter()
         .map(|v| v.available_from())
         .collect();
-    let mut initial_inventory = closure_problem
+    let mut initial_inventory = main_closure_problem
         .nodes()
         .iter()
         .map(|n| n.initial_inventory().clone())
@@ -323,17 +323,17 @@ pub fn run_rolling_horizon(
             .map(|n| best.inventory_at(n, step_length))
             .collect();
         period =
-            (i + 1) * subproblem_size..(i + 2) * subproblem_size.min(closure_problem.timesteps());
+            (i + 1) * step_length..(subproblem_size + (i+1)*step_length).min(main_closure_problem.timesteps());
 
         solutions.push(best);
     }
 
     // convert all solutions into one
-    let mut routes = (0..closure_problem.vessels().len())
+    let mut routes = (0..main_closure_problem.vessels().len())
         .map(|_| Vec::new())
         .collect::<Vec<_>>();
     for (i, solution) in solutions.iter().enumerate() {
-        let range = i * step_length..(i + 1) * step_length;
+        let range = i * step_length..(subproblem_size + (i + 1) * step_length);
         solution.iter().enumerate().for_each(|(v, plan)| {
             plan.iter().for_each(|visit| {
                 if range.contains(&visit.time) {
@@ -346,7 +346,7 @@ pub fn run_rolling_horizon(
         r.iter().dedup_by(|x, y| x.node == y.node);
     });
 
-    let final_sol = RoutingSolution::new(closure_problem, routes);
+    let final_sol = RoutingSolution::new(main_closure_problem, routes);
 
     output.push(&format!("final_rh.json"));
     let file = std::fs::File::create(&output).unwrap();
@@ -399,5 +399,6 @@ pub fn main() {
     std::fs::create_dir_all(&out).expect("failed to create out dir");
 
     // Run the GA.
-    run_island_ga(path, out, Termination::NoViolation, true);
+    run_rolling_horizon(path, out, Termination::NoViolation, 30,5);
+    //run_island_ga(path, out, Termination::NoViolation, true);
 }
