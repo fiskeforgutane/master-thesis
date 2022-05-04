@@ -1,10 +1,8 @@
 use chrono::Local;
 use clap::Parser;
 use env_logger::Builder;
-use float_ord::FloatOrd;
 
-use log::{info, LevelFilter};
-use rand;
+use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -29,7 +27,7 @@ use crate::ga::{
     },
     parent_selection,
     recombinations::PIX,
-    survival_selection, Fitness, GeneticAlgorithm, Stochastic,
+    survival_selection, Fitness, Stochastic,
 };
 
 use crate::problem::Problem;
@@ -224,7 +222,8 @@ fn run_island_ga(path: &Path, mut output: PathBuf, mut termination: Termination,
         .open("time.txt")
         .expect("failed to create times.txt");
 
-    writeln!(file, "{}: {} ms", path.display(), (end - start).as_millis());
+    writeln!(file, "{}: {} ms", path.display(), (end - start).as_millis())
+        .expect("writing 'time' failed");
 }
 
 #[derive(Debug)]
