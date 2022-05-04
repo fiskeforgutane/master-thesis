@@ -257,10 +257,7 @@ pub fn run_island_ga<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         .expect("writing 'time' failed");
 }
 
-pub fn run_unfixed_rolling_horizon<
-    I: Initialization<Out = RoutingSolution> + Clone + Send + 'static,
-    Func,
->(
+pub fn run_unfixed_rolling_horizon(
     path: &Path,
     mut output: PathBuf,
     termination: Termination,
@@ -615,6 +612,13 @@ pub fn main() {
         Commands::RollingHorizon {
             subproblem_size,
             step_length,
-        } => run_rolling_horizon(path, out, termination, subproblem_size, step_length, config),
+        } => run_unfixed_rolling_horizon(
+            path,
+            out,
+            termination,
+            subproblem_size,
+            step_length,
+            config,
+        ),
     };
 }
