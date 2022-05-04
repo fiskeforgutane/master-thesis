@@ -742,6 +742,15 @@ impl RoutingSolution {
 
         FixedInventory::from(Inventory::new(inventory.as_slice()).unwrap())
     }
+
+    /// get first position of the given vessel from the given time period
+    pub fn next_position(&self, vessel: VesselIndex, time: TimeIndex) -> (NodeIndex, TimeIndex) {
+        let visit = self.routes[vessel]
+            .into_iter()
+            .find_or_last(|v| v.time >= time)
+            .unwrap();
+        (visit.node, visit.time)
+    }
 }
 
 impl<'a> IntoIterator for &'a RoutingSolution {
