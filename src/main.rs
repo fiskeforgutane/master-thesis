@@ -4,9 +4,11 @@ use env_logger::Builder;
 
 use itertools::Itertools;
 use log::LevelFilter;
+
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::sync::Mutex;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -23,6 +25,7 @@ pub mod utils;
 use crate::ga::{
     chromosome::InitRoutingSolution,
     fitness::{self},
+    initialization::{FromPopulation, Initialization},
     mutations::{
         rr, AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
         TimeSetter, Twerk, TwoOpt, TwoOptMode,
@@ -105,13 +108,14 @@ pub fn read_problem(path: &Path) -> Arc<Problem> {
     Arc::new(problem)
 }
 
-pub fn run_island_on(
+pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
     problem: Arc<Problem>,
     mut output: PathBuf,
+    init: I,
     mut termination: Termination,
     conf: Config,
     write: bool,
-) -> RoutingSolution {
+) -> (RoutingSolution, Vec<Vec<Vec<Vec<Visit>>>>) {
     let closure_problem = problem.clone();
     let fitness = fitness::Weighted {
         warp: 1e8,
@@ -173,7 +177,7 @@ pub fn run_island_on(
         fitness,
     };
 
-    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, conf.threads);
+    let mut ga = ga::islands::IslandGA::new(init, config, conf.threads);
     if write {
         output.push("config.json");
         let file = std::fs::File::create(&output).unwrap();
@@ -220,26 +224,27 @@ pub fn run_island_on(
             serde_json::to_writer(file, &visits).expect("writing failed");
         }
 
-        // Whether we should terminate now
         if termination.should_terminate(epochs, &best, fitness.of(&problem, &best)) {
-            return best;
+            return (best, ga.populations());
         }
 
         std::thread::sleep(std::time::Duration::from_millis(10_000));
     }
 }
 
-pub fn run_island_ga(
+pub fn run_island_ga<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
     path: &Path,
     output: PathBuf,
     termination: Termination,
+    init: I,
     conf: Config,
     write: bool,
 ) {
     let problem = read_problem(path);
 
     let start = std::time::Instant::now();
-    run_island_on(problem, output, termination, conf.clone(), write);
+    run_island_on(problem, output, init, termination, conf.clone(), write);
+
     let end = std::time::Instant::now();
 
     let mut file = OpenOptions::new()
@@ -250,6 +255,80 @@ pub fn run_island_ga(
 
     writeln!(file, "{}: {} ms", path.display(), (end - start).as_millis())
         .expect("writing 'time' failed");
+}
+
+pub fn run_unfixed_rolling_horizon(
+    path: &Path,
+    mut output: PathBuf,
+    termination: Termination,
+    subproblem_size: usize,
+    step_length: usize,
+    conf: Config,
+) {
+    let main_problem = read_problem(path);
+    let main_closure_problem = main_problem.clone();
+
+    let num_subproblems = f64::ceil(
+        ((*main_problem).timesteps() as f64 - subproblem_size as f64) / step_length as f64 + 1.0,
+    ) as usize;
+
+    let rh = RollingHorizon::new(main_problem);
+
+    let mut period = 0..subproblem_size;
+    let mut init: Arc<Mutex<dyn Initialization<Out = RoutingSolution> + Send>> =
+        Arc::new(Mutex::new(InitRoutingSolution));
+    let mut solutions = Vec::new();
+    for i in 0..num_subproblems {
+        println!("Solving subproblem in range: {:?}", period);
+
+        let sub_problem = rh
+            .slice_problem(period)
+            .expect("Failed to create subproblem");
+
+        let sub_problem = Arc::new(sub_problem);
+        let closure_problem = sub_problem.clone();
+
+        let (best, pop) = run_island_on(
+            sub_problem,
+            output.clone(),
+            init,
+            termination.clone(),
+            conf.clone(),
+            false,
+        );
+        let a = pop
+            .into_iter()
+            .flatten()
+            .map(|routes| RoutingSolution::new(closure_problem.clone(), routes))
+            .collect();
+        period = 0..(subproblem_size + (i + 1) * step_length).min(main_closure_problem.timesteps());
+        init = Arc::new(Mutex::new(FromPopulation::new(a)));
+
+        solutions.push(best);
+    }
+
+    // convert all solutions into one
+    let mut routes = (0..main_closure_problem.vessels().len())
+        .map(|_| Vec::new())
+        .collect::<Vec<_>>();
+    for (i, solution) in solutions.iter().enumerate() {
+        let range = i * step_length..(subproblem_size + (i + 1) * step_length);
+        solution.iter().enumerate().for_each(|(v, plan)| {
+            plan.iter().for_each(|visit| {
+                if range.contains(&visit.time) {
+                    routes[v].push(visit.clone());
+                }
+            })
+        })
+    }
+    let final_sol = solutions.iter().last().unwrap();
+
+    output.push(&format!("final_rh.json"));
+    let file = std::fs::File::create(&output).unwrap();
+    output.pop();
+
+    let visits = final_sol.to_vec();
+    serde_json::to_writer(file, &visits).expect("writing failed");
 }
 
 pub fn run_rolling_horizon(
@@ -308,9 +387,10 @@ pub fn run_rolling_horizon(
         let sub_problem = Arc::new(sub_problem);
         let closure_problem = sub_problem.clone();
 
-        let best = run_island_on(
+        let (best, _) = run_island_on(
             sub_problem,
             output.clone(),
+            InitRoutingSolution,
             termination.clone(),
             conf.clone(),
             false,
@@ -526,10 +606,19 @@ pub fn main() {
 
     // Run the GA.
     match args.commands {
-        Commands::All { write } => run_island_ga(path, out, termination, config, write),
+        Commands::All { write } => {
+            run_island_ga(path, out, termination, InitRoutingSolution, config, write)
+        }
         Commands::RollingHorizon {
             subproblem_size,
             step_length,
-        } => run_rolling_horizon(path, out, termination, subproblem_size, step_length, config),
+        } => run_unfixed_rolling_horizon(
+            path,
+            out,
+            termination,
+            subproblem_size,
+            step_length,
+            config,
+        ),
     };
 }
