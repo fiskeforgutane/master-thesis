@@ -5,8 +5,10 @@ use float_ord::FloatOrd;
 use log::{info, LevelFilter};
 use rand;
 use serde::Serialize;
+use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::rc::Rc;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -17,6 +19,7 @@ pub mod models;
 pub mod problem;
 pub mod quants;
 pub mod solution;
+pub mod ts;
 pub mod utils;
 
 use crate::ga::{
@@ -269,6 +272,34 @@ pub fn main() {
     // Create the output directory
     std::fs::create_dir_all(&out).expect("failed to create out dir");
 
+    let file = std::fs::File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let problem: Problem = serde_json::from_reader(reader).unwrap();
+    let problem = Arc::new(problem);
+
+    use crate::ga::initialization::{GreedyWithBlinks, Initialization};
+    use crate::models::quantity::QuantityLp;
+    use crate::ts::tabu_search;
+
+    let quantities = Rc::new(RefCell::new(QuantityLp::new(&problem).unwrap()));
+    let initial = GreedyWithBlinks::new(0.1).new(problem.clone(), quantities);
+    let mutation = rr::sisr::SlackInductionByStringRemoval::new(rr::sisr::Config {
+        average_removal: 4,
+        max_cardinality: 4,
+        alpha: 0.0,
+        blink_rate: 0.05,
+        first_n: 10,
+        epsilon: (0.99, 10.0),
+    });
+
+    let fit = fitness::Weighted {
+        warp: 1e9,
+        violation: 1e5,
+        revenue: -1.0,
+        cost: 1.0,
+    };
+
+    tabu_search(initial, mutation, fit, 7, 5, 10000);
     // Run the GA.
-    run_island_ga(path, out, Termination::NoViolation);
+    // run_island_ga(path, out, Termination::NoViolation);
 }

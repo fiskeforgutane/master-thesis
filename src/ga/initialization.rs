@@ -210,6 +210,14 @@ impl Initialization for GreedyWithBlinks {
                 })
                 .collect::<Vec<_>>();
 
+            println!(
+                "INIT: ({: >5}, {: >8.2}, {: >8.2}), #candidates = {: >8}",
+                s.warp(),
+                s.violation(),
+                s.cost() - s.revenue(),
+                candidates.len(),
+            );
+
             let (v, node, time, cost) = candidates
                 .into_iter()
                 .map(|(v, node, time)| {

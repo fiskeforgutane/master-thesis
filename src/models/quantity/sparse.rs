@@ -38,8 +38,8 @@ macro_rules! time {
         let start = std::time::Instant::now();
         $bl
         let end = std::time::Instant::now();
-        let elapsed = (end - start).as_micros();
-        println!("{} completed in {}us", $name, elapsed);
+        let elapsed = (end - start).as_millis();
+        println!("{} completed in {: >6}ms", $name, elapsed);
     }};
 }
 

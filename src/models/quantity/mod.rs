@@ -419,6 +419,49 @@ impl QuantityLp {
         Ok(&self.vars)
     }
 
+    /// Solve multiple configurations
+    pub fn solve_multiple(&mut self, instances: &[RoutingSolution]) -> grb::Result<()> {
+        self.model
+            .set_attr(grb::attr::NumScenarios, instances.len() as i32)?;
+
+        for (i, solution) in instances.into_iter().enumerate() {
+            self.model.set_param(grb::param::ScenarioNumber, i as i32)?;
+            // By default: disable `all` variables
+            let model = &self.model;
+            let problem = solution.problem();
+
+            // Disable all x(t, n, v, p) variables
+            model.set_obj_attr_batch(
+                grb::attr::ScenNUB,
+                self.vars.x.iter().flat_map(|xs| {
+                    xs.iter()
+                        .flat_map(|xs| xs.iter().flat_map(|xs| xs.iter().map(|x| (*x, 0.0))))
+                }),
+            )?;
+
+            let lower = |n: usize| match self.semicont {
+                true => problem.nodes()[n].min_unloading_amount(),
+                false => 0.0,
+            };
+
+            // set lower bound
+            model.set_obj_attr_batch(
+                grb::attr::ScenNLB,
+                Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], lower(n))),
+            )?;
+
+            // Re-enable the relevant x(t, n, v, p) variables
+            model.set_obj_attr_batch(
+                grb::attr::ScenNUB,
+                Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
+            )?;
+        }
+
+        self.model.optimize()?;
+
+        Ok(())
+    }
+
     /// Solves the model for the current configuration. Returns the variables converted to `F64Variables` exposed to python.
     /// Should also include dual variables for the upper bounds on `x`, but this is not implemented yet
     pub fn solve_python(&mut self) -> grb::Result<F64Variables> {

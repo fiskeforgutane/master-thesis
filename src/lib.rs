@@ -5,6 +5,7 @@ pub mod problem;
 pub mod python;
 pub mod quants;
 pub mod solution;
+pub mod ts;
 pub mod utils;
 
 use crate::python::ga::*;

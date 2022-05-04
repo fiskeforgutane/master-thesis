@@ -226,7 +226,7 @@ impl SlackInductionByStringRemoval {
     }
 
     fn candidates(&self, solution: &RoutingSolution) -> Vec<(usize, Visit)> {
-        solution
+        let cands = solution
             .available()
             .flat_map(|(v, it)| {
                 it.flat_map(move |(node, range)| {
@@ -235,7 +235,9 @@ impl SlackInductionByStringRemoval {
                         .map(move |time| (v, Visit { node, time }))
                 })
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        cands
     }
 }
 
