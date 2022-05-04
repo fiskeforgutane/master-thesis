@@ -247,6 +247,64 @@ pub fn run_island_ga(path: &Path, output: PathBuf, termination: Termination, wri
     writeln!(file, "{}: {} ms", path.display(), (end - start).as_millis());
 }
 
+pub fn run_unfixed_rolling_horizon(
+    path: &Path,
+    mut output: PathBuf,
+    termination: Termination,
+    subproblem_size: usize,
+    step_length: usize,
+) {
+    let main_problem = read_problem(path);
+    let main_closure_problem = main_problem.clone();
+
+    let num_subproblems = f64::ceil(
+        ((*main_problem).timesteps() as f64 - subproblem_size as f64) / step_length as f64 + 1.0,
+    ) as usize;
+
+    let rh = RollingHorizon::new(main_problem);
+
+    let mut period = 0..subproblem_size;
+    let mut solutions = Vec::new();
+    for i in 0..num_subproblems {
+        println!("Solving subproblem in range: {:?}", period);
+
+        let sub_problem = rh
+            .slice_problem(period)
+            .expect("Failed to create subproblem");
+
+        let sub_problem = Arc::new(sub_problem);
+
+        let best = run_island_on(sub_problem, output.clone(), termination.clone(), false);
+
+        period = 0..(subproblem_size + (i + 1) * step_length).min(main_closure_problem.timesteps());
+
+        solutions.push(best);
+    }
+
+    // convert all solutions into one
+    let mut routes = (0..main_closure_problem.vessels().len())
+        .map(|_| Vec::new())
+        .collect::<Vec<_>>();
+    for (i, solution) in solutions.iter().enumerate() {
+        let range = i * step_length..(subproblem_size + (i + 1) * step_length);
+        solution.iter().enumerate().for_each(|(v, plan)| {
+            plan.iter().for_each(|visit| {
+                if range.contains(&visit.time) {
+                    routes[v].push(visit.clone());
+                }
+            })
+        })
+    }
+    let final_sol = solutions.iter().last().unwrap();
+
+    output.push(&format!("final_rh.json"));
+    let file = std::fs::File::create(&output).unwrap();
+    output.pop();
+
+    let visits = final_sol.to_vec();
+    serde_json::to_writer(file, &visits).expect("writing failed");
+}
+
 pub fn run_rolling_horizon(
     path: &Path,
     mut output: PathBuf,
