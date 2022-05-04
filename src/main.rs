@@ -1,7 +1,8 @@
 use chrono::Local;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use env_logger::Builder;
 
+use itertools::Itertools;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
@@ -15,6 +16,7 @@ pub mod ga;
 pub mod models;
 pub mod problem;
 pub mod quants;
+pub mod rolling_horizon;
 pub mod solution;
 pub mod utils;
 
@@ -29,13 +31,14 @@ use crate::ga::{
     recombinations::PIX,
     survival_selection, Fitness, Stochastic,
 };
+use crate::rolling_horizon::rolling_horizon::RollingHorizon;
 
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
 
-#[derive(Serialize, Deserialize)]
-struct Config {
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Config {
     pub population: usize,
     pub children: usize,
     pub add_random: f64,
@@ -95,13 +98,21 @@ impl Default for Config {
     }
 }
 
-fn run_island_ga(path: &Path, mut output: PathBuf, mut termination: Termination, conf: Config) {
+pub fn read_problem(path: &Path) -> Arc<Problem> {
     let file = std::fs::File::open(path).unwrap();
     let reader = std::io::BufReader::new(file);
     let problem: Problem = serde_json::from_reader(reader).unwrap();
-    let problem = Arc::new(problem);
-    let closure_problem = problem.clone();
+    Arc::new(problem)
+}
 
+pub fn run_island_on(
+    problem: Arc<Problem>,
+    mut output: PathBuf,
+    mut termination: Termination,
+    conf: Config,
+    write: bool,
+) -> RoutingSolution {
+    let closure_problem = problem.clone();
     let fitness = fitness::Weighted {
         warp: 1e8,
         violation: 1e4,
@@ -163,14 +174,14 @@ fn run_island_ga(path: &Path, mut output: PathBuf, mut termination: Termination,
     };
 
     let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, conf.threads);
-
-    output.push("config.json");
-    let file = std::fs::File::create(&output).unwrap();
-    output.pop();
-    serde_json::to_writer(file, &conf).expect("writing failed");
+    if write {
+        output.push("config.json");
+        let file = std::fs::File::create(&output).unwrap();
+        output.pop();
+        serde_json::to_writer(file, &conf).expect("writing failed");
+    }
 
     let mut last_migration = 0;
-    let start = std::time::Instant::now();
     loop {
         let epochs = ga.epochs();
         let best = RoutingSolution::new(
@@ -200,20 +211,35 @@ fn run_island_ga(path: &Path, mut output: PathBuf, mut termination: Termination,
             //worst_fitness.0
         );
 
-        output.push(&format!("{}.json", epochs));
-        let file = std::fs::File::create(&output).unwrap();
-        output.pop();
+        if write {
+            output.push(&format!("{}.json", epochs));
+            let file = std::fs::File::create(&output).unwrap();
+            output.pop();
 
-        let visits: Vec<&[Visit]> = best.iter().map(|plan| &plan[..]).collect();
-        serde_json::to_writer(file, &visits).expect("writing failed");
+            let visits = best.to_vec();
+            serde_json::to_writer(file, &visits).expect("writing failed");
+        }
 
         // Whether we should terminate now
         if termination.should_terminate(epochs, &best, fitness.of(&problem, &best)) {
-            break;
+            return best;
         }
 
         std::thread::sleep(std::time::Duration::from_millis(10_000));
     }
+}
+
+pub fn run_island_ga(
+    path: &Path,
+    output: PathBuf,
+    termination: Termination,
+    conf: Config,
+    write: bool,
+) {
+    let problem = read_problem(path);
+
+    let start = std::time::Instant::now();
+    run_island_on(problem, output, termination, conf.clone(), write);
     let end = std::time::Instant::now();
 
     let mut file = OpenOptions::new()
@@ -226,7 +252,120 @@ fn run_island_ga(path: &Path, mut output: PathBuf, mut termination: Termination,
         .expect("writing 'time' failed");
 }
 
-#[derive(Debug)]
+pub fn run_rolling_horizon(
+    path: &Path,
+    mut output: PathBuf,
+    termination: Termination,
+    subproblem_size: usize,
+    step_length: usize,
+    conf: Config,
+) {
+    let main_problem = read_problem(path);
+    let main_closure_problem = main_problem.clone();
+
+    let num_subproblems = f64::ceil(
+        ((*main_problem).timesteps() as f64 - subproblem_size as f64) / step_length as f64 + 1.0,
+    ) as usize;
+
+    let rh = RollingHorizon::new(main_problem);
+
+    let mut initial_loads = main_closure_problem
+        .vessels()
+        .iter()
+        .map(|v| v.initial_inventory().clone())
+        .collect();
+    let mut origins = main_closure_problem
+        .vessels()
+        .iter()
+        .map(|v| v.origin())
+        .collect();
+    let mut available_from = main_closure_problem
+        .vessels()
+        .iter()
+        .map(|v| v.available_from())
+        .collect();
+    let mut initial_inventory = main_closure_problem
+        .nodes()
+        .iter()
+        .map(|n| n.initial_inventory().clone())
+        .collect();
+    let mut period = 0..subproblem_size;
+
+    let mut solutions = Vec::new();
+    for i in 0..num_subproblems {
+        println!("Solving subproblem in range: {:?}", period);
+
+        let sub_problem = rh
+            .create_subproblem(
+                initial_loads,
+                origins,
+                available_from,
+                initial_inventory,
+                period,
+            )
+            .expect("Failed to create subproblem");
+
+        let sub_problem = Arc::new(sub_problem);
+        let closure_problem = sub_problem.clone();
+
+        let best = run_island_on(
+            sub_problem,
+            output.clone(),
+            termination.clone(),
+            conf.clone(),
+            false,
+        );
+
+        origins = (0..closure_problem.vessels().len())
+            .map(|v| best.next_position(v, step_length - 1).0)
+            .collect();
+
+        available_from = (0..closure_problem.vessels().len())
+            .map(|v| step_length.max(best.next_position(v, step_length).1) - step_length)
+            .collect();
+
+        initial_loads = (0..closure_problem.vessels().len())
+            .map(|v| best.load_at(v, step_length + available_from[v]))
+            .collect();
+
+        initial_inventory = (0..closure_problem.nodes().len())
+            .map(|n| best.inventory_at(n, step_length))
+            .collect();
+        period = (i + 1) * step_length
+            ..(subproblem_size + (i + 1) * step_length).min(main_closure_problem.timesteps());
+
+        solutions.push(best);
+    }
+
+    // convert all solutions into one
+    let mut routes = (0..main_closure_problem.vessels().len())
+        .map(|_| Vec::new())
+        .collect::<Vec<_>>();
+    for (i, solution) in solutions.iter().enumerate() {
+        let range = i * step_length..(subproblem_size + (i + 1) * step_length);
+        solution.iter().enumerate().for_each(|(v, plan)| {
+            plan.iter().for_each(|visit| {
+                if range.contains(&visit.time) {
+                    routes[v].push(visit.clone());
+                }
+            })
+        })
+    }
+    routes.iter().for_each(|r| {
+        r.iter().dedup_by(|x, y| x.node == y.node);
+    });
+
+    let final_sol = RoutingSolution::new(main_closure_problem, routes);
+
+    output.push(&format!("final_rh.json"));
+    let file = std::fs::File::create(&output).unwrap();
+    output.pop();
+
+    let visits: Vec<&[Visit]> = final_sol.iter().map(|plan| &plan[..]).collect();
+    serde_json::to_writer(file, &visits).expect("writing failed");
+}
+
+#[derive(Clone)]
 pub enum Termination {
     /// Terminate after a given number of epochs
     Epochs(u64),
@@ -299,6 +438,23 @@ struct Args {
     /// time a better solution if found
     #[clap(short, long, default_value_t = 3600)]
     stuck_timeout: u64,
+    /// Subcommands
+    #[clap(subcommand)]
+    commands: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    All {
+        #[clap(long)]
+        write: bool,
+    },
+    RollingHorizon {
+        #[clap(long, default_value_t = 30)]
+        subproblem_size: usize,
+        #[clap(long, default_value_t = 5)]
+        step_length: usize,
+    },
 }
 
 fn enable_logger(level: LevelFilter) {
@@ -371,5 +527,11 @@ pub fn main() {
     std::fs::create_dir_all(&out).expect("failed to create out dir");
 
     // Run the GA.
-    run_island_ga(path, out, termination, config);
+    match args.commands {
+        Commands::All { write } => run_island_ga(path, out, termination, config, write),
+        Commands::RollingHorizon {
+            subproblem_size,
+            step_length,
+        } => run_rolling_horizon(path, out, termination, subproblem_size, step_length, config),
+    };
 }
