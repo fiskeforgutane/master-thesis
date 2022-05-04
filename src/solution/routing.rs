@@ -5,13 +5,15 @@ use std::ops::{DerefMut, RangeInclusive};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
-use itertools::Itertools;
+use itertools::{iproduct, Itertools};
 use log::trace;
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 
 use crate::models::quantity::QuantityLp;
-use crate::problem::{Cost, Inventory, NodeIndex, Problem, Product, Quantity, VesselIndex};
+use crate::problem::{
+    Cost, FixedInventory, Inventory, NodeIndex, Problem, Product, Quantity, TimeIndex, VesselIndex,
+};
 use crate::solution::Visit;
 
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
@@ -707,6 +709,47 @@ impl RoutingSolution {
                 }
             })
             .flatten()
+    }
+
+    /// The load of the given vessel at the **beginning** of the given time period
+    pub fn load_at(&self, vessel: VesselIndex, time: TimeIndex) -> FixedInventory {
+        let lp = self.quantities();
+
+        let vars = iproduct!(0..self.problem().products())
+            .map(|p| lp.vars.l[time][vessel][p])
+            .collect::<Vec<_>>();
+
+        let load = lp
+            .model
+            .get_obj_attr_batch(grb::attr::X, vars)
+            .expect("failed to retrieve variables");
+
+        FixedInventory::from(Inventory::new(load.as_slice()).unwrap())
+    }
+
+    /// The inventory at the given node at the **beginning** of the given time period
+    pub fn inventory_at(&self, node: NodeIndex, time: TimeIndex) -> FixedInventory {
+        let lp = self.quantities();
+
+        let vars = iproduct!(0..self.problem().products())
+            .map(|p| lp.vars.s[time][node][p])
+            .collect::<Vec<_>>();
+
+        let inventory = lp
+            .model
+            .get_obj_attr_batch(grb::attr::X, vars)
+            .expect("failed to retrieve variables");
+
+        FixedInventory::from(Inventory::new(inventory.as_slice()).unwrap())
+    }
+
+    /// get first position of the given vessel from the given time period
+    pub fn next_position(&self, vessel: VesselIndex, time: TimeIndex) -> (NodeIndex, TimeIndex) {
+        let visit = self.routes[vessel]
+            .into_iter()
+            .find_or_last(|v| v.time >= time)
+            .unwrap();
+        (visit.node, visit.time)
     }
 }
 
