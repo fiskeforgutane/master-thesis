@@ -1,12 +1,11 @@
 use chrono::Local;
+use clap::{Parser, Subcommand};
 use env_logger::Builder;
-use float_ord::FloatOrd;
 
 use itertools::Itertools;
-use log::{info, LevelFilter};
+use log::LevelFilter;
 
-use rand;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::sync::Mutex;
@@ -33,7 +32,7 @@ use crate::ga::{
     },
     parent_selection,
     recombinations::PIX,
-    survival_selection, Fitness, GeneticAlgorithm, Stochastic,
+    survival_selection, Fitness, Stochastic,
 };
 use crate::rolling_horizon::rolling_horizon::RollingHorizon;
 
@@ -41,8 +40,8 @@ use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
 
-#[derive(Serialize)]
-struct Config {
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Config {
     pub population: usize,
     pub children: usize,
     pub add_random: f64,
@@ -65,38 +64,42 @@ struct Config {
     pub migrate_every: u64,
 }
 
-static CONF: Config = Config {
-    population: 3,
-    children: 3,
-    pix: 0.10,
-    threads: 8,
-    add_random: 0.03,
-    remove_random: 0.03,
-    inter_swap: 0.03,
-    intra_swap: 0.03,
-    red_cost: (0.03, 10),
-    twerk_all: 0.03,
-    twerk_some: 0.03,
-    two_opt_intra: 0.03,
-    time_setter: (0.04, 0.4),
-    bounce_all: (0.03, 3),
-    bounce_some: (0.03, 3),
-    add_smart: 0.03,
-    rr_period: (0.01, 0.1, 0.5, 15, 3),
-    rr_vessel: (0.01, 0.1, 0.75, 3),
-    rr_sisr: (
-        0.01,
-        rr::sisr::Config {
-            average_removal: 2,
-            max_cardinality: 5,
-            alpha: 0.0,
-            blink_rate: 0.1,
-            first_n: 5,
-            epsilon: (0.9, 10.0),
-        },
-    ),
-    migrate_every: 500,
-};
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            population: 100,
+            children: 100,
+            pix: 0.10,
+            threads: 8,
+            add_random: 0.03,
+            remove_random: 0.03,
+            inter_swap: 0.03,
+            intra_swap: 0.03,
+            red_cost: (0.03, 10),
+            twerk_all: 0.03,
+            twerk_some: 0.03,
+            two_opt_intra: 0.03,
+            time_setter: (0.04, 0.4),
+            bounce_all: (0.03, 3),
+            bounce_some: (0.03, 3),
+            add_smart: 0.03,
+            rr_period: (0.01, 0.1, 0.5, 15, 3),
+            rr_vessel: (0.01, 0.1, 0.75, 3),
+            rr_sisr: (
+                0.01,
+                rr::sisr::Config {
+                    average_removal: 2,
+                    max_cardinality: 5,
+                    alpha: 0.0,
+                    blink_rate: 0.1,
+                    first_n: 5,
+                    epsilon: (0.9, 10.0),
+                },
+            ),
+            migrate_every: 500,
+        }
+    }
+}
 
 pub fn read_problem(path: &Path) -> Arc<Problem> {
     let file = std::fs::File::open(path).unwrap();
@@ -108,8 +111,9 @@ pub fn read_problem(path: &Path) -> Arc<Problem> {
 pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
     problem: Arc<Problem>,
     mut output: PathBuf,
-    termination: Termination,
     init: I,
+    mut termination: Termination,
+    conf: Config,
     write: bool,
 ) -> (RoutingSolution, Vec<Vec<Vec<Vec<Visit>>>>) {
     let closure_problem = problem.clone();
@@ -122,48 +126,48 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
 
     let config = move || ga::Config {
         problem: closure_problem.clone(),
-        population_size: CONF.population,
-        child_count: CONF.children,
+        population_size: conf.population,
+        child_count: conf.children,
         parent_selection: parent_selection::Tournament::new(3).unwrap(),
-        recombination: Stochastic::new(CONF.pix, PIX),
+        recombination: Stochastic::new(conf.pix, PIX),
         mutation: chain!(
-            Stochastic::new(CONF.add_random, AddRandom::new()),
-            Stochastic::new(CONF.remove_random, RemoveRandom::new()),
-            Stochastic::new(CONF.inter_swap, InterSwap),
-            Stochastic::new(CONF.intra_swap, IntraSwap),
-            Stochastic::new(CONF.red_cost.0, RedCost::red_cost_mutation(CONF.red_cost.1)),
-            Stochastic::new(CONF.twerk_all, Twerk::everybody()),
-            Stochastic::new(CONF.twerk_some, Twerk::some_random_person()),
-            Stochastic::new(CONF.two_opt_intra, TwoOpt::new(TwoOptMode::IntraRandom)),
+            Stochastic::new(conf.add_random, AddRandom::new()),
+            Stochastic::new(conf.remove_random, RemoveRandom::new()),
+            Stochastic::new(conf.inter_swap, InterSwap),
+            Stochastic::new(conf.intra_swap, IntraSwap),
+            Stochastic::new(conf.red_cost.0, RedCost::red_cost_mutation(conf.red_cost.1)),
+            Stochastic::new(conf.twerk_all, Twerk::everybody()),
+            Stochastic::new(conf.twerk_some, Twerk::some_random_person()),
+            Stochastic::new(conf.two_opt_intra, TwoOpt::new(TwoOptMode::IntraRandom)),
             Stochastic::new(
-                CONF.time_setter.0,
-                TimeSetter::new(CONF.time_setter.1).unwrap()
+                conf.time_setter.0,
+                TimeSetter::new(conf.time_setter.1).unwrap()
             ),
             Stochastic::new(
-                CONF.bounce_all.0,
-                Bounce::new(CONF.bounce_all.1, BounceMode::All)
+                conf.bounce_all.0,
+                Bounce::new(conf.bounce_all.1, BounceMode::All)
             ),
             Stochastic::new(
-                CONF.bounce_some.0,
-                Bounce::new(CONF.bounce_some.1, BounceMode::Random)
+                conf.bounce_some.0,
+                Bounce::new(conf.bounce_some.1, BounceMode::Random)
             ),
-            Stochastic::new(CONF.add_smart, AddSmart),
+            Stochastic::new(conf.add_smart, AddSmart),
             Stochastic::new(
-                CONF.rr_period.0,
+                conf.rr_period.0,
                 rr::Period::new(
-                    CONF.rr_period.1,
-                    CONF.rr_period.2,
-                    CONF.rr_period.3,
-                    CONF.rr_period.4
+                    conf.rr_period.1,
+                    conf.rr_period.2,
+                    conf.rr_period.3,
+                    conf.rr_period.4
                 )
             ),
             Stochastic::new(
-                CONF.rr_vessel.0,
-                rr::Vessel::new(CONF.rr_vessel.1, CONF.rr_vessel.2, CONF.rr_vessel.3)
+                conf.rr_vessel.0,
+                rr::Vessel::new(conf.rr_vessel.1, conf.rr_vessel.2, conf.rr_vessel.3)
             ),
             Stochastic::new(
-                CONF.rr_sisr.0,
-                rr::sisr::SlackInductionByStringRemoval::new(CONF.rr_sisr.1)
+                conf.rr_sisr.0,
+                rr::sisr::SlackInductionByStringRemoval::new(conf.rr_sisr.1)
             )
         ),
         selection: survival_selection::Elite(
@@ -173,12 +177,12 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         fitness,
     };
 
-    let mut ga = ga::islands::IslandGA::new(init, config, CONF.threads);
+    let mut ga = ga::islands::IslandGA::new(init, config, conf.threads);
     if write {
         output.push("config.json");
         let file = std::fs::File::create(&output).unwrap();
         output.pop();
-        serde_json::to_writer(file, &CONF).expect("writing failed");
+        serde_json::to_writer(file, &conf).expect("writing failed");
     }
 
     let mut last_migration = 0;
@@ -193,7 +197,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
                 .collect(),
         );
 
-        if epochs - last_migration > CONF.migrate_every {
+        if epochs - last_migration > conf.migrate_every {
             print!("Migrating...");
             ga.migrate(5);
             println!(" DONE");
@@ -220,14 +224,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
             serde_json::to_writer(file, &visits).expect("writing failed");
         }
 
-        // Whether we should terminate now
-        let terminate = match termination {
-            Termination::NoViolation => best.violation() <= 1e-3,
-            Termination::Never => false,
-            Termination::Epochs(x) => epochs > x,
-        };
-
-        if terminate {
+        if termination.should_terminate(epochs, &best, fitness.of(&problem, &best)) {
             return (best, ga.populations());
         }
 
@@ -240,12 +237,14 @@ pub fn run_island_ga<I: Initialization<Out = RoutingSolution> + Clone + Send + '
     output: PathBuf,
     termination: Termination,
     init: I,
+    conf: Config,
     write: bool,
 ) {
     let problem = read_problem(path);
 
     let start = std::time::Instant::now();
-    run_island_on(problem, output, termination, init, write);
+    run_island_on(problem, output, init, termination, conf.clone(), write);
+
     let end = std::time::Instant::now();
 
     let mut file = OpenOptions::new()
@@ -254,7 +253,8 @@ pub fn run_island_ga<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         .open("time.txt")
         .expect("failed to create times.txt");
 
-    writeln!(file, "{}: {} ms", path.display(), (end - start).as_millis());
+    writeln!(file, "{}: {} ms", path.display(), (end - start).as_millis())
+        .expect("writing 'time' failed");
 }
 
 pub fn run_unfixed_rolling_horizon<
@@ -266,6 +266,7 @@ pub fn run_unfixed_rolling_horizon<
     termination: Termination,
     subproblem_size: usize,
     step_length: usize,
+    conf: Config,
 ) {
     let main_problem = read_problem(path);
     let main_closure_problem = main_problem.clone();
@@ -293,8 +294,9 @@ pub fn run_unfixed_rolling_horizon<
         let (best, pop) = run_island_on(
             sub_problem,
             output.clone(),
-            termination.clone(),
             init,
+            termination.clone(),
+            conf.clone(),
             false,
         );
         let a = pop
@@ -338,6 +340,7 @@ pub fn run_rolling_horizon(
     termination: Termination,
     subproblem_size: usize,
     step_length: usize,
+    conf: Config,
 ) {
     let main_problem = read_problem(path);
     let main_closure_problem = main_problem.clone();
@@ -390,8 +393,9 @@ pub fn run_rolling_horizon(
         let (best, _) = run_island_on(
             sub_problem,
             output.clone(),
-            termination.clone(),
             InitRoutingSolution,
+            termination.clone(),
+            conf.clone(),
             false,
         );
 
@@ -446,15 +450,98 @@ pub fn run_rolling_horizon(
 
 #[derive(Clone)]
 pub enum Termination {
+    /// Terminate after a given number of epochs
     Epochs(u64),
+    /// Terminate upon finding a solution with no violation
     NoViolation,
+    /// Terminate if there has been no improvement for the given amount of time
+    NoImprovement(std::time::Instant, std::time::Duration, f64),
+    /// Maximum running time from `Instant`
+    Timeout(std::time::Instant, std::time::Duration),
+    /// Run forever
     Never,
+    /// Terminate if either of the two termination criteria
+    /// tells it to terminate
+    Any(Box<Termination>, Box<Termination>),
+    /// Terminate when both of the criteria tells it to terminate
+    All(Box<Termination>, Box<Termination>),
 }
 
-pub fn main() {
-    //env_logger::init();
+impl Termination {
+    pub fn should_terminate(
+        &mut self,
+        epoch: u64,
+        solution: &RoutingSolution,
+        fitness: f64,
+    ) -> bool {
+        match self {
+            Termination::Timeout(from, duration) => (std::time::Instant::now() - *from) > *duration,
+            Termination::Epochs(e) => *e > epoch,
+            Termination::NoViolation => solution.warp() == 0 && solution.violation() < 1e-3,
+            Termination::Never => false,
+            Termination::Any(one, two) => {
+                one.should_terminate(epoch, solution, fitness)
+                    || two.should_terminate(epoch, solution, fitness)
+            }
+            Termination::All(one, two) => {
+                one.should_terminate(epoch, solution, fitness)
+                    && two.should_terminate(epoch, solution, fitness)
+            }
+            Termination::NoImprovement(last, duration, best) => {
+                // Replace best fitness and reset time of last improvement if the current solution is better than the incumbent.
+                if fitness < *best {
+                    *best = fitness;
+                    *last = std::time::Instant::now();
+                }
 
-    /*     Builder::new()
+                (std::time::Instant::now() - *last) > *duration
+            }
+        }
+    }
+}
+
+#[derive(Parser, Debug)]
+#[clap(author = "Fiskefôrgutane", about = "CLI for MIRP solver")]
+struct Args {
+    /// Sets the configuration file used.
+    #[clap(short, long, parse(from_os_str), value_name = "FILE")]
+    config: Option<PathBuf>,
+    /// Path to problem specification
+    #[clap(short, long, parse(from_os_str), value_name = "FILE")]
+    problem: PathBuf,
+    /// What logging level to enable.
+    #[clap(
+        short,
+        long,
+        value_name = "off | trace | debug | info | warn | error",
+        default_value = "off"
+    )]
+    log: String,
+    /// The timeout used when the solution is stuck (in seconds). The elapsed time will be reset each
+    /// time a better solution if found
+    #[clap(short, long, default_value_t = 3600)]
+    stuck_timeout: u64,
+    /// Subcommands
+    #[clap(subcommand)]
+    commands: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    All {
+        #[clap(long)]
+        write: bool,
+    },
+    RollingHorizon {
+        #[clap(long, default_value_t = 30)]
+        subproblem_size: usize,
+        #[clap(long, default_value_t = 5)]
+        step_length: usize,
+    },
+}
+
+fn enable_logger(level: LevelFilter) {
+    Builder::new()
         .format(|buf, record| {
             writeln!(
                 buf,
@@ -464,18 +551,52 @@ pub fn main() {
                 record.args()
             )
         })
-        .filter(None, LevelFilter::Trace)
+        .filter(None, level)
         .init();
-    info!("test"); */
+}
 
-    let args = std::env::args().collect::<Vec<_>>();
-    let path = std::path::Path::new(&args[1]);
+pub fn main() {
+    // Parse command line arguments
+    let args = Args::parse();
 
-    println!("Problem path: {:?}", path);
+    // Convert the log level to a LevelFilter
+    let level = match args.log.as_str() {
+        "debug" => LevelFilter::Debug,
+        "trace" => LevelFilter::Trace,
+        "info" => LevelFilter::Info,
+        "warn" => LevelFilter::Warn,
+        "off" => LevelFilter::Off,
+        "error" => LevelFilter::Error,
+        _ => LevelFilter::Off,
+    };
 
+    // Enable logging at the specified level.
+    enable_logger(level);
+    println!("Logger level: {level:?}");
+
+    let config = args
+        .config
+        .map(|path| {
+            serde_json::from_reader::<_, Config>(
+                std::fs::File::open(path).expect("failed to open config file"),
+            )
+            .expect("invalid config file")
+        })
+        .unwrap_or_default();
+
+    println!("Problem path: {:?}", args.problem.as_path());
+
+    let path = &args.problem;
     let problem_name = path.file_stem().unwrap().to_str().unwrap();
     let directory = path.parent().unwrap();
     let timesteps = directory.file_stem().unwrap().to_str().unwrap();
+
+    // The termination criteria
+    let termination = Termination::NoImprovement(
+        std::time::Instant::now(),
+        std::time::Duration::from_secs(args.stuck_timeout),
+        std::f64::INFINITY,
+    );
 
     // The output directory is ./solutions/TIME/PROBLEM/,
     let mut out = std::env::current_dir().expect("unable to fetch current dir");
@@ -487,6 +608,13 @@ pub fn main() {
     std::fs::create_dir_all(&out).expect("failed to create out dir");
 
     // Run the GA.
-    run_rolling_horizon(path, out, Termination::NoViolation, 30, 5);
-    //run_island_ga(path, out, Termination::NoViolation, true);
+    match args.commands {
+        Commands::All { write } => {
+            run_island_ga(path, out, termination, InitRoutingSolution, config, write)
+        }
+        Commands::RollingHorizon {
+            subproblem_size,
+            step_length,
+        } => run_rolling_horizon(path, out, termination, subproblem_size, step_length, config),
+    };
 }
