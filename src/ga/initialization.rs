@@ -1,4 +1,8 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
 use float_ord::FloatOrd;
 use log::trace;
@@ -15,13 +19,46 @@ pub trait Initialization {
     fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out;
 }
 
-impl<F, O> Initialization for F
+/* impl<F, O> Initialization for F
 where
     F: Fn(Arc<Problem>, Rc<RefCell<QuantityLp>>) -> O,
 {
     type Out = O;
     fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
         self(problem, quantities)
+    }
+}
+ */
+impl Initialization for Arc<Mutex<dyn Initialization<Out = RoutingSolution> + Send>> {
+    type Out = RoutingSolution;
+
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+        let inner = (*self).lock().unwrap();
+        inner.new(problem, quantities)
+    }
+}
+
+#[derive(Clone)]
+pub struct FromPopulation {
+    population: Arc<Mutex<Vec<Vec<Vec<Visit>>>>>,
+}
+
+impl FromPopulation {
+    pub fn new(population: Vec<RoutingSolution>) -> Self {
+        Self {
+            population: Arc::new(Mutex::new(population.iter().map(|s| s.to_vec()).collect())),
+        }
+    }
+}
+
+impl Initialization for FromPopulation {
+    type Out = RoutingSolution;
+
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+        let mut population = self.population.lock().unwrap();
+        let solution = population.pop().expect("should not be empty");
+        drop(population);
+        RoutingSolution::new_with_model(problem, solution, quantities)
     }
 }
 
@@ -242,3 +279,5 @@ impl Initialization for GreedyWithBlinks {
         }
     }
 }
+
+pub struct StartPopulation {}

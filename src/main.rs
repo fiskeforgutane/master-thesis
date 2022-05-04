@@ -4,10 +4,12 @@ use float_ord::FloatOrd;
 
 use itertools::Itertools;
 use log::{info, LevelFilter};
+
 use rand;
 use serde::Serialize;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::sync::Mutex;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -24,6 +26,7 @@ pub mod utils;
 use crate::ga::{
     chromosome::InitRoutingSolution,
     fitness::{self},
+    initialization::{FromPopulation, Initialization},
     mutations::{
         rr, AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
         TimeSetter, Twerk, TwoOpt, TwoOptMode,
@@ -102,12 +105,13 @@ pub fn read_problem(path: &Path) -> Arc<Problem> {
     Arc::new(problem)
 }
 
-pub fn run_island_on(
+pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
     problem: Arc<Problem>,
     mut output: PathBuf,
     termination: Termination,
+    init: I,
     write: bool,
-) -> RoutingSolution {
+) -> (RoutingSolution, Vec<Vec<Vec<Vec<Visit>>>>) {
     let closure_problem = problem.clone();
     let fitness = fitness::Weighted {
         warp: 1e8,
@@ -169,7 +173,7 @@ pub fn run_island_on(
         fitness,
     };
 
-    let mut ga = ga::islands::IslandGA::new(InitRoutingSolution, config, CONF.threads);
+    let mut ga = ga::islands::IslandGA::new(init, config, CONF.threads);
     if write {
         output.push("config.json");
         let file = std::fs::File::create(&output).unwrap();
@@ -224,18 +228,24 @@ pub fn run_island_on(
         };
 
         if terminate {
-            return best;
+            return (best, ga.populations());
         }
 
         std::thread::sleep(std::time::Duration::from_millis(10_000));
     }
 }
 
-pub fn run_island_ga(path: &Path, output: PathBuf, termination: Termination, write: bool) {
+pub fn run_island_ga<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
+    path: &Path,
+    output: PathBuf,
+    termination: Termination,
+    init: I,
+    write: bool,
+) {
     let problem = read_problem(path);
 
     let start = std::time::Instant::now();
-    run_island_on(problem, output, termination, write);
+    run_island_on(problem, output, termination, init, write);
     let end = std::time::Instant::now();
 
     let mut file = OpenOptions::new()
@@ -247,7 +257,10 @@ pub fn run_island_ga(path: &Path, output: PathBuf, termination: Termination, wri
     writeln!(file, "{}: {} ms", path.display(), (end - start).as_millis());
 }
 
-pub fn run_unfixed_rolling_horizon(
+pub fn run_unfixed_rolling_horizon<
+    I: Initialization<Out = RoutingSolution> + Clone + Send + 'static,
+    Func,
+>(
     path: &Path,
     mut output: PathBuf,
     termination: Termination,
@@ -264,6 +277,8 @@ pub fn run_unfixed_rolling_horizon(
     let rh = RollingHorizon::new(main_problem);
 
     let mut period = 0..subproblem_size;
+    let mut init: Arc<Mutex<dyn Initialization<Out = RoutingSolution> + Send>> =
+        Arc::new(Mutex::new(InitRoutingSolution));
     let mut solutions = Vec::new();
     for i in 0..num_subproblems {
         println!("Solving subproblem in range: {:?}", period);
@@ -273,10 +288,22 @@ pub fn run_unfixed_rolling_horizon(
             .expect("Failed to create subproblem");
 
         let sub_problem = Arc::new(sub_problem);
+        let closure_problem = sub_problem.clone();
 
-        let best = run_island_on(sub_problem, output.clone(), termination.clone(), false);
-
+        let (best, pop) = run_island_on(
+            sub_problem,
+            output.clone(),
+            termination.clone(),
+            init,
+            false,
+        );
+        let a = pop
+            .into_iter()
+            .flatten()
+            .map(|routes| RoutingSolution::new(closure_problem.clone(), routes))
+            .collect();
         period = 0..(subproblem_size + (i + 1) * step_length).min(main_closure_problem.timesteps());
+        init = Arc::new(Mutex::new(FromPopulation::new(a)));
 
         solutions.push(best);
     }
@@ -360,7 +387,13 @@ pub fn run_rolling_horizon(
         let sub_problem = Arc::new(sub_problem);
         let closure_problem = sub_problem.clone();
 
-        let best = run_island_on(sub_problem, output.clone(), termination.clone(), false);
+        let (best, _) = run_island_on(
+            sub_problem,
+            output.clone(),
+            termination.clone(),
+            InitRoutingSolution,
+            false,
+        );
 
         origins = (0..closure_problem.vessels().len())
             .map(|v| best.next_position(v, step_length - 1).0)
