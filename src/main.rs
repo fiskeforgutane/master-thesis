@@ -97,7 +97,7 @@ impl Default for Config {
     }
 }
 
-pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination, conf: Config) {
+fn run_island_ga(path: &Path, mut output: PathBuf, mut termination: Termination, conf: Config) {
     let file = std::fs::File::open(path).unwrap();
     let reader = std::io::BufReader::new(file);
     let problem: Problem = serde_json::from_reader(reader).unwrap();
@@ -210,7 +210,7 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination,
         serde_json::to_writer(file, &visits).expect("writing failed");
 
         // Whether we should terminate now
-        if termination.should_terminate(epochs, &best) {
+        if termination.should_terminate(epochs, &best, fitness.of(&problem, &best)) {
             break;
         }
 
@@ -227,11 +227,14 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination,
     writeln!(file, "{}: {} ms", path.display(), (end - start).as_millis());
 }
 
+#[derive(Debug)]
 pub enum Termination {
     /// Terminate after a given number of epochs
     Epochs(u64),
     /// Terminate upon finding a solution with no violation
     NoViolation,
+    /// Terminate if there has been no improvement for the given amount of time
+    NoImprovement(std::time::Instant, std::time::Duration, f64),
     /// Maximum running time from `Instant`
     Timeout(std::time::Instant, std::time::Duration),
     /// Run forever
@@ -244,17 +247,33 @@ pub enum Termination {
 }
 
 impl Termination {
-    pub fn should_terminate(&self, epoch: u64, solution: &RoutingSolution) -> bool {
+    pub fn should_terminate(
+        &mut self,
+        epoch: u64,
+        solution: &RoutingSolution,
+        fitness: f64,
+    ) -> bool {
         match self {
             Termination::Timeout(from, duration) => (std::time::Instant::now() - *from) > *duration,
             Termination::Epochs(e) => *e > epoch,
             Termination::NoViolation => solution.warp() == 0 && solution.violation() < 1e-3,
             Termination::Never => false,
             Termination::Any(one, two) => {
-                one.should_terminate(epoch, solution) || two.should_terminate(epoch, solution)
+                one.should_terminate(epoch, solution, fitness)
+                    || two.should_terminate(epoch, solution, fitness)
             }
             Termination::All(one, two) => {
-                one.should_terminate(epoch, solution) && two.should_terminate(epoch, solution)
+                one.should_terminate(epoch, solution, fitness)
+                    && two.should_terminate(epoch, solution, fitness)
+            }
+            Termination::NoImprovement(last, duration, best) => {
+                // Replace best fitness and reset time of last improvement if the current solution is better than the incumbent.
+                if fitness < *best {
+                    *best = fitness;
+                    *last = std::time::Instant::now();
+                }
+
+                (std::time::Instant::now() - *last) > *duration
             }
         }
     }
@@ -271,6 +290,10 @@ struct Args {
     problem: PathBuf,
     /// What logging level to enable
     log: Option<String>,
+    /// The timeout used when the solution is stuck. The elapsed time will be reset each
+    /// time a better solution if found
+    #[clap(short, long, default_value_t = 3600)]
+    stuck_timeout: u64,
 }
 
 fn enable_logger(level: LevelFilter) {
@@ -326,6 +349,13 @@ pub fn main() {
     let directory = path.parent().unwrap();
     let timesteps = directory.file_stem().unwrap().to_str().unwrap();
 
+    // The termination criteria
+    let termination = Termination::NoImprovement(
+        std::time::Instant::now(),
+        std::time::Duration::from_secs(args.stuck_timeout),
+        std::f64::INFINITY,
+    );
+
     // The output directory is ./solutions/TIME/PROBLEM/,
     let mut out = std::env::current_dir().expect("unable to fetch current dir");
     out.push("solutions");
@@ -336,5 +366,5 @@ pub fn main() {
     std::fs::create_dir_all(&out).expect("failed to create out dir");
 
     // Run the GA.
-    run_island_ga(path, out, Termination::NoViolation, config);
+    run_island_ga(path, out, termination, config);
 }
