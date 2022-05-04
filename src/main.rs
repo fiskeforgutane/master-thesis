@@ -287,9 +287,15 @@ struct Args {
     /// Path to problem specification
     #[clap(short, long, parse(from_os_str), value_name = "FILE")]
     problem: PathBuf,
-    /// What logging level to enable
-    log: Option<String>,
-    /// The timeout used when the solution is stuck. The elapsed time will be reset each
+    /// What logging level to enable.
+    #[clap(
+        short,
+        long,
+        value_name = "off | trace | debug | info | warn | error",
+        default_value = "off"
+    )]
+    log: String,
+    /// The timeout used when the solution is stuck (in seconds). The elapsed time will be reset each
     /// time a better solution if found
     #[clap(short, long, default_value_t = 3600)]
     stuck_timeout: u64,
@@ -317,13 +323,13 @@ pub fn main() {
     let args = Args::parse();
 
     // Convert the log level to a LevelFilter
-    let level = match args.log.as_deref() {
-        Some("debug") => LevelFilter::Debug,
-        Some("trace") => LevelFilter::Trace,
-        Some("info") => LevelFilter::Info,
-        Some("warn") => LevelFilter::Warn,
-        Some("off") => LevelFilter::Off,
-        Some("error") => LevelFilter::Error,
+    let level = match args.log.as_str() {
+        "debug" => LevelFilter::Debug,
+        "trace" => LevelFilter::Trace,
+        "info" => LevelFilter::Info,
+        "warn" => LevelFilter::Warn,
+        "off" => LevelFilter::Off,
+        "error" => LevelFilter::Error,
         _ => LevelFilter::Off,
     };
 
