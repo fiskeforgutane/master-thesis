@@ -212,7 +212,7 @@ pub fn run_island_on(
             let file = std::fs::File::create(&output).unwrap();
             output.pop();
 
-            let visits: Vec<&[Visit]> = best.iter().map(|plan| &plan[..]).collect();
+            let visits = best.to_vec();
             serde_json::to_writer(file, &visits).expect("writing failed");
         }
 
@@ -254,10 +254,7 @@ pub fn run_rolling_horizon(
     subproblem_size: usize,
     step_length: usize,
 ) {
-    let file = std::fs::File::open(path).unwrap();
-    let reader = std::io::BufReader::new(file);
-    let main_problem: Problem = serde_json::from_reader(reader).unwrap();
-    let main_problem = Arc::new(main_problem);
+    let main_problem = read_problem(path);
     let main_closure_problem = main_problem.clone();
 
     let num_subproblems = f64::ceil(
@@ -322,8 +319,8 @@ pub fn run_rolling_horizon(
         initial_inventory = (0..closure_problem.nodes().len())
             .map(|n| best.inventory_at(n, step_length))
             .collect();
-        period =
-            (i + 1) * step_length..(subproblem_size + (i+1)*step_length).min(main_closure_problem.timesteps());
+        period = (i + 1) * step_length
+            ..(subproblem_size + (i + 1) * step_length).min(main_closure_problem.timesteps());
 
         solutions.push(best);
     }
@@ -399,6 +396,6 @@ pub fn main() {
     std::fs::create_dir_all(&out).expect("failed to create out dir");
 
     // Run the GA.
-    run_rolling_horizon(path, out, Termination::NoViolation, 30,5);
+    run_rolling_horizon(path, out, Termination::NoViolation, 30, 5);
     //run_island_ga(path, out, Termination::NoViolation, true);
 }
