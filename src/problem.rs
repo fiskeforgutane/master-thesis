@@ -511,8 +511,10 @@ pub struct Node {
     port_fee: Cost,
     /// The maximum inventory capacity of the farm
     capacity: FixedInventory,
+    #[pyo3(get)]
     /// The maximum amount that can be bought/sold in the spot market in a single timestep
     spot_market_limit_per_time: f64,
+    #[pyo3(get)]
     /// The maximum amount that can be bought/sold in the spot market over the course of the planning period
     spot_market_limit: f64,
     /// The change in inventory during each time step.
