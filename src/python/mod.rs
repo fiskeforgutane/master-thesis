@@ -1,7 +1,6 @@
 pub mod distributed;
 pub mod ga;
 
-use crate::ga::chromosome::Chromosome;
 use crate::ga::mutations::SwapStar;
 use crate::models::quantity::F64Variables;
 use crate::models::quantity::QuantityLp;
@@ -251,22 +250,6 @@ impl Compartment {
     }
 }
 
-#[pymethods]
-impl Chromosome {
-    #[new]
-    pub fn new_py(problem: &Problem) -> PyResult<Chromosome> {
-        Chromosome::new(problem).map_err(pyerr)
-    }
-
-    pub fn __str__(&self) -> String {
-        format!("{:#?}", self)
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.__str__()
-    }
-}
-
 pub fn pyerr<D: Debug>(err: D) -> PyErr {
     PyErr::new::<PyValueError, _>(format!("{:?}", err))
 }
@@ -322,11 +305,6 @@ impl Visit {
     pub fn __repr__(&self) -> String {
         self.__str__()
     }
-}
-
-#[pyfunction]
-pub fn chromosome(problem: &Problem) -> PyResult<Chromosome> {
-    Chromosome::new(problem).map_err(pyerr)
 }
 
 #[pyfunction]

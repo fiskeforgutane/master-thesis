@@ -1,4 +1,3 @@
-pub mod destroy_and_repair;
 pub mod ga;
 pub mod models;
 pub mod problem;
@@ -11,7 +10,6 @@ pub mod utils;
 use crate::python::ga::*;
 use crate::python::*;
 use ga::{
-    chromosome::Chromosome,
     fitness::Weighted,
     mutations::{BounceMode, DistanceReductionMode},
 };
@@ -122,7 +120,6 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Delivery>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
-    m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
     m.add_class::<ObjectiveTerms>()?;

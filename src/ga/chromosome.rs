@@ -15,23 +15,6 @@ use crate::{
 
 use super::initialization::Initialization;
 
-#[pyclass]
-#[derive(Debug, Clone)]
-pub struct Chromosome {
-    /// The population consists of a set of chromosomes (to be implemented)
-    chromosome: Vec<Vec<Visit>>,
-}
-
-pub struct Init;
-
-impl Initialization for Init {
-    type Out = Chromosome;
-
-    fn new(&self, problem: Arc<Problem>, _: Rc<RefCell<QuantityLp>>) -> Self::Out {
-        Chromosome::new(&problem).unwrap()
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct InitRoutingSolution;
 
@@ -39,13 +22,13 @@ impl Initialization for InitRoutingSolution {
     type Out = RoutingSolution;
 
     fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
-        let routes = Chromosome::new(&problem).unwrap().chromosome;
+        let routes = Self::routes(&problem).unwrap();
         RoutingSolution::new_with_model(problem, routes, quantities)
     }
 }
 
-impl Chromosome {
-    pub fn new(problem: &Problem) -> Result<Chromosome, Box<dyn std::error::Error>> {
+impl InitRoutingSolution {
+    pub fn routes(problem: &Problem) -> Result<Vec<Vec<Visit>>, Box<dyn std::error::Error>> {
         // Generate the initiale orders using the transportation model and sort by closing time
         let mut initial_orders: Vec<Order> = quants::initial_orders(problem)?;
         initial_orders.sort_by_key(|o| o.close());
@@ -131,10 +114,6 @@ impl Chromosome {
                 }
             }
         }
-        Ok(Self { chromosome })
-    }
-
-    pub fn get_chromosome(&self) -> &Vec<Vec<Visit>> {
-        &self.chromosome
+        Ok(chromosome)
     }
 }
