@@ -120,12 +120,12 @@ impl Sets {
             Nst.len(),
             NetworkNodeType::Sink,
         ));
-        let A = Sets::get_all_arcs(&N);
+        let A = Sets::get_all_arcs(&Nst);
         let Av = Sets::get_arcs(problem, &A);
-        let Fs = iproduct!(problem.vessels(), &N)
+        let Fs = iproduct!(problem.vessels(), &Nst)
             .map(|(v, n)| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n))
             .collect::<Vec<_>>();
-        let Rs = iproduct!(problem.vessels(), &N)
+        let Rs = iproduct!(problem.vessels(), &Nst)
             .map(|(v, n)| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &A, &n))
             .collect::<Vec<_>>();
 
@@ -200,8 +200,7 @@ impl Sets {
                         problem.travel_time(a.get_from().port(), a.get_to().port(), vessel)
                     }
                     ArcType::WaitingArc => 1,
-                    ArcType::EnteringArc => a.get_time(),
-                    _ => 0,
+                    _ => a.get_time(),
                 };
                 let origin = vessel.origin();
 
