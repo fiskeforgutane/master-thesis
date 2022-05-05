@@ -267,7 +267,7 @@ impl ExactModelSolver {
     pub fn build_and_write(problem: &Problem, path: &str) -> grb::Result<()> {
         let sets = Sets::new(problem);
         let parameters = Parameters::new(problem);
-        let (model, variables) = ExactModelSolver::build(&sets, &parameters)?;
+        let (model, _) = ExactModelSolver::build(&sets, &parameters)?;
         model.write(path)?;
         Ok(())
     }

@@ -14,7 +14,7 @@ use ga::{
     fitness::Weighted,
     mutations::{BounceMode, DistanceReductionMode},
 };
-use models::quantity::F64Variables;
+use models::{exact_model::model::ExactModelSolver, quantity::F64Variables};
 
 use problem::Compartment;
 
@@ -39,6 +39,11 @@ pub fn test_logging() {
     log::debug!("This is a debug message");
     log::trace!("This is a trace message");
     log::info!("Is trace enabled: {}", log::log_enabled!(log::Level::Trace));
+}
+
+#[pyfunction]
+pub fn write_exact(problem: Problem, path: &str) -> PyResult<()> {
+    ExactModelSolver::build_and_write(&problem, path).map_err(pyerr)
 }
 
 /// A submodule for the GA
