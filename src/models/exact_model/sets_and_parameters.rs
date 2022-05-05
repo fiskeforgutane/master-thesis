@@ -201,23 +201,34 @@ impl Sets {
         all_arcs: &Vec<Arc>,
         vessel: &Vessel,
     ) -> Vec<ArcIndex> {
+        let check_available = |arc: &Arc| arc.get_from().time() >= vessel.available_from();
+        let check_travel_time = |arc: &Arc| match arc.get_kind() {
+            ArcType::TravelArc => {
+                arc.get_time()
+                    == problem.travel_time(arc.get_from().port(), arc.get_to().port(), vessel)
+            }
+            ArcType::WaitingArc => {
+                arc.get_time()
+                    == problem.travel_time(arc.get_from().port(), arc.get_to().port(), vessel)+1
+            }
+            _ => true,
+        };
+        let check_to_origin = |arc: &Arc| arc.get_to().port() == vessel.origin() && arc.get_to().time() >= vessel.available_from();
+        // let check_leaving = |arc: &Arc| arc.get_from().index() != vessel.origin() && arc.get_from().time() == vessel.available_from();
+
+
         let vessel_arcs: Vec<ArcIndex> = all_arcs
             .into_iter()
             .filter(|a| {
-                let available_from = vessel.available_from();
-                let travel_time: usize = match a.get_kind() {
+                match a.get_kind() {
                     ArcType::TravelArc => {
-                        problem.travel_time(a.get_from().port(), a.get_to().port(), vessel)
-                    }
-                    ArcType::WaitingArc => 1,
-                    _ => a.get_time(),
-                };
-                let origin = vessel.origin();
-
-                (a.get_from().time() < available_from)
-                    && ((a.get_kind() == ArcType::TravelArc)
-                        && ((travel_time != a.get_time()) || (travel_time == usize::MAX)))
-                    && ((a.get_kind() == ArcType::EnteringArc) && (a.get_to().index() != origin))
+                        check_available(a) && check_travel_time(a)
+                    },
+                    ArcType::WaitingArc => check_available(a) && check_travel_time(a),
+                    ArcType::EnteringArc => check_to_origin(a),
+                    ArcType::LeavingArc => check_available(a),
+                    ArcType::NotUsedArc => true,
+                }
             })
             .map(|a| a.get_index())
             .collect::<Vec<_>>();
@@ -244,7 +255,7 @@ impl Sets {
     ) -> Vec<ArcIndex> {
         vessel_arcs
             .iter()
-            .filter(|a| all_arcs[**a].get_from() == *node)
+            .filter(|a| all_arcs[**a].get_from().index() == node.index())
             .map(|a| *a)
             .collect::<Vec<_>>()
     }

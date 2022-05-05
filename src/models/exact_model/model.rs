@@ -29,8 +29,9 @@ impl ExactModelSolver {
         let nodes = sets.Nst.len();
         let timesteps = sets.T.len();
 
-        println!("Arcs: {:?}", sets.A);
-
+        for v in sets.V.iter() {
+            println!("Vessel: {} Number of arcs: {}", v, sets.Av.len());
+        }
         // 1 if the vessel traverses the arc, 0 otherwise
         let x: Vec<Vec<Var>> = (arcs, vessels).binary(&mut model, &"x")?;
         // 1 if the vessel is able to unload at the node, 0 otherwise
@@ -56,7 +57,7 @@ impl ExactModelSolver {
         for (n, v) in iproduct!(&sets.Nst, &sets.V) {
             let lhs = sets.Fs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
                 - sets.Rs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
-                
+
             let rhs = match n.kind() {
                 NetworkNodeType::Source => 1,
                 NetworkNodeType::Sink => -1,
@@ -259,7 +260,6 @@ impl ExactModelSolver {
         let parameters = Parameters::new(problem, &sets);
         let (m, variables) = ExactModelSolver::build(&sets, &parameters)?;
         let mut model = m;
-        println!("Timesteps: {} Ports: {}", sets.T.len(), sets.I.len());
 
         model.optimize()?;
 
