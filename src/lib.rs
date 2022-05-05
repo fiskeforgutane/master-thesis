@@ -1,16 +1,15 @@
-pub mod destroy_and_repair;
 pub mod ga;
 pub mod models;
 pub mod problem;
 pub mod python;
 pub mod quants;
+pub mod rolling_horizon;
 pub mod solution;
 pub mod utils;
 
 use crate::python::ga::*;
 use crate::python::*;
 use ga::{
-    chromosome::Chromosome,
     fitness::Weighted,
     mutations::{BounceMode, DistanceReductionMode},
 };
@@ -27,8 +26,9 @@ use pyo3::prelude::*;
 use pyo3::wrap_pymodule;
 use pyo3_log;
 use pyo3_log::Logger;
+use python::distributed::ComputeNode;
 use quants::Order;
-use solution::{Delivery, Evaluation, Visit};
+use solution::Visit;
 
 #[pyfunction]
 pub fn test_logging() {
@@ -57,6 +57,8 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(remove_random, m)?)?;
     m.add_function(wrap_pyfunction!(add_smart, m)?)?;
     m.add_function(wrap_pyfunction!(time_setter, m)?)?;
+    m.add_function(wrap_pyfunction!(python::ga::swap_star, m)?)?;
+    m.add_function(wrap_pyfunction!(write_model, m)?)?;
 
     // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;
@@ -85,6 +87,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyElite>()?;
     m.add_class::<Weighted>()?;
     m.add_class::<PyGA>()?;
+    m.add_class::<ComputeNode>()?;
 
     Ok(())
 }
@@ -105,19 +108,18 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(initial_orders, m)?)?;
     m.add_function(wrap_pyfunction!(initial_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(solve_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(objective_terms, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
+    m.add_function(wrap_pyfunction!(python::swap_star_test, m)?)?;
     m.add_class::<Problem>()?;
-    m.add_class::<Solution>()?;
     m.add_class::<Vessel>()?;
     m.add_class::<Node>()?;
     m.add_class::<NodeType>()?;
     m.add_class::<Compartment>()?;
-    m.add_class::<Delivery>()?;
-    m.add_class::<Evaluation>()?;
     m.add_class::<Order>()?;
-    m.add_class::<Chromosome>()?;
     m.add_class::<Visit>()?;
     m.add_class::<F64Variables>()?;
+    m.add_class::<ObjectiveTerms>()?;
 
     Ok(())
 }

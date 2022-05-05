@@ -1,4 +1,6 @@
-use grb::{c, expr::GurobiSum, Model, Var};
+pub mod sparse;
+
+use grb::{add_ctsvar, c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
 
@@ -18,6 +20,10 @@ pub struct Variables {
     pub b: Vec<Vec<Vec<Var>>>,
     pub a: Vec<Vec<Vec<Var>>>,
     pub cap_violation: Vec<Vec<Var>>,
+    pub violation: Var,
+    pub spot: Var,
+    pub revenue: Var,
+    pub timing: Var,
 }
 
 #[pyclass]
@@ -30,6 +36,16 @@ pub struct F64Variables {
     pub s: Vec<Vec<Vec<f64>>>,
     #[pyo3(get)]
     pub l: Vec<Vec<Vec<f64>>>,
+    #[pyo3(get)]
+    pub revenue: f64,
+    #[pyo3(get)]
+    pub spot: f64,
+    #[pyo3(get)]
+    pub violation: f64,
+    #[pyo3(get)]
+    pub timing: f64,
+    #[pyo3(get)]
+    pub a: Vec<Vec<Vec<f64>>>,
 }
 
 pub struct QuantityLp {
@@ -296,6 +312,11 @@ impl QuantityLp {
         let a = (t, n, p).cont(&mut model, "a")?;
         let cap_violation = (t, v).cont(&mut model, "cap_violation")?;
 
+        let revenue = add_ctsvar!(model, name: "revenue", bounds: 0.0..)?;
+        let timing = add_ctsvar!(model, name: "timinig", bounds: 0.0..)?;
+        let spot = add_ctsvar!(model, name: "spot", bounds: 0.0..)?;
+        let violation = add_ctsvar!(model, name: "violation", bounds: 0.0..)?;
+
         // Add constraints for node inventory, vessel load, and loading/unloading rate
         QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, &a, t, n, v, p)?;
         QuantityLp::load_constraints(&mut model, problem, &l, &x, t, n, v, p)?;
@@ -307,22 +328,29 @@ impl QuantityLp {
         // This should probably be taken from the problem instance
         let discount: f64 = 0.999;
 
-        let violation = w.iter().flatten().flatten().grb_sum();
+        let violation_expr = w.iter().flatten().flatten().grb_sum();
         // We discount later uses of the spot market; effectively making it desirable to perform spot operations as late as possible
-        let spot = iproduct!(0..t, 0..n, 0..p)
+        let spot_expr = iproduct!(0..t, 0..n, 0..p)
             .map(|(t, n, p)| a[t][n][p] * discount.powi(t as i32))
             .grb_sum();
 
         // We use an increasing weight to prefer early deliveries.
         // The purpose of this is to "avoid" many small deliveries versus one larger one, even though it
         // doesn't really matter for the solution itself.
-        let revenue = iproduct!(0..t, 0..n, 0..v, 0..p)
-            .map(|(t, n, v, p)| {
-                problem.nodes()[n].revenue() * x[t][n][v][p] * discount.recip().powi(t as i32)
-            })
+        let revenue_expr = iproduct!(0..t, 0..n, 0..v, 0..p)
+            .map(|(t, n, v, p)| problem.nodes()[n].revenue() * x[t][n][v][p])
             .grb_sum();
 
-        let obj = violation + 0.5 * spot - 1e-6 * revenue;
+        let timing_expr = iproduct!(0..t, 0..n, 0..v, 0..p)
+            .map(|(t, n, v, p)| x[t][n][v][p] * t as i32)
+            .grb_sum();
+
+        model.add_constr("spot", c!(spot == spot_expr))?;
+        model.add_constr("revenue", c!(revenue == revenue_expr))?;
+        model.add_constr("violation", c!(violation == violation_expr))?;
+        model.add_constr("timing", c!(timing == timing_expr))?;
+
+        let obj = violation + 0.5 * spot - 1e-6 * revenue + 1e-12 * timing;
         model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
@@ -335,6 +363,10 @@ impl QuantityLp {
                 b,
                 a,
                 cap_violation,
+                violation,
+                spot,
+                revenue,
+                timing,
             },
             semicont: false,
             berth: false,
@@ -437,7 +469,7 @@ impl QuantityLp {
             Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
         )?;
 
-        let vtype = match self.semicont {
+        let vtype = match self.berth {
             true => grb::VarType::Binary,
             false => grb::VarType::Continuous,
         };
@@ -546,8 +578,23 @@ impl QuantityLp {
         let s = self.vars.s.convert(&self.model)?;
         let l = self.vars.l.convert(&self.model)?;
         let w = self.vars.w.convert(&self.model)?;
+        let revenue = self.vars.revenue.convert(&self.model)?;
+        let violation = self.vars.violation.convert(&self.model)?;
+        let timing = self.vars.timing.convert(&self.model)?;
+        let spot = self.vars.spot.convert(&self.model)?;
+        let a = self.vars.a.convert(&self.model)?;
 
-        let v = F64Variables { w, x, s, l };
+        let v = F64Variables {
+            w,
+            x,
+            s,
+            l,
+            revenue,
+            spot,
+            violation,
+            timing,
+            a,
+        };
         Ok(v)
     }
 
@@ -605,4 +652,13 @@ impl QuantityLp {
 
         Ok(())
     }
+}
+
+/// Struct to hold the solution variables and objective terms
+pub struct Solution<'a> {
+    pub vars: &'a Variables,
+    pub revenue: f64,
+    pub spot: f64,
+    pub timing: f64,
+    pub violation: f64,
 }

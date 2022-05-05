@@ -25,6 +25,8 @@ pub struct Sets {
 }
 
 /// parameters for the transportation model
+
+#[derive(Debug)]
 #[allow(non_snake_case)]
 pub struct Parameters {
     /// 1 if node i is a producer, -1 if node i is a consumer
@@ -77,13 +79,14 @@ impl Sets {
             .unwrap();
 
         trace!("Speed of slowest vessel: {:?}", slowest_vessel.speed());
-        for node in problem.consumption_nodes() {
+        for n in problem.consumption_nodes() {
+            let node = &problem.nodes()[*n];
             trace!("\nnode: {:?}", node.index());
             let closest_prod = problem.closest_production_node(node);
             trace!("closest prod: {:?}", closest_prod.index());
             // time to load - sail - unload - sail back to depot
             let round_trip_time =
-                2 + 2 * problem.travel_time(closest_prod.index(), node.index(), slowest_vessel);
+                2 * problem.travel_time(closest_prod.index(), node.index(), slowest_vessel);
             trace!("rtt: {:?}", round_trip_time);
             trace!("num timesteps {:?}", problem.timesteps());
             let num_trips = (problem.timesteps() as f64 / round_trip_time as f64).floor() as usize;
@@ -109,11 +112,11 @@ impl Parameters {
                 crate::problem::NodeType::Production => 1,
             })
             .collect();
-        let smallest_vessel = problem
+        let largest_vessel = problem
             .vessels()
             .iter()
             .map(|v| v.compartments().iter().map(|c| c.0).sum())
-            .reduce(f64::min)
+            .reduce(f64::max)
             .unwrap();
         let lower_Q = sets
             .P
@@ -145,7 +148,7 @@ impl Parameters {
                             .iter()
                             .map(|j| {
                                 f64::min(
-                                    smallest_vessel,
+                                    largest_vessel,
                                     f64::min(i.capacity()[*p], j.capacity()[*p]),
                                 )
                             })

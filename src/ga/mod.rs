@@ -61,6 +61,43 @@ where
     S: SurvivalSelection,
     F: Fitness,
 {
+    pub fn new_with_population(
+        config: Config<PS, R, M, S, F>,
+        population: Vec<RoutingSolution>,
+    ) -> Self {
+        trace!("Initializing ga with population");
+        // Gurobi doesn't seem to like having many models, so we will
+        let quantities = Rc::new(RefCell::new(
+            QuantityLp::new(&config.problem).expect("LP construction failed"),
+        ));
+        GeneticAlgorithm::check_population(&population, &config);
+        // It doesn't matter what solution we use for `child_population` and `next_population`
+        let dummy = population.first().unwrap().clone();
+
+        GeneticAlgorithm {
+            population,
+            child_population: vec![dummy.clone(); config.child_count],
+            next_population: vec![dummy; config.population_size],
+            config,
+            quantities,
+        }
+    }
+
+    pub fn check_population(population: &Vec<RoutingSolution>, config: &Config<PS, R, M, S, F>) {
+        // We need a strictly positive population size for this to make sense
+        assert!(config.population_size > 0);
+        // We also need to generate `at least` as many children as there are parents, since we'll swapping the populations
+        assert!(config.child_count >= config.population_size);
+        // Check validity that each initial individual has the correct number of vehicles
+        assert!(population
+            .iter()
+            .all(|x| x.len() == config.problem.vessels().len()));
+        // Check that all individuals point to the exact same `problem`
+        assert!(population
+            .iter()
+            .all(|x| std::ptr::eq(x.problem(), &*config.problem)));
+    }
+
     /// Constructs a new GeneticAlgorithm with the given configuration.
     pub fn new<I>(initialization: I, config: Config<PS, R, M, S, F>) -> Self
     where
@@ -76,18 +113,8 @@ where
             .map(|_| initialization.new(config.problem.clone(), quantities.clone()))
             .collect::<Vec<_>>();
 
-        // We need a strictly positive population size for this to make sense
-        assert!(config.population_size > 0);
-        // We also need to generate `at least` as many children as there are parents, since we'll swapping the populations
-        assert!(config.child_count >= config.population_size);
-        // Check validity that each initial individual has the correct number of vehicles
-        assert!(population
-            .iter()
-            .all(|x| x.len() == config.problem.vessels().len()));
-        // Check that all individuals point to the exact same `problem`
-        assert!(population
-            .iter()
-            .all(|x| std::ptr::eq(x.problem(), &*config.problem)));
+        GeneticAlgorithm::check_population(&population, &config);
+
         // It doesn't matter what solution we use for `child_population` and `next_population`
         let dummy = population.first().unwrap().clone();
 

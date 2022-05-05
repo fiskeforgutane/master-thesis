@@ -12,6 +12,7 @@ use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
 use crate::ga::mutations::RemoveRandom;
+use crate::ga::mutations::SwapStar;
 use crate::ga::mutations::TimeSetter;
 use crate::ga::mutations::Twerk;
 use crate::ga::mutations::TwoOpt;
@@ -34,8 +35,6 @@ use crate::ga::survival_selection::Elite;
 use crate::models::quantity::F64Variables;
 use crate::models::utils::ConvertVars;
 use crate::problem::Problem;
-use crate::python::Solution;
-use crate::solution::Delivery;
 use crate::solution::Visit;
 use log::trace;
 use pyo3::prelude::*;
@@ -53,27 +52,6 @@ pub struct PyMut {
 impl Mutation for PyMut {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
         self.inner.lock().unwrap().apply(problem, solution)
-    }
-}
-
-#[pymethods]
-impl PyMut {
-    pub fn py_apply(&self, problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<Solution> {
-        let arc = Arc::new(problem);
-        let mut solution = RoutingSolution::new(arc.clone(), routes);
-        self.inner
-            .lock()
-            .unwrap()
-            .apply(&arc.clone(), &mut solution);
-        let deliveries = solution
-            .iter()
-            .map(|r| {
-                r.iter()
-                    .map(|visit| Delivery::new(visit.node, 0, visit.time, 0.0))
-                    .collect()
-            })
-            .collect();
-        Ok(Solution::new(deliveries))
     }
 }
 
@@ -197,6 +175,13 @@ pub fn time_setter(delay: f64) -> PyMut {
 pub fn add_smart() -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(AddSmart {})),
+    }
+}
+
+#[pyfunction]
+pub fn swap_star() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(SwapStar {})),
     }
 }
 
@@ -333,12 +318,13 @@ impl SurvivalSelection for PyElite {
 }
 
 #[pyfunction]
-pub fn weighted(warp: f64, violation: f64, revenue: f64, cost: f64) -> Weighted {
+pub fn weighted(warp: f64, violation: f64, revenue: f64, cost: f64, berth: f64) -> Weighted {
     Weighted {
         warp,
         violation,
         revenue,
         cost,
+        approx_berth_violation: berth,
     }
 }
 
@@ -401,8 +387,23 @@ impl PyGA {
                 let s = lp.vars.s.convert(&lp.model).unwrap();
                 let l = lp.vars.l.convert(&lp.model).unwrap();
                 let w = lp.vars.w.convert(&lp.model).unwrap();
+                let revenue = lp.vars.revenue.convert(&lp.model).unwrap();
+                let spot = lp.vars.spot.convert(&lp.model).unwrap();
+                let violation = lp.vars.violation.convert(&lp.model).unwrap();
+                let timing = lp.vars.timing.convert(&lp.model).unwrap();
+                let a = lp.vars.a.convert(&lp.model).unwrap();
 
-                let v = F64Variables { w, x, s, l };
+                let v = F64Variables {
+                    w,
+                    x,
+                    s,
+                    l,
+                    revenue,
+                    spot,
+                    violation,
+                    timing,
+                    a,
+                };
 
                 let obj = (
                     solution.warp() as f64,
