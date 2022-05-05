@@ -122,6 +122,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         violation: 1e4,
         revenue: -1.0,
         cost: 1.0,
+        approx_berth_violation: 1e8,
     };
 
     let config = move || ga::Config {

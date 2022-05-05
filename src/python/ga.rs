@@ -318,12 +318,13 @@ impl SurvivalSelection for PyElite {
 }
 
 #[pyfunction]
-pub fn weighted(warp: f64, violation: f64, revenue: f64, cost: f64) -> Weighted {
+pub fn weighted(warp: f64, violation: f64, revenue: f64, cost: f64, berth: f64) -> Weighted {
     Weighted {
         warp,
         violation,
         revenue,
         cost,
+        approx_berth_violation: berth,
     }
 }
 
