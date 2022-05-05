@@ -1,5 +1,5 @@
 use crate::models::exact_model::sets_and_parameters::NetworkNodeType;
-use crate::models::utils::{AddVars};
+use crate::models::utils::{AddVars, ConvertVars};
 use grb::prelude::*;
 use itertools::iproduct;
 use log::info;
@@ -225,7 +225,43 @@ impl ExactModelSolver {
 
         Ok((model, Variables::new(x, z, q, a, s_port, s_vessel)))
     }
+    
+    pub fn solve(
+        sets: &Sets,
+        parameters: &Parameters,
+    ) -> Result<ExactModelResults, grb::Error>{
+        let (m, variables) = ExactModelSolver::build(sets, parameters)?;
+        let mut model = m;
+
+        model.optimize()?;
+
+        ExactModelResults::new(&variables, &model)
+    }
 }
+
+pub struct ExactModelResults {
+    x: Vec<Vec<f64>>,
+    z: Vec<Vec<f64>>,
+    q: Vec<Vec<Vec<Vec<f64>>>>,
+    a: Vec<Vec<Vec<f64>>>,
+    s_port: Vec<Vec<Vec<f64>>>,
+    s_vessel: Vec<Vec<Vec<f64>>>,
+}
+
+impl ExactModelResults {
+    pub fn new(variables: &Variables, model: &Model) -> Result<ExactModelResults, grb::Error> {
+        let x = variables.x.convert(model)?;
+        let z = variables.z.convert(model)?;
+        let q = variables.q.convert(model)?;
+        let a = variables.a.convert(model)?;
+        let s_port = variables.s_port.convert(model)?;
+        let s_vessel = variables.s_vessel.convert(model)?;
+
+        Ok(ExactModelResults {x, z, q, a, s_port, s_vessel} )
+    }
+}
+
+
 
 pub struct Variables {
     x: Vec<Vec<Var>>,

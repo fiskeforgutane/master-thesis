@@ -128,6 +128,7 @@ impl Sets {
                         all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
                     }
                 }
+                // As the source node has time = 0 and the sink node has time = n timesteps, we want to accept these as well
                 else {
                     if (n_1.get_kind() == NetworkNodeType::Source) || (n_2.get_kind() == NetworkNodeType::Sink) {
                         all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
