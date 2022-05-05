@@ -1,4 +1,4 @@
-use crate::models::exact_model::sets_and_parameters::NetworkNodeType;
+use crate::models::exact_model::sets_and_parameters::{NetworkNodeType, NetworkNode};
 use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::Problem;
 use grb::prelude::*;
@@ -25,7 +25,8 @@ impl ExactModelSolver {
         let arcs = sets.A.len();
         let products = sets.P.len();
         let ports = sets.I.len();
-        let nodes = sets.N.len();
+        let normal_nodes = sets.N.len();
+        let nodes = sets.Nst.len();
         let timesteps = sets.T.len();
 
         // 1 if the vessel traverses the arc, 0 otherwise
@@ -50,7 +51,7 @@ impl ExactModelSolver {
 
         // ensure that the all "normal" nodes have as many arcs entering as those leaving
         // and that the source just has one leaving, and that the sink has one entering
-        for (n, v) in iproduct!(&sets.N, &sets.V) {
+        for (n, v) in iproduct!(&sets.Nst, &sets.V) {
             let lhs = sets.Fs[n.get_index()].iter().map(|a| &x[*a][*v]).grb_sum()
                 - sets.Rs[n.get_index()].iter().map(|a| &x[*a][*v]).grb_sum();
             let rhs: isize;
@@ -66,7 +67,8 @@ impl ExactModelSolver {
 
         // port storage balance
         for n in &sets.N {
-            if n.get_time() == 0 {
+            if (n.get_time() == 0) {
+                println!("Node type: {:?} Index: {}", n.get_kind(), n.get_index());
                 continue;
             }
             for p in &sets.P {
@@ -234,8 +236,10 @@ impl ExactModelSolver {
             .grb_sum();
 
         let spot_market_cost = iproduct!(&sets.I, &sets.T, &sets.P)
-            .map(|(i, t, p)| parameters.spot_market_cost[*t] * a[*i][*t][*p])
-            .grb_sum();
+            .map(|(i, t, p)| 
+                parameters.spot_market_cost[*i] * 
+                a[*i][*t][*p]
+            ).grb_sum();
 
         let delay_cost = iproduct!(&sets.N, &sets.V)
             .map(|(i, v)| (i.get_time() as f64) * parameters.epsilon * z[i.get_index()][*v])

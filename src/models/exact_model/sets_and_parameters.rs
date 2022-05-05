@@ -27,8 +27,10 @@ pub struct Sets {
     pub P: Vec<ProductIndex>,
     /// Set of compartments on the vessels
     pub S: Vec<Vec<CompartmentIndex>>,
-    /// Set of nodes including source and sink
+    /// Set of nodes excluding source and sink
     pub N: Vec<NetworkNode>,
+    /// Set of nodes including source and sink
+    pub Nst: Vec<NetworkNode>,
     /// Set of all arcs
     pub A: Vec<Arc>,
     /// Set of all arcs associated with a particular vessel
@@ -45,7 +47,7 @@ pub struct Parameters {
     pub vessel_capacity: Vec<f64>,
     /// Initial inventory of product p in vessel v
     pub initial_inventory: Vec<Vec<f64>>,
-    /// The cost of traversing an arc with a particular full vessel
+    /// The cost of traversing an arc with a particular vessel
     pub travel_cost: Vec<Vec<Vec<f64>>>,
     /// The unit cost of buying a product from the spot marked in a time period
     pub spot_market_cost: Vec<f64>,
@@ -81,9 +83,9 @@ pub struct Parameters {
 #[allow(non_snake_case)]
 impl Sets {
     pub fn new(problem: &Problem) -> Sets {
-        let I = problem.nodes().iter().map(|i| i.index()).collect();
-        let Ip = problem.production_nodes().iter().map(|i| (i.index() as isize).try_into().unwrap()).collect();
-        let Ic = problem.consumption_nodes().iter().map(|i| (i.index() as isize).try_into().unwrap()).collect();
+        let I: Vec<usize> = problem.nodes().iter().map(|i| i.index()).collect();
+        let Ip = problem.production_nodes().iter().map(|i| i.index()).collect();
+        let Ic = problem.consumption_nodes().iter().map(|i| i.index()).collect();
         let V = problem.vessels().iter().map(|v| v.index()).collect();
         let T = (0..problem.timesteps()).collect();
         let P = (0..problem.products()).collect();
@@ -92,12 +94,13 @@ impl Sets {
             .iter()
             .map(|v| (0..v.compartments().len()).collect())
             .collect();
-        let mut N: Vec<NetworkNode> = iproduct!(0..(problem.nodes().len()), 0..problem.timesteps()).enumerate().map(
+        let N: Vec<NetworkNode> = iproduct!(0..(problem.nodes().len()), 0..problem.timesteps()).enumerate().map(
             |(index, (i, t))| NetworkNode::new(i, t, index, NetworkNodeType::Normal)
         ).collect();
         // Add sink and source to the set of all nodes
-        N.push(NetworkNode::new(N.len(), 0, N.len(), NetworkNodeType::Source));
-        N.push(NetworkNode::new(N.len(), problem.timesteps(), N.len(), NetworkNodeType::Sink));
+        let mut Nst = N.clone();
+        Nst.push(NetworkNode::new(I.len()+1, 0, N.len(), NetworkNodeType::Source));
+        Nst.push(NetworkNode::new(I.len()+2, problem.timesteps(), N.len(), NetworkNodeType::Sink));
         let A = Sets::get_all_arcs(&N);
         let Av = Sets::get_arcs(problem, &A);
         let Fs = iproduct!(problem.vessels(), &N)
@@ -109,7 +112,7 @@ impl Sets {
                 |(v, n)| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &A, &n)
             ).collect::<Vec<_>>();
 
-        Sets { I, Ip, Ic, V, T, P, S, N, A, Av, Fs, Rs }
+        Sets { I, Ip, Ic, V, T, P, S, N, Nst, A, Av, Fs, Rs }
     }
 
     pub fn get_all_arcs(nodes: &Vec<NetworkNode>) -> Vec<Arc> {
@@ -130,7 +133,7 @@ impl Sets {
                 }
                 // As the source node has time = 0 and the sink node has time = n timesteps, we want to accept these as well
                 else {
-                    if (n_1.get_kind() == NetworkNodeType::Source) || (n_2.get_kind() == NetworkNodeType::Sink) {
+                    if ((n_1.get_kind() == NetworkNodeType::Source) && (n_2.get_kind() != NetworkNodeType::Source)) || ((n_2.get_kind() == NetworkNodeType::Sink) && (n_1.get_kind() != NetworkNodeType::Sink)) {
                         all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
                     }
                 }
@@ -158,7 +161,12 @@ impl Sets {
             .filter(
                 |a| {
                     let available_from = vessel.available_from();
-                    let travel_time = problem.travel_time(a.get_from().get_port() as usize, a.get_to().get_port() as usize, vessel);
+                    let travel_time: usize = match a.get_kind() {
+                        ArcType::TravelArc => problem.travel_time(a.get_from().get_port(), a.get_to().get_port(), vessel),
+                        ArcType::WaitingArc => 1,
+                        ArcType::EnteringArc => a.get_time(),
+                        _ => 0,
+                    };
                     let origin = vessel.origin();
 
                     // Remove all arcs that occurs before the vessel becomes available
@@ -254,9 +262,15 @@ impl Parameters {
             ).collect::<Vec<_>>()
         ).collect::<Vec<_>>();
         let consumption: Vec<Vec<Vec<f64>>> = problem.nodes().iter().map(
-            |n| (1..problem.timesteps()).map(
+            |n| (0..problem.timesteps()).map(
                 |t| (0..problem.products()).map(
-                    |p| n.inventory_change(t-1, t, p)
+                    |p| {
+                        if t == 0 {
+                            0.0
+                        } else {
+                            n.inventory_change(t-1, t, p)
+                        }
+                    }
                 ).collect::<Vec<_>>()
             ).collect::<Vec<_>>()
         ).collect::<Vec<_>>();
@@ -368,26 +382,34 @@ impl Arc {
         // When the arc is a travel arc, it is either a travel arc, a entering arc, a leaving arc or 
         // an arc used by vessel not in use
         let arc_type = if from.get_port() != to.get_port() {
-            if from.get_kind() == NetworkNodeType::Normal {
-                match to.get_kind() {
-                    NetworkNodeType::Source => None,
-                    NetworkNodeType::Sink => Some(ArcType::LeavingArc),
-                    NetworkNodeType::Normal => Some(ArcType::TravelArc),
-                }
-            }
-            else if from.get_kind() == NetworkNodeType::Source {
-                match to.get_kind() {
-                    NetworkNodeType::Source => None,
-                    NetworkNodeType::Sink => Some(ArcType::NotUsedArc),
-                    NetworkNodeType::Normal => Some(ArcType::EnteringArc),
-                }
-            }
-            else {
-                None
+            match from.get_kind() {
+                NetworkNodeType::Source => {
+                    match to.get_kind() {
+                        NetworkNodeType::Source => {
+                            println!("Got a source -> source arc");
+                            None
+                        },
+                        NetworkNodeType::Sink => Some(ArcType::NotUsedArc),
+                        NetworkNodeType::Normal => Some(ArcType::EnteringArc),
+                    }
+                },
+                NetworkNodeType::Sink => None,
+                NetworkNodeType::Normal => {
+                    match to.get_kind() {
+                        NetworkNodeType::Source => {
+                            println!("Got a normal -> source arc");
+                            None
+                        },
+                        NetworkNodeType::Sink => Some(ArcType::LeavingArc),
+                        NetworkNodeType::Normal => Some(ArcType::TravelArc),
+                    }
+                },
             }
         } else {
             // All waiting arcs should have length 1
             if (to.get_time() - from.get_time()) != 1 {
+                println!("Got a waiting arc with wrong length");
+                println!("From: {} To: {} Time from: {} Time to: {} From type: {:?}", from.get_port(), to.get_port(), from.get_time(), to.get_time(), from.get_kind());
                 None
             }
             else {

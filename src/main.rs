@@ -216,7 +216,7 @@ pub fn run_exact_model(path: &Path, mut output: PathBuf) {
     let problem = Arc::new(problem);
     let closure_problem = problem.clone();
 
-    let result = ExactModelSolver::solve(&problem).unwrap();
+    let result = ExactModelSolver::build_and_write(&problem, "exact_model.lp");
 }
 
 pub enum Termination {
