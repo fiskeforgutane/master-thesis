@@ -23,7 +23,10 @@ use crate::ga::{
     survival_selection, Fitness, GeneticAlgorithm, Stochastic,
 };
 
-use crate::models::exact_model::{model::ExactModelSolver, sets_and_parameters::{Sets, Parameters}};
+use crate::models::exact_model::{
+    model::ExactModelSolver,
+    sets_and_parameters::{Parameters, Sets},
+};
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
@@ -213,10 +216,7 @@ pub fn run_exact_model(path: &Path, mut output: PathBuf) {
     let problem = Arc::new(problem);
     let closure_problem = problem.clone();
 
-    let sets = Sets::new(&problem);
-    let parameters = Parameters::new(&problem);
-
-    let result = ExactModelSolver::solve(&sets, &parameters).unwrap();
+    let result = ExactModelSolver::solve(&problem).unwrap();
 }
 
 pub enum Termination {

@@ -1,5 +1,6 @@
 use crate::models::exact_model::sets_and_parameters::NetworkNodeType;
 use crate::models::utils::{AddVars, ConvertVars};
+use crate::problem::Problem;
 use grb::prelude::*;
 use itertools::iproduct;
 use log::info;
@@ -32,7 +33,8 @@ impl ExactModelSolver {
         // 1 if the vessel is able to unload at the node, 0 otherwise
         let z: Vec<Vec<Var>> = (nodes, vessels).binary(&mut model, &"z")?;
         // Quantity unloaded of product at node by the vessel
-        let q: Vec<Vec<Vec<Vec<Var>>>> = (ports, vessels, timesteps, products).cont(&mut model, &"q")?;
+        let q: Vec<Vec<Vec<Vec<Var>>>> =
+            (ports, vessels, timesteps, products).cont(&mut model, &"q")?;
         // The quantity sold of product by port in timestep
         let a: Vec<Vec<Vec<Var>>> = (ports, timesteps, products).cont(&mut model, &"q")?;
         // The current inventory of product in port in timestep
@@ -49,14 +51,8 @@ impl ExactModelSolver {
         // ensure that the all "normal" nodes have as many arcs entering as those leaving
         // and that the source just has one leaving, and that the sink has one entering
         for (n, v) in iproduct!(&sets.N, &sets.V) {
-            let lhs = sets.Fs[n.get_index()]
-                .iter()
-                .map(|a| &x[*a][*v])
-                .grb_sum()
-                - sets.Rs[n.get_index()]
-                    .iter()
-                    .map(|a| &x[*a][*v])
-                    .grb_sum();
+            let lhs = sets.Fs[n.get_index()].iter().map(|a| &x[*a][*v]).grb_sum()
+                - sets.Rs[n.get_index()].iter().map(|a| &x[*a][*v]).grb_sum();
             let rhs: isize;
             match n.get_kind() {
                 NetworkNodeType::Source => rhs = 1,
@@ -88,7 +84,7 @@ impl ExactModelSolver {
         }
 
         // initial port storage
-        for (i,p) in iproduct!(&sets.I, &sets.P) {
+        for (i, p) in iproduct!(&sets.I, &sets.P) {
             let lhs = s_port[*i][0][*p]
                 - parameters.initial_port_inventory[*i][*p]
                 - parameters.port_type[*i]
@@ -96,40 +92,61 @@ impl ExactModelSolver {
                         - sets.V.iter().map(|v| &q[*i][*v][0][*p]).grb_sum()
                         - a[*i][0][*p]);
 
-            model.add_constr(&format!("initial_port_inventory_{i}_0_{p}"), c!(lhs == 0.0_f64))?;
+            model.add_constr(
+                &format!("initial_port_inventory_{i}_0_{p}"),
+                c!(lhs == 0.0_f64),
+            )?;
         }
 
         // ensure that the inventory in all nodes remain within the lower and upper boundaries
         for (i, t, p) in iproduct!(&sets.I, &sets.T, &sets.P) {
-            model.add_constr(&format!("lower_limit_port_{i}_{t}_{p}"), c!(s_port[*i][*t][*p] >= parameters.min_inventory_port[*i][*p]))?;
-            model.add_constr(&format!("upper_limit_port_{i}_{t}_{p}"), c!(s_port[*i][*t][*p] <= parameters.port_capacity[*i][*p]))?;
+            model.add_constr(
+                &format!("lower_limit_port_{i}_{t}_{p}"),
+                c!(s_port[*i][*t][*p] >= parameters.min_inventory_port[*i][*p]),
+            )?;
+            model.add_constr(
+                &format!("upper_limit_port_{i}_{t}_{p}"),
+                c!(s_port[*i][*t][*p] <= parameters.port_capacity[*i][*p]),
+            )?;
         }
 
         // ensure balance of vessel storage
         for (v, t, p) in iproduct!(&sets.V, &sets.T, &sets.P) {
             if *t > 0 {
-                let lhs = s_vessel[*v][*t][*p] - s_vessel[*v][*t-1][*p] - sets.I.iter().map(
-                    |i| parameters.port_type[*i] * q[*i][*v][*t][*p]
-                ).grb_sum();
+                let lhs = s_vessel[*v][*t][*p]
+                    - s_vessel[*v][*t - 1][*p]
+                    - sets
+                        .I
+                        .iter()
+                        .map(|i| parameters.port_type[*i] * q[*i][*v][*t][*p])
+                        .grb_sum();
 
-                model.add_constr(&format!("storage_balance_vessel_{v}_{t}_{p}"), c!(lhs == 0.0_f64))?;
+                model.add_constr(
+                    &format!("storage_balance_vessel_{v}_{t}_{p}"),
+                    c!(lhs == 0.0_f64),
+                )?;
             }
         }
 
         // ensure initial storage in all vessels
         for (v, p) in iproduct!(&sets.V, &sets.P) {
-            let lhs = s_vessel[*v][0][*p] - parameters.initial_inventory[*v][*p] - sets.I.iter().map(
-                |i| parameters.port_type[*i] * q[*i][*v][0][*p]
-            ).grb_sum();
+            let lhs = s_vessel[*v][0][*p]
+                - parameters.initial_inventory[*v][*p]
+                - sets
+                    .I
+                    .iter()
+                    .map(|i| parameters.port_type[*i] * q[*i][*v][0][*p])
+                    .grb_sum();
 
-            model.add_constr(&format!("initial_storage_balance_vessel_{v}_0_{p}"), c!(lhs == 0.0_f64))?;
+            model.add_constr(
+                &format!("initial_storage_balance_vessel_{v}_0_{p}"),
+                c!(lhs == 0.0_f64),
+            )?;
         }
 
         // ensure that the load at the vessels is within the capacity limits
         for (v, t) in iproduct!(&sets.V, &sets.T) {
-            let lhs = sets.P.iter().map(
-                |p| s_vessel[*v][*t][*p]
-            ).grb_sum();
+            let lhs = sets.P.iter().map(|p| s_vessel[*v][*t][*p]).grb_sum();
 
             let rhs = 0.9 * parameters.vessel_capacity[*v];
 
@@ -141,9 +158,7 @@ impl ExactModelSolver {
             let i = n.get_port();
             let t = n.get_time();
 
-            let lhs = sets.V.iter().map(
-                |v| z[n.get_index()][*v]
-            ).grb_sum();
+            let lhs = sets.V.iter().map(|v| z[n.get_index()][*v]).grb_sum();
 
             let rhs = parameters.berth_capacity[i][t];
 
@@ -151,12 +166,10 @@ impl ExactModelSolver {
         }
 
         // ensure that all vessels that deliver something to a node are located at that node
-        for (n,v) in iproduct!(&sets.N, &sets.V) {
+        for (n, v) in iproduct!(&sets.N, &sets.V) {
             let lhs = z[n.get_index()][*v];
 
-            let rhs = sets.Rs[*v].iter().map(
-                |a| x[*v][*a]
-            ).grb_sum();
+            let rhs = sets.Rs[*v].iter().map(|a| x[*v][*a]).grb_sum();
 
             let time = n.get_time();
             let port = n.get_port();
@@ -171,71 +184,92 @@ impl ExactModelSolver {
 
             let lower = parameters.min_loading_rate[i] * z[n.get_index()][*v];
             let upper = parameters.max_loading_rate[i] * z[n.get_index()][*v];
-            let loading_rate = sets.P.iter().map(
-                |p| q[i][*v][t][*p]
-            ).grb_sum();
+            let loading_rate = sets.P.iter().map(|p| q[i][*v][t][*p]).grb_sum();
 
-            model.add_constr(&format!("lower_loading_rate_{i}_{t}"), c!(loading_rate.clone() >= lower))?;
-            model.add_constr(&format!("upper_loading_rate_{i}_{t}"), c!(loading_rate <= upper))?;
+            model.add_constr(
+                &format!("lower_loading_rate_{i}_{t}"),
+                c!(loading_rate.clone() >= lower),
+            )?;
+            model.add_constr(
+                &format!("upper_loading_rate_{i}_{t}"),
+                c!(loading_rate <= upper),
+            )?;
         }
 
-        // the total amount of products sold/bought from the spot market must within 
+        // the total amount of products sold/bought from the spot market must within
         // the limits
         for i in &sets.I {
-            let lhs = iproduct!(&sets.T, &sets.P).map(
-                |(t, p)| a[*i][*t][*p]
-            ).grb_sum();
+            let lhs = iproduct!(&sets.T, &sets.P)
+                .map(|(t, p)| a[*i][*t][*p])
+                .grb_sum();
 
-            model.add_constr(&format!("spot_market_upper_{i}"), c!(lhs <= parameters.max_spot_horizon[*i]))?;
+            model.add_constr(
+                &format!("spot_market_upper_{i}"),
+                c!(lhs <= parameters.max_spot_horizon[*i]),
+            )?;
         }
 
         // we must ensure that the amount bought from the spot market in each time period
         // is within the limits
-        for (i,t) in iproduct!(&sets.I, &sets.T) {
-            let lhs = sets.P.iter().map(
-                |p| a[*i][*t][*p]
-            ).grb_sum();
+        for (i, t) in iproduct!(&sets.I, &sets.T) {
+            let lhs = sets.P.iter().map(|p| a[*i][*t][*p]).grb_sum();
 
-            model.add_constr(&format!("spot_market_period_{i}_{t}"), c!(lhs <= parameters.max_spot_period[*i][*t]))?;
+            model.add_constr(
+                &format!("spot_market_period_{i}_{t}"),
+                c!(lhs <= parameters.max_spot_period[*i][*t]),
+            )?;
         }
 
-        let revenue = iproduct!(&sets.N, &sets.V, &sets.P).map(
-            |(n, v, p)| parameters.revenue[n.get_port()] * q[n.get_port()][*v][n.get_time()][*p]
-        ).grb_sum();
+        let revenue = iproduct!(&sets.N, &sets.V, &sets.P)
+            .map(|(n, v, p)| {
+                parameters.revenue[n.get_port()] * q[n.get_port()][*v][n.get_time()][*p]
+            })
+            .grb_sum();
 
-        let transportation_cost = iproduct!(&sets.V, &sets.A).map(
-            |(v, a)| parameters.travel_cost[a.get_from().get_port()][a.get_to().get_port()][*v] * x[*v][a.get_index()]
-        ).grb_sum();
+        let transportation_cost = iproduct!(&sets.V, &sets.A)
+            .map(|(v, a)| {
+                parameters.travel_cost[a.get_from().get_port()][a.get_to().get_port()][*v]
+                    * x[*v][a.get_index()]
+            })
+            .grb_sum();
 
-        let spot_market_cost = iproduct!(&sets.I, &sets.T, &sets.P).map(
-            |(i, t, p)| parameters.spot_market_cost[*t] * a[*i][*t][*p]
-        ).grb_sum();
+        let spot_market_cost = iproduct!(&sets.I, &sets.T, &sets.P)
+            .map(|(i, t, p)| parameters.spot_market_cost[*t] * a[*i][*t][*p])
+            .grb_sum();
 
-        let delay_cost = iproduct!(&sets.N, &sets.V).map(
-            |(i, v)| (i.get_time() as f64) * parameters.epsilon * z[i.get_index()][*v]
-        ).grb_sum();
-        
-        model.set_objective(revenue - transportation_cost - spot_market_cost - delay_cost, Maximize)?;
+        let delay_cost = iproduct!(&sets.N, &sets.V)
+            .map(|(i, v)| (i.get_time() as f64) * parameters.epsilon * z[i.get_index()][*v])
+            .grb_sum();
+
+        model.set_objective(
+            revenue - transportation_cost - spot_market_cost - delay_cost,
+            Maximize,
+        )?;
 
         model.update()?;
 
-        info!(
-            "Successfully built exact model",
-        );
+        info!("Successfully built exact model",);
 
         Ok((model, Variables::new(x, z, q, a, s_port, s_vessel)))
     }
-    
-    pub fn solve(
-        sets: &Sets,
-        parameters: &Parameters,
-    ) -> Result<ExactModelResults, grb::Error>{
-        let (m, variables) = ExactModelSolver::build(sets, parameters)?;
+
+    pub fn solve(problem: &Problem) -> Result<ExactModelResults, grb::Error> {
+        let sets = Sets::new(problem);
+        let parameters = Parameters::new(problem);
+        let (m, variables) = ExactModelSolver::build(&sets, &parameters)?;
         let mut model = m;
 
         model.optimize()?;
 
         ExactModelResults::new(&variables, &model)
+    }
+
+    pub fn build_and_write(problem: &Problem, path: &str) -> grb::Result<()> {
+        let sets = Sets::new(problem);
+        let parameters = Parameters::new(problem);
+        let (model, variables) = ExactModelSolver::build(&sets, &parameters)?;
+        model.write(path);
+        Ok(())
     }
 }
 
@@ -257,11 +291,16 @@ impl ExactModelResults {
         let s_port = variables.s_port.convert(model)?;
         let s_vessel = variables.s_vessel.convert(model)?;
 
-        Ok(ExactModelResults {x, z, q, a, s_port, s_vessel} )
+        Ok(ExactModelResults {
+            x,
+            z,
+            q,
+            a,
+            s_port,
+            s_vessel,
+        })
     }
 }
-
-
 
 pub struct Variables {
     x: Vec<Vec<Var>>,
