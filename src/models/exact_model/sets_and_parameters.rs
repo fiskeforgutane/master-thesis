@@ -35,6 +35,8 @@ pub struct Sets {
     pub A: Vec<Arc>,
     /// Set of all arcs associated with a particular vessel
     pub Av: Vec<Vec<ArcIndex>>,
+    /// Set of all arcs associated with "normal" nodes
+    pub At: Vec<ArcIndex>,
     /// Set of all outgoing arcs associated with a node
     pub Fs: Vec<Vec<ArcIndex>>,
     /// Set of all incoming arcs associated with a node
@@ -122,6 +124,7 @@ impl Sets {
         ));
         let A = Sets::get_all_arcs(&Nst);
         let Av = Sets::get_arcs(problem, &A);
+        let At = Sets::get_travel_arcs(&A);
         let Fs = iproduct!(problem.vessels(), &Nst)
             .map(|(v, n)| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n))
             .collect::<Vec<_>>();
@@ -141,6 +144,7 @@ impl Sets {
             Nst,
             A,
             Av,
+            At,
             Fs,
             Rs,
         }
@@ -232,6 +236,24 @@ impl Sets {
         vessel_arcs
     }
 
+    pub fn get_travel_arcs(
+        all_arcs: &Vec<Arc>
+    ) -> Vec<ArcIndex> {
+        all_arcs
+            .iter()
+            .filter(
+                |a| match a.get_kind() {
+                    ArcType::TravelArc => true,
+                    ArcType::WaitingArc => true,
+                    _ => false,
+                }
+            )
+            .map(
+                |a| a.get_index()
+            )
+            .collect::<Vec<_>>()
+    }
+
     pub fn get_forward_star(
         vessel_arcs: &Vec<ArcIndex>,
         all_arcs: &Vec<Arc>,
@@ -281,7 +303,7 @@ impl Sets {
 }
 
 impl Parameters {
-    pub fn new(problem: &Problem) -> Parameters {
+    pub fn new(problem: &Problem, sets: &Sets) -> Parameters {
         let vessel_capacity: Vec<f64> = problem.vessels().iter().map(|v| v.capacity()).collect();
         let initial_inventory: Vec<Vec<f64>> = problem
             .vessels()
