@@ -51,11 +51,11 @@ impl ExactModelSolver {
         for (n, v) in iproduct!(&sets.N, &sets.V) {
             let lhs = sets.Fs[n.get_index()]
                 .iter()
-                .map(|a| &x[a.get_index()][*v])
+                .map(|a| &x[*a][*v])
                 .grb_sum()
                 - sets.Rs[n.get_index()]
                     .iter()
-                    .map(|a| &x[a.get_index()][*v])
+                    .map(|a| &x[*a][*v])
                     .grb_sum();
             let rhs: isize;
             match n.get_kind() {
@@ -155,7 +155,7 @@ impl ExactModelSolver {
             let lhs = z[n.get_index()][*v];
 
             let rhs = sets.Rs[*v].iter().map(
-                |a| x[*v][a.get_index()]
+                |a| x[*v][*a]
             ).grb_sum();
 
             let time = n.get_time();

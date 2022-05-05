@@ -32,11 +32,11 @@ pub struct Sets {
     /// Set of all arcs
     pub A: Vec<Arc>,
     /// Set of all arcs associated with a particular vessel
-    pub Av: Vec<Vec<Arc>>,
+    pub Av: Vec<Vec<ArcIndex>>,
     /// Set of all outgoing arcs associated with a node
-    pub Fs: Vec<Vec<Arc>>,
+    pub Fs: Vec<Vec<ArcIndex>>,
     /// Set of all incoming arcs associated with a node
-    pub Rs: Vec<Vec<Arc>>,
+    pub Rs: Vec<Vec<ArcIndex>>,
 }
 
 #[allow(non_snake_case)]
@@ -102,11 +102,11 @@ impl Sets {
         let Av = Sets::get_arcs(problem, &A);
         let Fs = iproduct!(problem.vessels(), &N)
             .map(
-                |(v, n)| Sets::get_forward_star(Av.get(v.index()).unwrap(), &n)
+                |(v, n)| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n)
             ).collect::<Vec<_>>();
         let Rs = iproduct!(problem.vessels(), &N)
             .map(
-                |(v, n)| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &n)
+                |(v, n)| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &A, &n)
             ).collect::<Vec<_>>();
 
         Sets { I, Ip, Ic, V, T, P, S, N, A, Av, Fs, Rs }
@@ -140,17 +140,12 @@ impl Sets {
         all_arcs
     }
 
-    pub fn get_arcs(problem: &Problem, A: &Vec<Arc>) -> Vec<Vec<Arc>> {
+    pub fn get_arcs(problem: &Problem, A: &Vec<Arc>) -> Vec<Vec<ArcIndex>> {
         // Generate the set of arcs for each of the vessels
         let vessel_arcs = problem.vessels()
             .iter()
             .map(
                 |v| Sets::get_vessel_arcs(problem, A, v)
-            )
-            .map(|a| 
-                a.iter().map(
-                    |b| *A.get(*b).unwrap()
-                ).collect::<Vec<_>>()
             )
             .collect::<Vec<_>>();
 
@@ -194,18 +189,18 @@ impl Sets {
         vessel_arcs
     }
 
-    pub fn get_forward_star(vessel_arcs: &Vec<Arc>, node: &NetworkNode) -> Vec<Arc> {
+    pub fn get_forward_star(vessel_arcs: &Vec<ArcIndex>, all_arcs: &Vec<Arc>, node: &NetworkNode) -> Vec<ArcIndex> {
         vessel_arcs.iter().filter(
-            |a| a.get_from() == *node
+            |a| all_arcs[**a].get_from() == *node
         ).map(
             |a| *a
         )
         .collect::<Vec<_>>()
     }
 
-    pub fn get_reverse_star(vessel_arcs: &Vec<Arc>, node: &NetworkNode) -> Vec<Arc> {
+    pub fn get_reverse_star(vessel_arcs: &Vec<ArcIndex>, all_arcs: &Vec<Arc>, node: &NetworkNode) -> Vec<ArcIndex> {
         vessel_arcs.iter().filter(
-            |a| a.get_to() == *node
+            |a| all_arcs[**a].get_to() == *node
         ).map(
             |a| *a
         )

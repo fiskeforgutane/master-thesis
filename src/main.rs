@@ -23,6 +23,7 @@ use crate::ga::{
     survival_selection, Fitness, GeneticAlgorithm, Stochastic,
 };
 
+use crate::models::exact_model::{model::ExactModelSolver, sets_and_parameters::{Sets, Parameters}};
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
@@ -205,6 +206,19 @@ pub fn run_island_ga(path: &Path, mut output: PathBuf, termination: Termination)
     }
 }
 
+pub fn run_exact_model(path: &Path, mut output: PathBuf) {
+    let file = std::fs::File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let problem: Problem = serde_json::from_reader(reader).unwrap();
+    let problem = Arc::new(problem);
+    let closure_problem = problem.clone();
+
+    let sets = Sets::new(&problem);
+    let parameters = Parameters::new(&problem);
+
+    let result = ExactModelSolver::solve(&sets, &parameters).unwrap();
+}
+
 pub enum Termination {
     Epochs(u64),
     NoViolation,
@@ -231,5 +245,8 @@ pub fn main() {
     std::fs::create_dir_all(&out).expect("failed to create out dir");
 
     // Run the GA.
-    run_island_ga(path, out, Termination::NoViolation);
+    //run_island_ga(path, out, Termination::NoViolation);
+
+    // Run the exact model
+    run_exact_model(path, out);
 }
