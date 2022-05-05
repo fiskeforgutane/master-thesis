@@ -15,10 +15,10 @@ impl ExactModelSolver {
         info!("Building exact model.");
 
         let mut model = Model::new("exact_model")?;
-        model.set_param(grb::param::OutputFlag, 0)?;
+        // model.set_param(grb::param::OutputFlag, 0)?;
 
         // Disable console output
-        model.set_param(param::OutputFlag, 0)?;
+       //  model.set_param(param::OutputFlag, 0)?;
 
         //*****************CREATE VARIABLES*****************//
         let vessels = sets.V.len();
@@ -67,8 +67,7 @@ impl ExactModelSolver {
 
         // port storage balance
         for n in &sets.N {
-            if (n.time() == 0) {
-                println!("Node type: {:?} Index: {}", n.kind(), n.index());
+            if n.time() == 0 {
                 continue;
             }
             for p in &sets.P {
@@ -260,6 +259,9 @@ impl ExactModelSolver {
         let mut model = m;
 
         model.optimize()?;
+
+        let iis = model.compute_iis();
+        model.write("model.ilp")?;
 
         ExactModelResults::new(&variables, &model)
     }
