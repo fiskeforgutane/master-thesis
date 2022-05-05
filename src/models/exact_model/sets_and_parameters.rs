@@ -111,13 +111,13 @@ impl Sets {
         Nst.push(NetworkNode::new(
             I.len() + 1,
             0,
-            N.len(),
+            Nst.len(),
             NetworkNodeType::Source,
         ));
         Nst.push(NetworkNode::new(
             I.len() + 2,
             problem.timesteps(),
-            N.len(),
+            Nst.len(),
             NetworkNodeType::Sink,
         ));
         let A = Sets::get_all_arcs(&N);
