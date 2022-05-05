@@ -268,7 +268,7 @@ impl ExactModelSolver {
         let sets = Sets::new(problem);
         let parameters = Parameters::new(problem);
         let (model, variables) = ExactModelSolver::build(&sets, &parameters)?;
-        model.write(path);
+        model.write(path)?;
         Ok(())
     }
 }
