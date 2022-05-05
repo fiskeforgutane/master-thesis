@@ -155,42 +155,32 @@ impl Sets {
         let mut all_arcs: Vec<Arc> = Vec::new();
 
         for n1 in nodes {
-            // add arcs to other nodes
-            nodes
-                .iter()
-                .filter(|n2| *n2 != n1 && n2.time() > n1.time())
-                .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len())));
+            match n1.kind() {
+                // if n1 is a source node we add arcs to all other nodes
+                NetworkNodeType::Source => nodes
+                    .iter()
+                    .filter(|n2| *n2 != n1)
+                    .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len()))),
+                // if n1 is a source we do not add any arcs
+                NetworkNodeType::Sink => {
+                    ();
+                }
+                // if n1 is a normal node we add arcs to all other nodes that are in the future, as well as the next node that have the same port
+                NetworkNodeType::Normal => {
+                    // add arcs to other nodes
+                    nodes
+                        .iter()
+                        .filter(|n2| *n2 != n1 && n2.time() > n1.time())
+                        .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len())));
 
-            // add the arc to the next node (iterator will be empty if this is the last node at the current port)
-            nodes
-                .iter()
-                .filter(|n2| *n2 == n1 && n2.time() == n1.time() + 1)
-                .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len())));
-
-            //
+                    // add the arc to the next node (iterator will be empty if this is the last node at the current port)
+                    nodes
+                        .iter()
+                        .filter(|n2| n2.port() == n1.port() && n2.time() == n1.time() + 1)
+                        .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len())));
+                }
+            }
         }
-
-        iproduct!(nodes, nodes).for_each(|(n_1, n_2)| {
-            if n_1.time() < n_2.time() {
-                if n_1.port() == n_2.port() {
-                    if (n_1.time() + 1) == n_2.time() {
-                        all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()));
-                    }
-                } else {
-                    all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()));
-                }
-            }
-            // As the source node has time = 0 and the sink node has time = n timesteps, we want to accept these as well
-            else {
-                if ((n_1.kind() == NetworkNodeType::Source)
-                    && (n_2.kind() != NetworkNodeType::Source))
-                    || ((n_2.kind() == NetworkNodeType::Sink)
-                        && (n_1.kind() != NetworkNodeType::Sink))
-                {
-                    all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()));
-                }
-            }
-        });
 
         all_arcs
     }
@@ -236,21 +226,15 @@ impl Sets {
         vessel_arcs
     }
 
-    pub fn get_travel_arcs(
-        all_arcs: &Vec<Arc>
-    ) -> Vec<ArcIndex> {
+    pub fn get_travel_arcs(all_arcs: &Vec<Arc>) -> Vec<ArcIndex> {
         all_arcs
             .iter()
-            .filter(
-                |a| match a.get_kind() {
-                    ArcType::TravelArc => true,
-                    ArcType::WaitingArc => true,
-                    _ => false,
-                }
-            )
-            .map(
-                |a| a.get_index()
-            )
+            .filter(|a| match a.get_kind() {
+                ArcType::TravelArc => true,
+                ArcType::WaitingArc => true,
+                _ => false,
+            })
+            .map(|a| a.get_index())
             .collect::<Vec<_>>()
     }
 
