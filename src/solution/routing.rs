@@ -9,6 +9,7 @@ use itertools::{iproduct, Itertools};
 use log::trace;
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
+use slice_group_by::GroupBy;
 
 use crate::models::quantity::QuantityLp;
 use crate::problem::{
@@ -218,6 +219,9 @@ pub struct Cache {
     revenue: Cell<Option<Cost>>,
     /// The timing punishment of the solution.
     timing: Cell<Option<Cost>>,
+    /// A hint to the amount of sum of berth violations in the solution
+    /// The `hint` is simply sum(max(visits at node `n` at time `t` - berth capacity, 0) for all (n, t))
+    approx_berth_violation: Cell<Option<usize>>,
 }
 
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
@@ -253,6 +257,7 @@ impl Clone for RoutingSolution {
                 cost: Cell::new(None),
                 revenue: Cell::new(None),
                 timing: Cell::new(None),
+                approx_berth_violation: Cell::new(None),
             },
         }
     }
@@ -317,6 +322,7 @@ impl RoutingSolution {
             cost: Cell::new(None),
             revenue: Cell::new(None),
             timing: Cell::new(None),
+            approx_berth_violation: Cell::new(None),
         };
 
         Self {
@@ -430,12 +436,16 @@ impl RoutingSolution {
     /// too close apart in time, such that it is impossible to go from one of them to the other in time.
     pub fn warp(&self) -> usize {
         let cached = &self.cache.warp;
+        cached.get().unwrap_or_else(|| self.update_warp())
+    }
 
-        if cached.get().is_none() {
-            self.update_warp();
-        }
+    /// Retrieve the `approx_berth_violation` of this solution
+    pub fn approx_berth_violation(&self) -> usize {
+        let cached = &self.cache.approx_berth_violation;
 
-        cached.get().unwrap()
+        cached
+            .get()
+            .unwrap_or_else(|| self.update_approx_berth_violation())
     }
 
     /// The total inventory violation (excess + shortage) for the entire planning period
@@ -504,6 +514,34 @@ impl RoutingSolution {
         }
         self.cache.warp.set(Some(warp));
         warp
+    }
+
+    fn update_approx_berth_violation(&self) -> usize {
+        let sorted = self
+            .iter()
+            .flat_map(|x| x.iter().cloned())
+            .sorted_unstable_by_key(|v| (v.time, v.node))
+            .collect::<Vec<_>>();
+
+        let nodes = self.problem().nodes();
+
+        let violation = sorted
+            .linear_group()
+            .map(|group| {
+                // The `group` is guaranteed to be non-empty, by construction
+                // additionally, all visits are equivalent (also by construction)
+                let visit = group[0];
+                let used = group.len();
+
+                let capacity = nodes[visit.node].port_capacity()[visit.time];
+                // An unsigned-equivalent version of max(used - capacity, 0)
+                used.min(capacity) - capacity
+            })
+            .sum();
+
+        self.cache.approx_berth_violation.set(Some(violation));
+
+        violation
     }
 
     fn update_violation(&self, quantities: &QuantityLp) -> f64 {
@@ -586,7 +624,6 @@ impl RoutingSolution {
         self.update_revenue(&quantities);
         self.update_violation(&quantities);
         self.update_timing(&quantities);
-        self.update_warp();
     }
 
     /// Invalidate all the cached values on this object (objective function values, etc.)
@@ -595,6 +632,8 @@ impl RoutingSolution {
         self.cache.violation.set(None);
         self.cache.cost.set(None);
         self.cache.revenue.set(None);
+        self.cache.approx_berth_violation.set(None);
+        self.cache.timing.set(None);
     }
 
     /// Convert to a double array of visits
