@@ -30,7 +30,7 @@ impl ExactModelSolver {
         let timesteps = sets.T.len();
 
         // 1 if the vessel traverses the arc, 0 otherwise
-        let x: Vec<Vec<Var>> = (vessels, arcs).binary(&mut model, &"x")?;
+        let x: Vec<Vec<Var>> = (arcs, vessels).binary(&mut model, &"x")?;
         // 1 if the vessel is able to unload at the node, 0 otherwise
         let z: Vec<Vec<Var>> = (nodes, vessels).binary(&mut model, &"z")?;
         // Quantity unloaded of product at node by the vessel
@@ -171,7 +171,7 @@ impl ExactModelSolver {
         for (n, v) in iproduct!(&sets.N, &sets.V) {
             let lhs = z[n.index()][*v];
 
-            let rhs = sets.Rs[*v].iter().map(|a| x[*v][*a]).grb_sum();
+            let rhs = sets.Rs[*v].iter().map(|a| x[*a][*v]).grb_sum();
 
             let time = n.time();
             let port = n.port();
@@ -229,7 +229,7 @@ impl ExactModelSolver {
         let transportation_cost = iproduct!(&sets.V, &sets.A)
             .map(|(v, a)| {
                 parameters.travel_cost[a.get_from().port()][a.get_to().port()][*v]
-                    * x[*v][a.get_index()]
+                    * x[a.get_index()][*v]
             })
             .grb_sum();
 
