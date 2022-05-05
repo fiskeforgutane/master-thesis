@@ -535,7 +535,7 @@ impl RoutingSolution {
 
                 let capacity = nodes[visit.node].port_capacity()[visit.time];
                 // An unsigned-equivalent version of max(used - capacity, 0)
-                used.min(capacity) - capacity
+                used.max(capacity) - capacity
             })
             .sum();
 
