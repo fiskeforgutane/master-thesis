@@ -150,14 +150,30 @@ impl Sets {
         // Set holding a list enumerating all possible arcs moving forward in time in the network
         let mut all_arcs: Vec<Arc> = Vec::new();
 
+        for n1 in nodes {
+            // add arcs to other nodes
+            nodes
+                .iter()
+                .filter(|n2| *n2 != n1 && n2.time() > n1.time())
+                .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len())));
+
+            // add the arc to the next node (iterator will be empty if this is the last node at the current port)
+            nodes
+                .iter()
+                .filter(|n2| *n2 == n1 && n2.time() == n1.time() + 1)
+                .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len())));
+
+            //
+        }
+
         iproduct!(nodes, nodes).for_each(|(n_1, n_2)| {
             if n_1.time() < n_2.time() {
                 if n_1.port() == n_2.port() {
                     if (n_1.time() + 1) == n_2.time() {
-                        all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
+                        all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()));
                     }
                 } else {
-                    all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
+                    all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()));
                 }
             }
             // As the source node has time = 0 and the sink node has time = n timesteps, we want to accept these as well
@@ -167,7 +183,7 @@ impl Sets {
                     || ((n_2.kind() == NetworkNodeType::Sink)
                         && (n_1.kind() != NetworkNodeType::Sink))
                 {
-                    all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
+                    all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()));
                 }
             }
         });
@@ -496,7 +512,7 @@ pub struct Arc {
 }
 
 impl Arc {
-    pub fn new(from: &NetworkNode, to: &NetworkNode, index: ArcIndex) -> Result<Arc, Error> {
+    pub fn new(from: &NetworkNode, to: &NetworkNode, index: ArcIndex) -> Arc {
         // Ensure that the timestep of the node the arc leads to is after the node it comes from
         if let NetworkNodeType::Normal = from.kind() {
             assert!(from.time() < to.time())
@@ -544,12 +560,12 @@ impl Arc {
 
         assert!(arc_type.is_some());
 
-        Ok(Arc {
+        Arc {
             from: *from,
             to: *to,
             kind: arc_type.unwrap(),
             index: index,
-        })
+        }
     }
 
     pub fn get_from(&self) -> NetworkNode {
