@@ -56,12 +56,12 @@ impl ExactModelSolver {
         for (n, v) in iproduct!(&sets.Nst, &sets.V) {
             let lhs = sets.Fs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
                 - sets.Rs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
-            let rhs: isize;
-            match n.kind() {
-                NetworkNodeType::Source => rhs = 1,
-                NetworkNodeType::Sink => rhs = -1,
-                NetworkNodeType::Normal => rhs = 0,
-            }
+                
+            let rhs = match n.kind() {
+                NetworkNodeType::Source => 1,
+                NetworkNodeType::Sink => -1,
+                NetworkNodeType::Normal => 0,
+            };
 
             let node_index = n.index();
             model.add_constr(&format!("travel_{v}_{node_index}"), c!(lhs == rhs))?;
@@ -259,6 +259,7 @@ impl ExactModelSolver {
         let parameters = Parameters::new(problem, &sets);
         let (m, variables) = ExactModelSolver::build(&sets, &parameters)?;
         let mut model = m;
+        println!("Timesteps: {} Ports: {}", sets.T.len(), sets.I.len());
 
         model.optimize()?;
 
@@ -270,6 +271,7 @@ impl ExactModelSolver {
 
     pub fn build_and_write(problem: &Problem, path: &str) -> grb::Result<()> {
         let sets = Sets::new(problem);
+        println!("Timesteps: {} Ports: {}", sets.T.len(), sets.I.len());
         let parameters = Parameters::new(problem, &sets);
         let (model, _) = ExactModelSolver::build(&sets, &parameters)?;
         model.write(path)?;

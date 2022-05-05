@@ -215,10 +215,9 @@ impl Sets {
                 let origin = vessel.origin();
 
                 (a.get_from().time() < available_from)
-                    && (a.get_to().time() < available_from)
                     && ((a.get_kind() == ArcType::TravelArc)
                         && ((travel_time != a.get_time()) || (travel_time == usize::MAX)))
-                    && ((a.get_kind() == ArcType::EnteringArc) && (a.get_from().index() != origin))
+                    && ((a.get_kind() == ArcType::EnteringArc) && (a.get_to().index() != origin))
             })
             .map(|a| a.get_index())
             .collect::<Vec<_>>();
