@@ -29,6 +29,8 @@ impl ExactModelSolver {
         let nodes = sets.Nst.len();
         let timesteps = sets.T.len();
 
+        println!("Arcs: {:?}", sets.A);
+
         // 1 if the vessel traverses the arc, 0 otherwise
         let x: Vec<Vec<Var>> = (arcs, vessels).binary(&mut model, &"x")?;
         // 1 if the vessel is able to unload at the node, 0 otherwise
@@ -52,8 +54,8 @@ impl ExactModelSolver {
         // ensure that the all "normal" nodes have as many arcs entering as those leaving
         // and that the source just has one leaving, and that the sink has one entering
         for (n, v) in iproduct!(&sets.Nst, &sets.V) {
-            let lhs = sets.Fs[n.index()].iter().map(|a| &x[*v][*a]).grb_sum()
-                - sets.Rs[n.index()].iter().map(|a| &x[*v][*a]).grb_sum();
+            let lhs = sets.Fs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
+                - sets.Rs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
             let rhs: isize;
             match n.kind() {
                 NetworkNodeType::Source => rhs = 1,
@@ -225,10 +227,10 @@ impl ExactModelSolver {
             .map(|(n, v, p)| parameters.revenue[n.port()] * q[n.port()][*v][n.time()][*p])
             .grb_sum();
 
-        let transportation_cost = iproduct!(&sets.V, &sets.A)
+        let transportation_cost = iproduct!(&sets.V, &sets.At)
             .map(|(v, a)| {
-                parameters.travel_cost[a.get_from().port()][a.get_to().port()][*v]
-                    * x[a.get_index()][*v]
+                parameters.travel_cost[sets.A[*a].get_from().port()][sets.A[*a].get_to().port()][*v]
+                    * x[*a][*v]
             })
             .grb_sum();
 
@@ -254,7 +256,7 @@ impl ExactModelSolver {
 
     pub fn solve(problem: &Problem) -> Result<ExactModelResults, grb::Error> {
         let sets = Sets::new(problem);
-        let parameters = Parameters::new(problem);
+        let parameters = Parameters::new(problem, &sets);
         let (m, variables) = ExactModelSolver::build(&sets, &parameters)?;
         let mut model = m;
 
@@ -268,7 +270,7 @@ impl ExactModelSolver {
 
     pub fn build_and_write(problem: &Problem, path: &str) -> grb::Result<()> {
         let sets = Sets::new(problem);
-        let parameters = Parameters::new(problem);
+        let parameters = Parameters::new(problem, &sets);
         let (model, _) = ExactModelSolver::build(&sets, &parameters)?;
         model.write(path)?;
         Ok(())
