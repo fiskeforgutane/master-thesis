@@ -1,4 +1,4 @@
-use crate::models::exact_model::sets_and_parameters::{NetworkNodeType, NetworkNode};
+use crate::models::exact_model::sets_and_parameters::{NetworkNode, NetworkNodeType};
 use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::Problem;
 use grb::prelude::*;
@@ -52,28 +52,28 @@ impl ExactModelSolver {
         // ensure that the all "normal" nodes have as many arcs entering as those leaving
         // and that the source just has one leaving, and that the sink has one entering
         for (n, v) in iproduct!(&sets.Nst, &sets.V) {
-            let lhs = sets.Fs[n.get_index()].iter().map(|a| &x[*a][*v]).grb_sum()
-                - sets.Rs[n.get_index()].iter().map(|a| &x[*a][*v]).grb_sum();
+            let lhs = sets.Fs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
+                - sets.Rs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
             let rhs: isize;
-            match n.get_kind() {
+            match n.kind() {
                 NetworkNodeType::Source => rhs = 1,
                 NetworkNodeType::Sink => rhs = -1,
                 NetworkNodeType::Normal => rhs = 0,
             }
 
-            let node_index = n.get_index();
+            let node_index = n.index();
             model.add_constr(&format!("travel_{v}_{node_index}"), c!(lhs == rhs))?;
         }
 
         // port storage balance
         for n in &sets.N {
-            if (n.get_time() == 0) {
-                println!("Node type: {:?} Index: {}", n.get_kind(), n.get_index());
+            if (n.time() == 0) {
+                println!("Node type: {:?} Index: {}", n.kind(), n.index());
                 continue;
             }
             for p in &sets.P {
-                let i = n.get_port();
-                let t = n.get_time();
+                let i = n.port();
+                let t = n.time();
                 let lhs = s_port[i][t][*p]
                     - s_port[i][t - 1][*p]
                     - parameters.port_type[i]
@@ -157,10 +157,10 @@ impl ExactModelSolver {
 
         // berth capacities must be respected
         for n in &sets.N {
-            let i = n.get_port();
-            let t = n.get_time();
+            let i = n.port();
+            let t = n.time();
 
-            let lhs = sets.V.iter().map(|v| z[n.get_index()][*v]).grb_sum();
+            let lhs = sets.V.iter().map(|v| z[n.index()][*v]).grb_sum();
 
             let rhs = parameters.berth_capacity[i][t];
 
@@ -169,23 +169,23 @@ impl ExactModelSolver {
 
         // ensure that all vessels that deliver something to a node are located at that node
         for (n, v) in iproduct!(&sets.N, &sets.V) {
-            let lhs = z[n.get_index()][*v];
+            let lhs = z[n.index()][*v];
 
             let rhs = sets.Rs[*v].iter().map(|a| x[*v][*a]).grb_sum();
 
-            let time = n.get_time();
-            let port = n.get_port();
+            let time = n.time();
+            let port = n.port();
 
             model.add_constr(&format!("present_at_node_{port}_{time}"), c!(lhs <= rhs))?;
         }
 
         // the delivered quantity must lie within the boundaries for the vessel
         for (n, v) in iproduct!(&sets.N, &sets.V) {
-            let i = n.get_port();
-            let t = n.get_time();
+            let i = n.port();
+            let t = n.time();
 
-            let lower = parameters.min_loading_rate[i] * z[n.get_index()][*v];
-            let upper = parameters.max_loading_rate[i] * z[n.get_index()][*v];
+            let lower = parameters.min_loading_rate[i] * z[n.index()][*v];
+            let upper = parameters.max_loading_rate[i] * z[n.index()][*v];
             let loading_rate = sets.P.iter().map(|p| q[i][*v][t][*p]).grb_sum();
 
             model.add_constr(
@@ -223,26 +223,22 @@ impl ExactModelSolver {
         }
 
         let revenue = iproduct!(&sets.N, &sets.V, &sets.P)
-            .map(|(n, v, p)| {
-                parameters.revenue[n.get_port()] * q[n.get_port()][*v][n.get_time()][*p]
-            })
+            .map(|(n, v, p)| parameters.revenue[n.port()] * q[n.port()][*v][n.time()][*p])
             .grb_sum();
 
         let transportation_cost = iproduct!(&sets.V, &sets.A)
             .map(|(v, a)| {
-                parameters.travel_cost[a.get_from().get_port()][a.get_to().get_port()][*v]
+                parameters.travel_cost[a.get_from().port()][a.get_to().port()][*v]
                     * x[*v][a.get_index()]
             })
             .grb_sum();
 
         let spot_market_cost = iproduct!(&sets.I, &sets.T, &sets.P)
-            .map(|(i, t, p)| 
-                parameters.spot_market_cost[*i] * 
-                a[*i][*t][*p]
-            ).grb_sum();
+            .map(|(i, t, p)| parameters.spot_market_cost[*i] * a[*i][*t][*p])
+            .grb_sum();
 
         let delay_cost = iproduct!(&sets.N, &sets.V)
-            .map(|(i, v)| (i.get_time() as f64) * parameters.epsilon * z[i.get_index()][*v])
+            .map(|(i, v)| (i.time() as f64) * parameters.epsilon * z[i.index()][*v])
             .grb_sum();
 
         model.set_objective(

@@ -121,9 +121,9 @@ impl Sets {
 
         iproduct!(nodes, nodes).for_each(
             |(n_1, n_2)| {
-                if n_1.get_time() < n_2.get_time() {
-                    if n_1.get_port() == n_2.get_port() {
-                        if (n_1.get_time()+1) == n_2.get_time() {
+                if n_1.time() < n_2.time() {
+                    if n_1.port() == n_2.port() {
+                        if (n_1.time()+1) == n_2.time() {
                             all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
                         }
                     }
@@ -133,7 +133,7 @@ impl Sets {
                 }
                 // As the source node has time = 0 and the sink node has time = n timesteps, we want to accept these as well
                 else {
-                    if ((n_1.get_kind() == NetworkNodeType::Source) && (n_2.get_kind() != NetworkNodeType::Source)) || ((n_2.get_kind() == NetworkNodeType::Sink) && (n_1.get_kind() != NetworkNodeType::Sink)) {
+                    if ((n_1.kind() == NetworkNodeType::Source) && (n_2.kind() != NetworkNodeType::Source)) || ((n_2.kind() == NetworkNodeType::Sink) && (n_1.kind() != NetworkNodeType::Sink)) {
                         all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
                     }
                 }
@@ -162,30 +162,30 @@ impl Sets {
                 |a| {
                     let available_from = vessel.available_from();
                     let travel_time: usize = match a.get_kind() {
-                        ArcType::TravelArc => problem.travel_time(a.get_from().get_port(), a.get_to().get_port(), vessel),
+                        ArcType::TravelArc => problem.travel_time(a.get_from().port(), a.get_to().port(), vessel),
                         ArcType::WaitingArc => 1,
                         ArcType::EnteringArc => a.get_time(),
                         _ => 0,
                     };
                     let origin = vessel.origin();
 
-                    // Remove all arcs that occurs before the vessel becomes available
-                    (a.get_from().get_time() < available_from) 
+                    
+                    (a.get_from().time() < available_from) 
                     && 
-                    (a.get_to().get_time() < available_from)
+                    (a.get_to().time() < available_from)
                     &&
-                    // Remove all infeasible arcs and the travel arcs with 
+                    
                     (
                         (a.get_kind() == ArcType::TravelArc) 
                         && 
                         ((travel_time != a.get_time()) || (travel_time == usize::MAX))
                     )
                     &&
-                    // Remove all arcs that leaves the source that aren't directed to the origin
+                    
                     (
                         (a.get_kind() == ArcType::EnteringArc)
                         &&
-                        (a.get_from().get_index() != origin)
+                        (a.get_from().index() != origin)
                     )
                 }
             )
@@ -213,6 +213,13 @@ impl Sets {
             |a| *a
         )
         .collect::<Vec<_>>()
+    }
+    
+    pub fn get_arc_index(&self, from_node: NodeIndex, from_time: TimeIndex, to_node: NodeIndex, to_time: TimeIndex) -> ArcIndex{
+        self.A.iter().find(|arc| arc.get_from().index()==from_node && 
+            arc.get_from().time() == from_time && 
+            arc.get_to().index() == to_node && 
+            arc.get_to().time() == to_time).expect(format!("Arc not found, however it should be there, arc: {from_node},{from_time},{to_node},{to_time}").as_str()).get_index()
     }
 }
 
@@ -329,19 +336,19 @@ impl NetworkNode {
         NetworkNode { port, time, kind, index }
     }
 
-    pub fn get_port(&self) -> PortIndex {
+    pub fn port(&self) -> PortIndex {
         self.port
     }
 
-    pub fn get_time(&self) -> TimeIndex {
+    pub fn time(&self) -> TimeIndex {
         self.time
     }
 
-    pub fn get_kind(&self) -> NetworkNodeType {
+    pub fn kind(&self) -> NetworkNodeType {
         self.kind
     }
 
-    pub fn get_index(&self) -> NodeIndex {
+    pub fn index(&self) -> NodeIndex {
         self.index
     }
 }
@@ -375,16 +382,16 @@ pub struct Arc {
 impl Arc {
     pub fn new(from: &NetworkNode, to: &NetworkNode, index: ArcIndex) -> Result<Arc, Error> {
         // Ensure that the timestep of the node the arc leads to is after the node it comes from
-        if let NetworkNodeType::Normal = from.get_kind() {
-            assert!(from.get_time() < to.get_time())
+        if let NetworkNodeType::Normal = from.kind() {
+            assert!(from.time() < to.time())
         }
         
         // When the arc is a travel arc, it is either a travel arc, a entering arc, a leaving arc or 
         // an arc used by vessel not in use
-        let arc_type = if from.get_port() != to.get_port() {
-            match from.get_kind() {
+        let arc_type = if from.port() != to.port() {
+            match from.kind() {
                 NetworkNodeType::Source => {
-                    match to.get_kind() {
+                    match to.kind() {
                         NetworkNodeType::Source => {
                             println!("Got a source -> source arc");
                             None
@@ -395,7 +402,7 @@ impl Arc {
                 },
                 NetworkNodeType::Sink => None,
                 NetworkNodeType::Normal => {
-                    match to.get_kind() {
+                    match to.kind() {
                         NetworkNodeType::Source => {
                             println!("Got a normal -> source arc");
                             None
@@ -407,9 +414,9 @@ impl Arc {
             }
         } else {
             // All waiting arcs should have length 1
-            if (to.get_time() - from.get_time()) != 1 {
+            if (to.time() - from.time()) != 1 {
                 println!("Got a waiting arc with wrong length");
-                println!("From: {} To: {} Time from: {} Time to: {} From type: {:?}", from.get_port(), to.get_port(), from.get_time(), to.get_time(), from.get_kind());
+                println!("From: {} To: {} Time from: {} Time to: {} From type: {:?}", from.port(), to.port(), from.time(), to.time(), from.kind());
                 None
             }
             else {
@@ -443,7 +450,7 @@ impl Arc {
     /// Retrieve the time it takes to travel the arc
     pub fn get_time(&self) -> usize {
         match self.get_kind() {
-            ArcType::TravelArc => self.get_to().get_time() - self.get_from().get_time(),
+            ArcType::TravelArc => self.get_to().time() - self.get_from().time(),
             ArcType::WaitingArc => 1,
             ArcType::EnteringArc => 0,
             ArcType::LeavingArc => 0,
