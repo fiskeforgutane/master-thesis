@@ -37,6 +37,8 @@ impl RollingHorizon {
                     n.initial_inventory().clone(),
                     n.spot_market_limit_per_time(),
                     n.spot_market_limit(),
+                    n.spot_market_unit_price(),
+                    n.spot_market_discount_factor(),
                     n.coordinates(),
                 )
             })
@@ -98,6 +100,8 @@ impl RollingHorizon {
                     (initial_inventory[n.index()]).clone(),
                     n.spot_market_limit_per_time(),
                     n.spot_market_limit(),
+                    n.spot_market_unit_price(),
+                    n.spot_market_discount_factor(),
                     n.coordinates(),
                 )
             })
