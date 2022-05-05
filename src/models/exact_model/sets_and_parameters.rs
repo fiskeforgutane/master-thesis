@@ -159,7 +159,7 @@ impl Sets {
                 // if n1 is a source node we add arcs to all other nodes
                 NetworkNodeType::Source => nodes
                     .iter()
-                    .filter(|n2| *n2 != n1)
+                    .filter(|n2| *n2.port() != n1.port())
                     .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len()))),
                 // if n1 is a source we do not add any arcs
                 NetworkNodeType::Sink => {
@@ -170,7 +170,7 @@ impl Sets {
                     // add arcs to other nodes
                     nodes
                         .iter()
-                        .filter(|n2| *n2 != n1 && n2.time() > n1.time())
+                        .filter(|n2| n2.port() != n1.port() && n2.time() > n1.time())
                         .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len())));
 
                     // add the arc to the next node (iterator will be empty if this is the last node at the current port)
