@@ -1,4 +1,4 @@
-use crate::{problem::{Problem, Vessel, Inventory}};
+use crate::problem::{Inventory, Problem, Vessel};
 
 use itertools::iproduct;
 
@@ -84,8 +84,16 @@ pub struct Parameters {
 impl Sets {
     pub fn new(problem: &Problem) -> Sets {
         let I: Vec<usize> = problem.nodes().iter().map(|i| i.index()).collect();
-        let Ip = problem.production_nodes().iter().map(|i| i.index()).collect();
-        let Ic = problem.consumption_nodes().iter().map(|i| i.index()).collect();
+        let Ip = problem
+            .production_nodes()
+            .iter()
+            .map(|i| i.index())
+            .collect();
+        let Ic = problem
+            .consumption_nodes()
+            .iter()
+            .map(|i| i.index())
+            .collect();
         let V = problem.vessels().iter().map(|v| v.index()).collect();
         let T = (0..problem.timesteps()).collect();
         let P = (0..problem.products()).collect();
@@ -94,229 +102,328 @@ impl Sets {
             .iter()
             .map(|v| (0..v.compartments().len()).collect())
             .collect();
-        let N: Vec<NetworkNode> = iproduct!(0..(problem.nodes().len()), 0..problem.timesteps()).enumerate().map(
-            |(index, (i, t))| NetworkNode::new(i, t, index, NetworkNodeType::Normal)
-        ).collect();
+        let N: Vec<NetworkNode> = iproduct!(0..(problem.nodes().len()), 0..problem.timesteps())
+            .enumerate()
+            .map(|(index, (i, t))| NetworkNode::new(i, t, index, NetworkNodeType::Normal))
+            .collect();
         // Add sink and source to the set of all nodes
         let mut Nst = N.clone();
-        Nst.push(NetworkNode::new(I.len()+1, 0, N.len(), NetworkNodeType::Source));
-        Nst.push(NetworkNode::new(I.len()+2, problem.timesteps(), N.len(), NetworkNodeType::Sink));
+        Nst.push(NetworkNode::new(
+            I.len() + 1,
+            0,
+            N.len(),
+            NetworkNodeType::Source,
+        ));
+        Nst.push(NetworkNode::new(
+            I.len() + 2,
+            problem.timesteps(),
+            N.len(),
+            NetworkNodeType::Sink,
+        ));
         let A = Sets::get_all_arcs(&N);
         let Av = Sets::get_arcs(problem, &A);
         let Fs = iproduct!(problem.vessels(), &N)
-            .map(
-                |(v, n)| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n)
-            ).collect::<Vec<_>>();
+            .map(|(v, n)| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n))
+            .collect::<Vec<_>>();
         let Rs = iproduct!(problem.vessels(), &N)
-            .map(
-                |(v, n)| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &A, &n)
-            ).collect::<Vec<_>>();
+            .map(|(v, n)| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &A, &n))
+            .collect::<Vec<_>>();
 
-        Sets { I, Ip, Ic, V, T, P, S, N, Nst, A, Av, Fs, Rs }
+        Sets {
+            I,
+            Ip,
+            Ic,
+            V,
+            T,
+            P,
+            S,
+            N,
+            Nst,
+            A,
+            Av,
+            Fs,
+            Rs,
+        }
     }
 
     pub fn get_all_arcs(nodes: &Vec<NetworkNode>) -> Vec<Arc> {
         // Set holding a list enumerating all possible arcs moving forward in time in the network
         let mut all_arcs: Vec<Arc> = Vec::new();
 
-        iproduct!(nodes, nodes).for_each(
-            |(n_1, n_2)| {
-                if n_1.time() < n_2.time() {
-                    if n_1.port() == n_2.port() {
-                        if (n_1.time()+1) == n_2.time() {
-                            all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
-                        }
-                    }
-                    else {
+        iproduct!(nodes, nodes).for_each(|(n_1, n_2)| {
+            if n_1.time() < n_2.time() {
+                if n_1.port() == n_2.port() {
+                    if (n_1.time() + 1) == n_2.time() {
                         all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
                     }
-                }
-                // As the source node has time = 0 and the sink node has time = n timesteps, we want to accept these as well
-                else {
-                    if ((n_1.kind() == NetworkNodeType::Source) && (n_2.kind() != NetworkNodeType::Source)) || ((n_2.kind() == NetworkNodeType::Sink) && (n_1.kind() != NetworkNodeType::Sink)) {
-                        all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
-                    }
+                } else {
+                    all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
                 }
             }
-        );
+            // As the source node has time = 0 and the sink node has time = n timesteps, we want to accept these as well
+            else {
+                if ((n_1.kind() == NetworkNodeType::Source)
+                    && (n_2.kind() != NetworkNodeType::Source))
+                    || ((n_2.kind() == NetworkNodeType::Sink)
+                        && (n_1.kind() != NetworkNodeType::Sink))
+                {
+                    all_arcs.push(Arc::new(n_1, n_2, all_arcs.len()).unwrap());
+                }
+            }
+        });
 
         all_arcs
     }
 
     pub fn get_arcs(problem: &Problem, A: &Vec<Arc>) -> Vec<Vec<ArcIndex>> {
         // Generate the set of arcs for each of the vessels
-        let vessel_arcs = problem.vessels()
+        let vessel_arcs = problem
+            .vessels()
             .iter()
-            .map(
-                |v| Sets::get_vessel_arcs(problem, A, v)
-            )
+            .map(|v| Sets::get_vessel_arcs(problem, A, v))
             .collect::<Vec<_>>();
 
         vessel_arcs
     }
 
-    pub fn get_vessel_arcs(problem: &Problem, all_arcs: &Vec<Arc>, vessel: &Vessel) -> Vec<ArcIndex>{
+    pub fn get_vessel_arcs(
+        problem: &Problem,
+        all_arcs: &Vec<Arc>,
+        vessel: &Vessel,
+    ) -> Vec<ArcIndex> {
         let vessel_arcs: Vec<ArcIndex> = all_arcs
             .into_iter()
-            .filter(
-                |a| {
-                    let available_from = vessel.available_from();
-                    let travel_time: usize = match a.get_kind() {
-                        ArcType::TravelArc => problem.travel_time(a.get_from().port(), a.get_to().port(), vessel),
-                        ArcType::WaitingArc => 1,
-                        ArcType::EnteringArc => a.get_time(),
-                        _ => 0,
-                    };
-                    let origin = vessel.origin();
+            .filter(|a| {
+                let available_from = vessel.available_from();
+                let travel_time: usize = match a.get_kind() {
+                    ArcType::TravelArc => {
+                        problem.travel_time(a.get_from().port(), a.get_to().port(), vessel)
+                    }
+                    ArcType::WaitingArc => 1,
+                    ArcType::EnteringArc => a.get_time(),
+                    _ => 0,
+                };
+                let origin = vessel.origin();
 
-                    
-                    (a.get_from().time() < available_from) 
-                    && 
-                    (a.get_to().time() < available_from)
-                    &&
-                    
-                    (
-                        (a.get_kind() == ArcType::TravelArc) 
-                        && 
-                        ((travel_time != a.get_time()) || (travel_time == usize::MAX))
-                    )
-                    &&
-                    
-                    (
-                        (a.get_kind() == ArcType::EnteringArc)
-                        &&
-                        (a.get_from().index() != origin)
-                    )
-                }
-            )
-            .map(
-                |a| a.get_index()
-            )
+                (a.get_from().time() < available_from)
+                    && (a.get_to().time() < available_from)
+                    && ((a.get_kind() == ArcType::TravelArc)
+                        && ((travel_time != a.get_time()) || (travel_time == usize::MAX)))
+                    && ((a.get_kind() == ArcType::EnteringArc) && (a.get_from().index() != origin))
+            })
+            .map(|a| a.get_index())
             .collect::<Vec<_>>();
-        
+
         vessel_arcs
     }
 
-    pub fn get_forward_star(vessel_arcs: &Vec<ArcIndex>, all_arcs: &Vec<Arc>, node: &NetworkNode) -> Vec<ArcIndex> {
-        vessel_arcs.iter().filter(
-            |a| all_arcs[**a].get_from() == *node
-        ).map(
-            |a| *a
-        )
-        .collect::<Vec<_>>()
+    pub fn get_forward_star(
+        vessel_arcs: &Vec<ArcIndex>,
+        all_arcs: &Vec<Arc>,
+        node: &NetworkNode,
+    ) -> Vec<ArcIndex> {
+        vessel_arcs
+            .iter()
+            .filter(|a| all_arcs[**a].get_from() == *node)
+            .map(|a| *a)
+            .collect::<Vec<_>>()
     }
 
-    pub fn get_reverse_star(vessel_arcs: &Vec<ArcIndex>, all_arcs: &Vec<Arc>, node: &NetworkNode) -> Vec<ArcIndex> {
-        vessel_arcs.iter().filter(
-            |a| all_arcs[**a].get_to() == *node
-        ).map(
-            |a| *a
-        )
-        .collect::<Vec<_>>()
+    pub fn get_reverse_star(
+        vessel_arcs: &Vec<ArcIndex>,
+        all_arcs: &Vec<Arc>,
+        node: &NetworkNode,
+    ) -> Vec<ArcIndex> {
+        vessel_arcs
+            .iter()
+            .filter(|a| all_arcs[**a].get_to() == *node)
+            .map(|a| *a)
+            .collect::<Vec<_>>()
     }
-    
-    pub fn get_arc_index(&self, from_node: NodeIndex, from_time: TimeIndex, to_node: NodeIndex, to_time: TimeIndex) -> ArcIndex{
-        self.A.iter().find(|arc| arc.get_from().index()==from_node && 
-            arc.get_from().time() == from_time && 
-            arc.get_to().index() == to_node && 
-            arc.get_to().time() == to_time).expect(format!("Arc not found, however it should be there, arc: {from_node},{from_time},{to_node},{to_time}").as_str()).get_index()
+
+    pub fn get_arc_index(
+        &self,
+        from_node: NodeIndex,
+        from_time: TimeIndex,
+        to_node: NodeIndex,
+        to_time: TimeIndex,
+    ) -> ArcIndex {
+        match self.A.iter().find(|arc| {
+            arc.get_from().index == from_node
+                && arc.get_from().time() == from_time
+                && arc.get_to().index() == to_node
+                && arc.get_to().time() == to_time
+        }) {
+            Some(a) => a.get_index(),
+            None => {
+                panic!(
+                    "Arc {}_{}_{}_{} is not in arcs",
+                    from_node, from_time, to_node, to_time
+                );
+            }
+        }
     }
 }
 
 impl Parameters {
     pub fn new(problem: &Problem) -> Parameters {
-        let vessel_capacity: Vec<f64> = problem.vessels().iter().map(
-            |v| v.capacity()
-        ).collect();
-        let initial_inventory: Vec<Vec<f64>> = problem.vessels().iter().map(
-            |v| (0..v.initial_inventory().as_inv().num_products()).map(
-                |p| v.initial_inventory()[p]
-            ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        let travel_cost: Vec<Vec<Vec<f64>>> = problem.nodes().iter().map(
-            |n_1| problem.nodes().iter().map(
-                |n_2| problem.vessels().iter().map(
-                    |v| {
-                        match n_2.r#type() {
-                            crate::problem::NodeType::Consumption => problem.travel_cost(n_1.index(), n_2.index(), v.index(), &Inventory::new(&vec![1.0]).unwrap()),
-                            crate::problem::NodeType::Production => problem.travel_cost(n_1.index(), n_2.index(), v.index(), &Inventory::new(&vec![0.0]).unwrap()),
-                        }
-                    }
-                ).collect::<Vec<_>>()
-            ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        let spot_market_cost: Vec<f64> = problem.nodes().iter().map(
-            |_| 1.0
-        ).collect::<Vec<_>>();
-        let berth_capacity: Vec<Vec<usize>> = problem.nodes().iter().map(
-            |n| (0..problem.timesteps()).map(
-                |t| n.port_capacity()[t])
-                .collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        let port_capacity: Vec<Vec<f64>> = problem.nodes().iter().map(
-            |n| (0..n.capacity().as_inv().num_products()).map(
-                |p| n.capacity()[p]
-            ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        let min_inventory_port: Vec<Vec<f64>> = problem.nodes().iter().map(
-            |_| (0..problem.products()).map(
-                |_| 0.0
-             ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        let initial_port_inventory: Vec<Vec<f64>> = problem.nodes().iter().map(
-            |n| (0..n.initial_inventory().as_inv().num_products()).map(
-                |p| n.capacity()[p]
-            ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        let consumption: Vec<Vec<Vec<f64>>> = problem.nodes().iter().map(
-            |n| (0..problem.timesteps()).map(
-                |t| (0..problem.products()).map(
-                    |p| {
-                        if t == 0 {
-                            0.0
-                        } else {
-                            n.inventory_change(t-1, t, p)
-                        }
-                    }
-                ).collect::<Vec<_>>()
-            ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        let port_type: Vec<isize> = problem.nodes().iter().map(
-            |n| match n.r#type() {
+        let vessel_capacity: Vec<f64> = problem.vessels().iter().map(|v| v.capacity()).collect();
+        let initial_inventory: Vec<Vec<f64>> = problem
+            .vessels()
+            .iter()
+            .map(|v| {
+                (0..v.initial_inventory().as_inv().num_products())
+                    .map(|p| v.initial_inventory()[p])
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let travel_cost: Vec<Vec<Vec<f64>>> = problem
+            .nodes()
+            .iter()
+            .map(|n_1| {
+                problem
+                    .nodes()
+                    .iter()
+                    .map(|n_2| {
+                        problem
+                            .vessels()
+                            .iter()
+                            .map(|v| match n_2.r#type() {
+                                crate::problem::NodeType::Consumption => problem.travel_cost(
+                                    n_1.index(),
+                                    n_2.index(),
+                                    v.index(),
+                                    &Inventory::new(&vec![1.0]).unwrap(),
+                                ),
+                                crate::problem::NodeType::Production => problem.travel_cost(
+                                    n_1.index(),
+                                    n_2.index(),
+                                    v.index(),
+                                    &Inventory::new(&vec![0.0]).unwrap(),
+                                ),
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let spot_market_cost: Vec<f64> = problem.nodes().iter().map(|_| 1.0).collect::<Vec<_>>();
+        let berth_capacity: Vec<Vec<usize>> = problem
+            .nodes()
+            .iter()
+            .map(|n| {
+                (0..problem.timesteps())
+                    .map(|t| n.port_capacity()[t])
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let port_capacity: Vec<Vec<f64>> = problem
+            .nodes()
+            .iter()
+            .map(|n| {
+                (0..n.capacity().as_inv().num_products())
+                    .map(|p| n.capacity()[p])
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let min_inventory_port: Vec<Vec<f64>> = problem
+            .nodes()
+            .iter()
+            .map(|_| (0..problem.products()).map(|_| 0.0).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        let initial_port_inventory: Vec<Vec<f64>> = problem
+            .nodes()
+            .iter()
+            .map(|n| {
+                (0..n.initial_inventory().as_inv().num_products())
+                    .map(|p| n.capacity()[p])
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let consumption: Vec<Vec<Vec<f64>>> = problem
+            .nodes()
+            .iter()
+            .map(|n| {
+                (0..problem.timesteps())
+                    .map(|t| {
+                        (0..problem.products())
+                            .map(|p| {
+                                if t == 0 {
+                                    0.0
+                                } else {
+                                    n.inventory_change(t - 1, t, p)
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let port_type: Vec<isize> = problem
+            .nodes()
+            .iter()
+            .map(|n| match n.r#type() {
                 crate::problem::NodeType::Consumption => -1,
                 crate::problem::NodeType::Production => 1,
-            }
-        ).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let epsilon: f64 = 0.01;
-        let max_spot_period: Vec<Vec<f64>> = problem.nodes().iter().map(
-            |n| (0..problem.timesteps()).map(
-                |_| n.spot_market_limit_per_time()
-            ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
-        let max_spot_horizon: Vec<f64> = problem.nodes().iter().map(
-            |n| n.spot_market_limit()
-        ).collect::<Vec<_>>();
-        let min_loading_rate: Vec<f64> = problem.nodes().iter().map(
-            |n| n.min_unloading_amount()
-        ).collect::<Vec<_>>();
-        let max_loading_rate: Vec<f64> = problem.nodes().iter().map(
-            |n| n.max_loading_amount()
-        ).collect::<Vec<_>>();
-        let revenue = problem.nodes().iter().map(
-            |n| n.revenue()
-        ).collect::<Vec<_>>();
+        let max_spot_period: Vec<Vec<f64>> = problem
+            .nodes()
+            .iter()
+            .map(|n| {
+                (0..problem.timesteps())
+                    .map(|_| n.spot_market_limit_per_time())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let max_spot_horizon: Vec<f64> = problem
+            .nodes()
+            .iter()
+            .map(|n| n.spot_market_limit())
+            .collect::<Vec<_>>();
+        let min_loading_rate: Vec<f64> = problem
+            .nodes()
+            .iter()
+            .map(|n| n.min_unloading_amount())
+            .collect::<Vec<_>>();
+        let max_loading_rate: Vec<f64> = problem
+            .nodes()
+            .iter()
+            .map(|n| n.max_loading_amount())
+            .collect::<Vec<_>>();
+        let revenue = problem
+            .nodes()
+            .iter()
+            .map(|n| n.revenue())
+            .collect::<Vec<_>>();
 
         Parameters {
-            vessel_capacity, initial_inventory, travel_cost, spot_market_cost, berth_capacity, port_capacity,  min_inventory_port, initial_port_inventory, consumption, port_type, epsilon, max_spot_period, max_spot_horizon, min_loading_rate, max_loading_rate, revenue
+            vessel_capacity,
+            initial_inventory,
+            travel_cost,
+            spot_market_cost,
+            berth_capacity,
+            port_capacity,
+            min_inventory_port,
+            initial_port_inventory,
+            consumption,
+            port_type,
+            epsilon,
+            max_spot_period,
+            max_spot_horizon,
+            min_loading_rate,
+            max_loading_rate,
+            revenue,
         }
     }
- }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum NetworkNodeType {
     Source,
     Sink,
-    Normal
+    Normal,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -328,12 +435,22 @@ pub struct NetworkNode {
     // kind
     kind: NetworkNodeType,
     // index
-    index: NodeIndex
+    index: NodeIndex,
 }
 
 impl NetworkNode {
-    pub fn new(port: PortIndex, time: TimeIndex, index: NodeIndex, kind: NetworkNodeType) -> NetworkNode {
-        NetworkNode { port, time, kind, index }
+    pub fn new(
+        port: PortIndex,
+        time: TimeIndex,
+        index: NodeIndex,
+        kind: NetworkNodeType,
+    ) -> NetworkNode {
+        NetworkNode {
+            port,
+            time,
+            kind,
+            index,
+        }
     }
 
     pub fn port(&self) -> PortIndex {
@@ -376,7 +493,7 @@ pub struct Arc {
     // The kind of arc
     kind: ArcType,
     // Index of the arc
-    index: ArcIndex
+    index: ArcIndex,
 }
 
 impl Arc {
@@ -385,48 +502,55 @@ impl Arc {
         if let NetworkNodeType::Normal = from.kind() {
             assert!(from.time() < to.time())
         }
-        
-        // When the arc is a travel arc, it is either a travel arc, a entering arc, a leaving arc or 
+
+        // When the arc is a travel arc, it is either a travel arc, a entering arc, a leaving arc or
         // an arc used by vessel not in use
         let arc_type = if from.port() != to.port() {
             match from.kind() {
-                NetworkNodeType::Source => {
-                    match to.kind() {
-                        NetworkNodeType::Source => {
-                            println!("Got a source -> source arc");
-                            None
-                        },
-                        NetworkNodeType::Sink => Some(ArcType::NotUsedArc),
-                        NetworkNodeType::Normal => Some(ArcType::EnteringArc),
+                NetworkNodeType::Source => match to.kind() {
+                    NetworkNodeType::Source => {
+                        println!("Got a source -> source arc");
+                        None
                     }
+                    NetworkNodeType::Sink => Some(ArcType::NotUsedArc),
+                    NetworkNodeType::Normal => Some(ArcType::EnteringArc),
                 },
                 NetworkNodeType::Sink => None,
-                NetworkNodeType::Normal => {
-                    match to.kind() {
-                        NetworkNodeType::Source => {
-                            println!("Got a normal -> source arc");
-                            None
-                        },
-                        NetworkNodeType::Sink => Some(ArcType::LeavingArc),
-                        NetworkNodeType::Normal => Some(ArcType::TravelArc),
+                NetworkNodeType::Normal => match to.kind() {
+                    NetworkNodeType::Source => {
+                        println!("Got a normal -> source arc");
+                        None
                     }
+                    NetworkNodeType::Sink => Some(ArcType::LeavingArc),
+                    NetworkNodeType::Normal => Some(ArcType::TravelArc),
                 },
             }
         } else {
             // All waiting arcs should have length 1
             if (to.time() - from.time()) != 1 {
                 println!("Got a waiting arc with wrong length");
-                println!("From: {} To: {} Time from: {} Time to: {} From type: {:?}", from.port(), to.port(), from.time(), to.time(), from.kind());
+                println!(
+                    "From: {} To: {} Time from: {} Time to: {} From type: {:?}",
+                    from.port(),
+                    to.port(),
+                    from.time(),
+                    to.time(),
+                    from.kind()
+                );
                 None
-            }
-            else {
+            } else {
                 Some(ArcType::WaitingArc)
             }
         };
 
         assert!(arc_type.is_some());
 
-        Ok (Arc { from: *from, to: *to, kind: arc_type.unwrap(), index: index })
+        Ok(Arc {
+            from: *from,
+            to: *to,
+            kind: arc_type.unwrap(),
+            index: index,
+        })
     }
 
     pub fn get_from(&self) -> NetworkNode {
