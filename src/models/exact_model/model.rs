@@ -52,8 +52,8 @@ impl ExactModelSolver {
         // ensure that the all "normal" nodes have as many arcs entering as those leaving
         // and that the source just has one leaving, and that the sink has one entering
         for (n, v) in iproduct!(&sets.Nst, &sets.V) {
-            let lhs = sets.Fs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
-                - sets.Rs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
+            let lhs = sets.Fs[n.index()].iter().map(|a| &x[*v][*a]).grb_sum()
+                - sets.Rs[n.index()].iter().map(|a| &x[*v][*a]).grb_sum();
             let rhs: isize;
             match n.kind() {
                 NetworkNodeType::Source => rhs = 1,
