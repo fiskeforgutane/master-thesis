@@ -385,7 +385,7 @@ impl QuantityLp {
             Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
         )?;
 
-        let vtype = match self.semicont {
+        let vtype = match self.berth {
             true => grb::VarType::Binary,
             false => grb::VarType::Continuous,
         };
