@@ -33,7 +33,7 @@ impl ExactModelSolver {
             println!("Vessel: {} Number of arcs: {}", v, sets.Av[*v].len());
             println!("Vessel: {} Reverse star: {:?}", v, sets.Fs[*v]);
         }
-        
+
         // 1 if the vessel traverses the arc, 0 otherwise
         let x: Vec<Vec<Var>> = (arcs, vessels).binary(&mut model, &"x")?;
         // 1 if the vessel is able to unload at the node, 0 otherwise
@@ -158,7 +158,7 @@ impl ExactModelSolver {
         for (v, t) in iproduct!(&sets.V, &sets.T) {
             let lhs = sets.P.iter().map(|p| s_vessel[*v][*t][*p]).grb_sum();
 
-            let rhs = 0.9 * parameters.vessel_capacity[*v];
+            let rhs = parameters.vessel_capacity[*v];
 
             model.add_constr(&format!("vessel_storage_capacity_{v}_{t}"), c!(lhs <= rhs))?;
         }
@@ -178,6 +178,9 @@ impl ExactModelSolver {
         // ensure that all vessels that deliver something to a node are located at that node
         for (n, v) in iproduct!(&sets.N, &sets.V) {
             let lhs = z[n.index()][*v];
+            if n.index() == 30 && v == &5 {
+                println!("node: {:?}", n);
+            }
 
             let rhs = sets.Rs[*v][n.index()].iter().map(|a| x[*a][*v]).grb_sum();
 
