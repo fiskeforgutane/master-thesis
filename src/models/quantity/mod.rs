@@ -294,12 +294,13 @@ impl QuantityLp {
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
 
         // This should probably be taken from the problem instance
-        let discount: f64 = 0.999;
+        let discount = problem.spot_discount();
+        let spot_cost = problem.spot_market_cost();
 
         let violation_expr = w.iter().flatten().flatten().grb_sum();
         // We discount later uses of the spot market; effectively making it desirable to perform spot operations as late as possible
         let spot_expr = iproduct!(0..t, 0..n, 0..p)
-            .map(|(t, n, p)| a[t][n][p] * discount.powi(t as i32))
+            .map(|(t, n, p)| a[t][n][p] * spot_cost * discount.powi(t as i32))
             .grb_sum();
 
         // We use an increasing weight to prefer early deliveries.
