@@ -1,4 +1,4 @@
-use crate::models::exact_model::sets_and_parameters::{NetworkNode, NetworkNodeType};
+use crate::models::exact_model::sets_and_parameters::NetworkNodeType;
 use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::Problem;
 use grb::prelude::*;
@@ -25,7 +25,6 @@ impl ExactModelSolver {
         let arcs = sets.A.len();
         let products = sets.P.len();
         let ports = sets.I.len();
-        let normal_nodes = sets.N.len();
         let nodes = sets.Nst.len();
         let timesteps = sets.T.len();
 
@@ -266,14 +265,11 @@ impl ExactModelSolver {
 
     pub fn solve(problem: &Problem) -> Result<ExactModelResults, grb::Error> {
         let sets = Sets::new(problem);
-        let parameters = Parameters::new(problem, &sets);
+        let parameters = Parameters::new(problem);
         let (m, variables) = ExactModelSolver::build(&sets, &parameters)?;
         let mut model = m;
 
         model.optimize()?;
-
-        let iis = model.compute_iis();
-        model.write("model.ilp")?;
 
         ExactModelResults::new(&variables, &model)
     }
@@ -281,7 +277,7 @@ impl ExactModelSolver {
     pub fn build_and_write(problem: &Problem, path: &str) -> grb::Result<()> {
         let sets = Sets::new(problem);
         println!("Timesteps: {} Ports: {}", sets.T.len(), sets.I.len());
-        let parameters = Parameters::new(problem, &sets);
+        let parameters = Parameters::new(problem);
         let (model, _) = ExactModelSolver::build(&sets, &parameters)?;
         model.write(path)?;
         Ok(())

@@ -379,7 +379,7 @@ impl Sets {
 }
 
 impl Parameters {
-    pub fn new(problem: &Problem, sets: &Sets) -> Parameters {
+    pub fn new(problem: &Problem) -> Parameters {
         let vessel_capacity: Vec<f64> = problem.vessels().iter().map(|v| v.capacity()).collect();
         let initial_inventory: Vec<Vec<f64>> = problem
             .vessels()
