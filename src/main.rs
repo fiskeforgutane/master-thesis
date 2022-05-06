@@ -311,7 +311,7 @@ pub fn run_unfixed_rolling_horizon(
             init,
             termination.clone(),
             conf.clone(),
-            write,
+            false,
         );
 
         init = Arc::new(Mutex::new(FromPopulation::new(
