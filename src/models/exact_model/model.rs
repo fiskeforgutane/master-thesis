@@ -45,7 +45,7 @@ impl ExactModelSolver {
         // 1 if a vessel's compartment in occupied by a product in timestep t
         let y = (0..vessels)
             .map(|v| {
-                (num_compartments(v), timesteps, products).binary(&mut model, &format!("y_{v}"))
+                (num_compartments(v), timesteps, products).binary(&mut model, &format!("y_{v},"))
             })
             .collect::<grb::Result<Vec<_>>>()?;
         // Quantity unloaded of product at node by the vessel
@@ -54,7 +54,7 @@ impl ExactModelSolver {
                 (0..vessels)
                     .map(|v| {
                         (num_compartments(v), timesteps, products)
-                            .cont(&mut model, &format!("q_{i}"))
+                            .cont(&mut model, &format!("q_{i},{v},"))
                     })
                     .collect::<grb::Result<Vec<_>>>()
             })
@@ -62,7 +62,7 @@ impl ExactModelSolver {
 
         // (ports, vessels, max_compartments, timesteps, products).cont(&mut model, &"q")?;
         // The quantity sold of product by port in timestep
-        let a: Vec<Vec<Vec<Var>>> = (ports, timesteps, products).cont(&mut model, &"q")?;
+        let a: Vec<Vec<Vec<Var>>> = (ports, timesteps, products).cont(&mut model, &"a_")?;
         // The current inventory of product in port in timestep
         let s_port: Vec<Vec<Vec<Var>>> =
             (ports, timesteps, products).cont(&mut model, &"s_port")?;
