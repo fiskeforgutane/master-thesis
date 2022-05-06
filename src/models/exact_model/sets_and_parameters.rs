@@ -383,11 +383,11 @@ impl Sets {
 impl Parameters {
     pub fn new(problem: &Problem) -> Parameters {
         let vessel_capacity: Vec<f64> = problem.vessels().iter().map(|v| v.capacity()).collect();
-        let compartment_capacity: Vec<Vec<f64>> = problem.vessels().iter().map(
-            |v| v.compartments().iter().map(
-                |c| c.0
-            ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
+        let compartment_capacity: Vec<Vec<f64>> = problem
+            .vessels()
+            .iter()
+            .map(|v| v.compartments().iter().map(|c| c.0).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
         let initial_inventory: Vec<Vec<f64>> = problem
             .vessels()
             .iter()
@@ -427,7 +427,9 @@ impl Parameters {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-        let spot_market_cost: Vec<f64> = problem.nodes().iter().map(|_| 1.0).collect::<Vec<_>>();
+        let spot_market_cost: Vec<f64> = (0..problem.timesteps())
+            .map(|t| problem.spot_market_cost() * problem.spot_discount().powi(t as i32))
+            .collect::<Vec<_>>();
         let berth_capacity: Vec<Vec<usize>> = problem
             .nodes()
             .iter()
