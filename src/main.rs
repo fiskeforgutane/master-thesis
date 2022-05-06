@@ -537,10 +537,6 @@ struct Args {
     )]
     termination: String,
 
-    /// The timeout used when the solution is stuck (in seconds). The elapsed time will be reset each
-    /// time a better solution if found
-    #[clap(short, long, default_value_t = 3600)]
-    stuck_timeout: u64,
     /// Subcommands
     #[clap(subcommand)]
     commands: Commands,
@@ -548,7 +544,7 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    All {
+    Normal {
         #[clap(long)]
         write: bool,
     },
@@ -694,7 +690,7 @@ pub fn main() {
 
     // Run the GA.
     match args.commands {
-        Commands::All { write } => {
+        Commands::Normal { write } => {
             run_island_ga(path, out, *termination, InitRoutingSolution, config, write)
         }
         Commands::RollingHorizon {
@@ -710,13 +706,6 @@ pub fn main() {
             config,
             write,
         ),
-        Commands::Exact => run_exact_model(
-            path,
-            out,
-            Termination::Timeout(
-                std::time::Instant::now(),
-                std::time::Duration::from_secs(args.stuck_timeout),
-            ),
-        ),
+        Commands::Exact => run_exact_model(path, out, *termination),
     };
 }
