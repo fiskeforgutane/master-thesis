@@ -111,9 +111,9 @@ impl AddVars for (&Vec<Arc>, usize) {
                 &format!(
                     "{}({},{}),({},{}),",
                     base_name,
-                    arc.get_from().index(),
+                    arc.get_from().port(),
                     arc.get_from().time(),
-                    arc.get_to().index(),
+                    arc.get_to().port(),
                     arc.get_to().time(),
                 ),
                 vtype,
