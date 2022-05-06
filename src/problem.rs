@@ -517,6 +517,12 @@ pub struct Node {
     #[pyo3(get)]
     /// The maximum amount that can be bought/sold in the spot market over the course of the planning period
     spot_market_limit: f64,
+    #[pyo3(get)]
+    /// The price (penalty) per unit sold to / bought from the spot market
+    spot_market_unit_price: f64,
+    #[pyo3(get)]
+    /// The discount factor used for spot market prices
+    spot_market_discount_factor: f64,
     /// The change in inventory during each time step.
     inventory_changes: Vec<InventoryChange>,
     #[pyo3(get)]
@@ -550,6 +556,8 @@ impl Node {
         initial_inventory: FixedInventory,
         spot_market_limit_per_time: f64,
         spot_market_limit: f64,
+        spot_market_unit_price: f64,
+        spot_market_discount_factor: f64,
         coordinates: (f64, f64),
     ) -> Self {
         let mut cumulative_inventory = vec![Vec::new(); capacity.num_products()];
@@ -578,6 +586,8 @@ impl Node {
             spot_market_limit_per_time,
             spot_market_limit,
             coordinates,
+            spot_market_unit_price,
+            spot_market_discount_factor,
         }
     }
 
@@ -626,6 +636,16 @@ impl Node {
     /// The maximum amount that can be sold to / bought from the spot market over the course of the planning period
     pub fn spot_market_limit(&self) -> f64 {
         self.spot_market_limit
+    }
+
+    /// The unit price (penalty) for buying from / selling to the spot market
+    pub fn spot_market_unit_price(&self) -> f64 {
+        self.spot_market_unit_price
+    }
+
+    /// The discount factor used when buying from / selling to the spot market
+    pub fn spot_market_discount_factor(&self) -> f64 {
+        self.spot_market_discount_factor
     }
 
     /// The inventory at a given time step for a given product, assuming no deliveries.

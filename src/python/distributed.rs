@@ -108,6 +108,7 @@ impl ComputeNode {
                 revenue: -1.0,
                 cost: 1.0,
                 approx_berth_violation: 1e8,
+                spot: 1.0,
             },
         };
 

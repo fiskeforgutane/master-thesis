@@ -219,6 +219,8 @@ pub struct Cache {
     revenue: Cell<Option<Cost>>,
     /// The timing punishment of the solution.
     timing: Cell<Option<Cost>>,
+    /// The spot penalty of the solution
+    spot: Cell<Option<Cost>>,
     /// A hint to the amount of sum of berth violations in the solution
     /// The `hint` is simply sum(max(visits at node `n` at time `t` - berth capacity, 0) for all (n, t))
     approx_berth_violation: Cell<Option<usize>>,
@@ -258,6 +260,7 @@ impl Clone for RoutingSolution {
                 revenue: Cell::new(None),
                 timing: Cell::new(None),
                 approx_berth_violation: Cell::new(None),
+                spot: Cell::new(None),
             },
         }
     }
@@ -287,6 +290,8 @@ impl Clone for RoutingSolution {
         self.cache.violation = source.cache.violation.clone();
         self.cache.cost = source.cache.cost.clone();
         self.cache.revenue = source.cache.revenue.clone();
+        self.cache.spot = source.cache.spot.clone();
+        self.cache.approx_berth_violation = source.cache.approx_berth_violation.clone();
     }
 }
 
@@ -323,6 +328,7 @@ impl RoutingSolution {
             revenue: Cell::new(None),
             timing: Cell::new(None),
             approx_berth_violation: Cell::new(None),
+            spot: Cell::new(None),
         };
 
         Self {
@@ -480,6 +486,16 @@ impl RoutingSolution {
         cached.get().unwrap()
     }
 
+    /// The total penalty (= cost) for the usage of the spot market for this solution
+    pub fn spot_cost(&self) -> Cost {
+        let cached = &self.cache.spot;
+        if cached.get().is_none() {
+            self.update();
+        }
+
+        cached.get().unwrap()
+    }
+
     /// Recycle this solution into a new fresh one with no content.
     /// This allows us to reuse the inner heap-allocated structures.
     /// The result is an empty solution that is unlikely to need allocations when pushing visits,
@@ -617,6 +633,16 @@ impl RoutingSolution {
         revenue
     }
 
+    fn update_spot(&self, quantities: &QuantityLp) {
+        let lp = quantities;
+        let spot = lp
+            .model
+            .get_obj_attr(grb::attr::X, &lp.vars.spot)
+            .expect("retrieving variable values failed");
+
+        self.cache.spot.set(Some(spot));
+    }
+
     /// Recalculate all the cached values
     fn update(&self) {
         let quantities = self.quantities();
@@ -624,6 +650,7 @@ impl RoutingSolution {
         self.update_revenue(&quantities);
         self.update_violation(&quantities);
         self.update_timing(&quantities);
+        self.update_spot(&quantities)
     }
 
     /// Invalidate all the cached values on this object (objective function values, etc.)
