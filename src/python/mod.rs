@@ -1,7 +1,7 @@
 pub mod distributed;
 pub mod ga;
 
-use crate::ga::chromosome::Chromosome;
+use crate::ga::mutations::SwapStar;
 use crate::models::quantity::F64Variables;
 use crate::models::quantity::QuantityLp;
 use crate::problem::Compartment;
@@ -12,15 +12,12 @@ use crate::problem::Node;
 use crate::problem::NodeType;
 use crate::problem::Problem;
 use crate::problem::Quantity;
-use crate::problem::TimeIndex;
 use crate::problem::Vessel;
-use crate::problem::VesselIndex;
 use crate::quants;
 use crate::quants::Order;
 use crate::quants::Quantities;
-use crate::solution;
 use crate::solution::Visit;
-use crate::solution::{Delivery, Evaluation};
+use log::trace;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
@@ -28,69 +25,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::solution::routing::RoutingSolution;
-
-#[pyclass]
-#[derive(Debug, Clone)]
-pub struct Solution {
-    #[pyo3(get, set)]
-    pub routes: Vec<Vec<Delivery>>,
-}
-
-#[pymethods]
-impl Solution {
-    #[new]
-    pub fn new(routes: Vec<Vec<Delivery>>) -> Self {
-        Self { routes }
-    }
-
-    pub fn __len__(&self) -> usize {
-        self.routes.len()
-    }
-
-    pub fn __getitem__(&self, idx: usize) -> Vec<Delivery> {
-        self.routes[idx].clone()
-    }
-
-    pub fn evaluate(&self, problem: &Problem) -> PyResult<solution::Evaluation> {
-        let solution = solution::FullSolution::new(problem, self.routes.clone())
-            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
-
-        Ok(solution.evaluation())
-    }
-
-    pub fn vessel_inventory_at(
-        &self,
-        problem: &Problem,
-        vessel: VesselIndex,
-        time: TimeIndex,
-    ) -> PyResult<Inventory> {
-        let solution = solution::FullSolution::new(problem, self.routes.clone())
-            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
-
-        Ok(solution.vessel_inventory_at(vessel, time))
-    }
-
-    pub fn node_product_inventory_at(
-        &self,
-        problem: &Problem,
-        node: usize,
-        product: usize,
-        time: usize,
-    ) -> PyResult<f64> {
-        let solution = solution::FullSolution::new(problem, self.routes.clone())
-            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))?;
-
-        Ok(solution.node_product_inventory_at(node, product, time))
-    }
-
-    pub fn __str__(&self) -> String {
-        format!("{:#?}", self.routes)
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.__str__()
-    }
-}
 
 #[pymethods]
 impl Problem {
@@ -197,6 +131,9 @@ impl Node {
         initial_inventory: Vec<f64>,
         spot_market_limit_per_time: f64,
         spot_market_limit: f64,
+        spot_market_unit_price: f64,
+        spot_market_discount_factor: f64,
+        coordinates: (f64, f64),
     ) -> PyResult<Node> {
         let err = || PyErr::new::<PyValueError, _>("invalid inventory");
 
@@ -224,6 +161,9 @@ impl Node {
             initial_inventory.fixed(),
             spot_market_limit_per_time,
             spot_market_limit,
+            spot_market_unit_price,
+            spot_market_discount_factor,
+            coordinates,
         ))
     }
 
@@ -247,35 +187,8 @@ impl Compartment {
     }
 }
 
-#[pymethods]
-impl Chromosome {
-    #[new]
-    pub fn new_py(problem: &Problem) -> PyResult<Chromosome> {
-        Chromosome::new(problem).map_err(pyerr)
-    }
-
-    pub fn __str__(&self) -> String {
-        format!("{:#?}", self)
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.__str__()
-    }
-}
-
 pub fn pyerr<D: Debug>(err: D) -> PyErr {
     PyErr::new::<PyValueError, _>(format!("{:?}", err))
-}
-
-#[pymethods]
-impl Evaluation {
-    pub fn __str__(&self) -> String {
-        format!("{:#?}", self)
-    }
-
-    pub fn __repr__(&self) -> String {
-        self.__str__()
-    }
 }
 
 #[pymethods]
@@ -318,11 +231,6 @@ impl Visit {
     pub fn __repr__(&self) -> String {
         self.__str__()
     }
-}
-
-#[pyfunction]
-pub fn chromosome(problem: &Problem) -> PyResult<Chromosome> {
-    Chromosome::new(problem).map_err(pyerr)
 }
 
 #[pyfunction]
@@ -370,6 +278,33 @@ pub fn solve_multiple_quantities(
 }
 
 #[pyfunction]
+pub fn swap_star_test(
+    r1: usize,
+    r2: usize,
+    routes: Vec<Vec<Visit>>,
+    problem: Problem,
+) -> Vec<Vec<Visit>> {
+    trace!("here");
+    let arc = Arc::new(problem);
+    trace!("here");
+    let mut solution = RoutingSolution::new(arc.clone(), routes);
+    trace!("testing_overlap");
+    let overlapping = SwapStar::overlapping(r1, r2, &solution, &arc);
+    trace!("overlapping: {:?}", overlapping);
+    let best_swap = SwapStar::best_swap(&solution[r1], &solution[r2], &arc);
+    trace!("Best identified swap: {:?}", best_swap);
+    if let Some(((v1, p1), (v2, p2))) = best_swap {
+        let into_plan2 = SwapStar::new_visit(r2, p1, solution[r1][v1], &solution);
+        let into_plan1 = SwapStar::new_visit(r1, p2, solution[r2][v2], &solution);
+        SwapStar::apply_swap(&mut solution, r1, r2, into_plan1, into_plan2, v1, v2);
+    }
+    solution
+        .iter()
+        .map(|plan| plan.iter().cloned().collect())
+        .collect()
+}
+
+#[pyfunction]
 pub fn objective_terms(
     problem: Problem,
     routes: Vec<Vec<Visit>>,
@@ -389,6 +324,22 @@ pub fn objective_terms(
         timing: res.timing,
         warp: solution.warp() as f64,
     })
+}
+
+#[pyfunction]
+pub fn write_model(
+    filename: &str,
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+    semicont: bool,
+    berth: bool,
+) -> PyResult<()> {
+    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.model.write(filename).map_err(pyerr)?;
+
+    Ok(())
 }
 
 #[pyclass]

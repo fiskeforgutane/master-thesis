@@ -1,17 +1,20 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::ops::DerefMut;
+use std::ops::{DerefMut, RangeInclusive};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
-use itertools::Itertools;
+use itertools::{iproduct, Itertools};
 use log::trace;
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
+use slice_group_by::GroupBy;
 
 use crate::models::quantity::QuantityLp;
-use crate::problem::{Cost, Inventory, Problem, Product, Quantity, VesselIndex};
+use crate::problem::{
+    Cost, FixedInventory, Inventory, NodeIndex, Problem, Product, Quantity, TimeIndex, VesselIndex,
+};
 use crate::solution::Visit;
 
 /// A plan is a series of visits over a planning period, often attributed to a single vessel.
@@ -216,6 +219,11 @@ pub struct Cache {
     revenue: Cell<Option<Cost>>,
     /// The timing punishment of the solution.
     timing: Cell<Option<Cost>>,
+    /// The spot penalty of the solution
+    spot: Cell<Option<Cost>>,
+    /// A hint to the amount of sum of berth violations in the solution
+    /// The `hint` is simply sum(max(visits at node `n` at time `t` - berth capacity, 0) for all (n, t))
+    approx_berth_violation: Cell<Option<usize>>,
 }
 
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
@@ -251,6 +259,8 @@ impl Clone for RoutingSolution {
                 cost: Cell::new(None),
                 revenue: Cell::new(None),
                 timing: Cell::new(None),
+                approx_berth_violation: Cell::new(None),
+                spot: Cell::new(None),
             },
         }
     }
@@ -280,6 +290,8 @@ impl Clone for RoutingSolution {
         self.cache.violation = source.cache.violation.clone();
         self.cache.cost = source.cache.cost.clone();
         self.cache.revenue = source.cache.revenue.clone();
+        self.cache.spot = source.cache.spot.clone();
+        self.cache.approx_berth_violation = source.cache.approx_berth_violation.clone();
     }
 }
 
@@ -315,6 +327,8 @@ impl RoutingSolution {
             cost: Cell::new(None),
             revenue: Cell::new(None),
             timing: Cell::new(None),
+            approx_berth_violation: Cell::new(None),
+            spot: Cell::new(None),
         };
 
         Self {
@@ -428,12 +442,16 @@ impl RoutingSolution {
     /// too close apart in time, such that it is impossible to go from one of them to the other in time.
     pub fn warp(&self) -> usize {
         let cached = &self.cache.warp;
+        cached.get().unwrap_or_else(|| self.update_warp())
+    }
 
-        if cached.get().is_none() {
-            self.update();
-        }
+    /// Retrieve the `approx_berth_violation` of this solution
+    pub fn approx_berth_violation(&self) -> usize {
+        let cached = &self.cache.approx_berth_violation;
 
-        cached.get().unwrap()
+        cached
+            .get()
+            .unwrap_or_else(|| self.update_approx_berth_violation())
     }
 
     /// The total inventory violation (excess + shortage) for the entire planning period
@@ -461,6 +479,16 @@ impl RoutingSolution {
     /// Retrieve the total revenue for the amount delivered by in the solution
     pub fn revenue(&self) -> Cost {
         let cached = &self.cache.revenue;
+        if cached.get().is_none() {
+            self.update();
+        }
+
+        cached.get().unwrap()
+    }
+
+    /// The total penalty (= cost) for the usage of the spot market for this solution
+    pub fn spot_cost(&self) -> Cost {
+        let cached = &self.cache.spot;
         if cached.get().is_none() {
             self.update();
         }
@@ -504,6 +532,34 @@ impl RoutingSolution {
         warp
     }
 
+    fn update_approx_berth_violation(&self) -> usize {
+        let sorted = self
+            .iter()
+            .flat_map(|x| x.iter().cloned())
+            .sorted_unstable_by_key(|v| (v.time, v.node))
+            .collect::<Vec<_>>();
+
+        let nodes = self.problem().nodes();
+
+        let violation = sorted
+            .linear_group()
+            .map(|group| {
+                // The `group` is guaranteed to be non-empty, by construction
+                // additionally, all visits are equivalent (also by construction)
+                let visit = group[0];
+                let used = group.len();
+
+                let capacity = nodes[visit.node].port_capacity()[visit.time];
+                // An unsigned-equivalent version of max(used - capacity, 0)
+                used.max(capacity) - capacity
+            })
+            .sum();
+
+        self.cache.approx_berth_violation.set(Some(violation));
+
+        violation
+    }
+
     fn update_violation(&self, quantities: &QuantityLp) -> f64 {
         let lp = quantities;
         let violation = lp
@@ -531,11 +587,12 @@ impl RoutingSolution {
         let p = problem.count::<Product>();
         let mut inventory = Inventory::zeroed(p).unwrap();
         let cost = self
-            .iter_with_origin()
+            .iter()
             .enumerate()
             .map(|(v, plan)| {
                 problem.nodes()[problem.vessels()[v].origin()].port_fee()
                     + plan
+                        .iter()
                         .tuple_windows()
                         .map(|(v1, v2)| {
                             // NOTE: the time might be an off-by-one error
@@ -576,6 +633,16 @@ impl RoutingSolution {
         revenue
     }
 
+    fn update_spot(&self, quantities: &QuantityLp) {
+        let lp = quantities;
+        let spot = lp
+            .model
+            .get_obj_attr(grb::attr::X, &lp.vars.spot)
+            .expect("retrieving variable values failed");
+
+        self.cache.spot.set(Some(spot));
+    }
+
     /// Recalculate all the cached values
     fn update(&self) {
         let quantities = self.quantities();
@@ -583,7 +650,7 @@ impl RoutingSolution {
         self.update_revenue(&quantities);
         self.update_violation(&quantities);
         self.update_timing(&quantities);
-        self.update_warp();
+        self.update_spot(&quantities)
     }
 
     /// Invalidate all the cached values on this object (objective function values, etc.)
@@ -592,6 +659,8 @@ impl RoutingSolution {
         self.cache.violation.set(None);
         self.cache.cost.set(None);
         self.cache.revenue.set(None);
+        self.cache.approx_berth_violation.set(None);
+        self.cache.timing.set(None);
     }
 
     /// Convert to a double array of visits
@@ -599,6 +668,154 @@ impl RoutingSolution {
         self.iter()
             .map(|plan| plan.iter().cloned().collect())
             .collect()
+    }
+
+    /// An iterator that enumerates all the possible visits that can be inserted into the solution
+    /// without incurring any additional time warp. Consecutive visits to the same node will not be included.
+    pub fn available(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            VesselIndex,
+            impl Iterator<Item = (NodeIndex, RangeInclusive<usize>)> + '_,
+        ),
+    > + '_ {
+        let problem = self.problem();
+        self.iter_with_terminals()
+            .enumerate()
+            .map(move |(v, plan)| {
+                let vessel = &problem.vessels()[v];
+                (
+                    v,
+                    plan.tuple_windows().flat_map(move |(v1, v2)| {
+                        problem
+                            .nodes()
+                            .iter()
+                            .filter(move |n| n.index() != v1.node && n.index() != v2.node)
+                            .filter_map(move |n| {
+                                let t1 = problem.travel_time(v1.node, n.index(), vessel);
+                                let t2 = problem.travel_time(n.index(), v2.node, vessel);
+
+                                // TODO: check off by one (?)
+                                let earliest_arrival = v1.time + t1;
+                                let latest_departure = v2.time.max(t2) - t2;
+                                let available = earliest_arrival..=latest_departure;
+
+                                match available.is_empty() {
+                                    true => None,
+                                    false => Some((n.index(), available)),
+                                }
+                            })
+                    }),
+                )
+            })
+    }
+
+    pub fn duration(&self, plan_idx: usize, visit_idx: usize) -> usize {
+        let lp = &self.quantities();
+        let visit = &self[plan_idx][visit_idx];
+
+        let mut count = 0;
+        for t in visit.time..self.problem().timesteps() {
+            if !lp
+                .model
+                .get_obj_attr_batch(
+                    grb::attr::X,
+                    (0..self.problem.products()).map(|p| lp.vars.x[t][visit.node][plan_idx][p]),
+                )
+                .expect("failed to retrieve variables")
+                .into_iter()
+                .any(|v| v > 1e-5)
+            {
+                break;
+            }
+            count += 1;
+        }
+
+        count
+    }
+
+    pub fn candidates<'a>(
+        &'a self,
+        visit_idx: usize,
+        plan_idx: usize,
+        c: usize,
+    ) -> impl Iterator<Item = (VesselIndex, Visit)> + 'a {
+        let current_visit = &self[plan_idx][visit_idx];
+
+        let vessel = &self.problem().vessels()[plan_idx];
+        // the time period of the next visit, if none, the length of the planning period
+        let time_bound = match self[plan_idx].get(visit_idx + 1) {
+            Some(v) => v.time,
+            None => self.problem().timesteps(),
+        };
+        self.problem()
+            .nodes()
+            .into_iter()
+            .filter(|n| n.index() != current_visit.node)
+            .filter_map(move |n| {
+                let travel_time = self
+                    .problem()
+                    .travel_time(current_visit.node, n.index(), vessel);
+
+                let arrival = current_visit.time + travel_time;
+                match arrival < time_bound {
+                    true => Some(
+                        (arrival..(arrival + c).min(self.problem.timesteps() - 1)).map(move |t| {
+                            (
+                                plan_idx,
+                                Visit {
+                                    node: n.index(),
+                                    time: t,
+                                },
+                            )
+                        }),
+                    ),
+                    false => None,
+                }
+            })
+            .flatten()
+    }
+
+    /// The load of the given vessel at the **beginning** of the given time period
+    pub fn load_at(&self, vessel: VesselIndex, time: TimeIndex) -> FixedInventory {
+        let lp = self.quantities();
+
+        let vars = iproduct!(0..self.problem().products())
+            .map(|p| lp.vars.l[time][vessel][p])
+            .collect::<Vec<_>>();
+
+        let load = lp
+            .model
+            .get_obj_attr_batch(grb::attr::X, vars)
+            .expect("failed to retrieve variables");
+
+        FixedInventory::from(Inventory::new(load.as_slice()).unwrap())
+    }
+
+    /// The inventory at the given node at the **beginning** of the given time period
+    pub fn inventory_at(&self, node: NodeIndex, time: TimeIndex) -> FixedInventory {
+        let lp = self.quantities();
+
+        let vars = iproduct!(0..self.problem().products())
+            .map(|p| lp.vars.s[time][node][p])
+            .collect::<Vec<_>>();
+
+        let inventory = lp
+            .model
+            .get_obj_attr_batch(grb::attr::X, vars)
+            .expect("failed to retrieve variables");
+
+        FixedInventory::from(Inventory::new(inventory.as_slice()).unwrap())
+    }
+
+    /// get first position of the given vessel from the given time period
+    pub fn next_position(&self, vessel: VesselIndex, time: TimeIndex) -> (NodeIndex, TimeIndex) {
+        let visit = self.routes[vessel]
+            .into_iter()
+            .find_or_last(|v| v.time >= time)
+            .unwrap();
+        (visit.node, visit.time)
     }
 }
 
@@ -637,10 +854,14 @@ impl Drop for RoutingSolutionMut<'_> {
         // Check that the visit times are correct
         for (v, plan) in self.0.routes.iter().enumerate() {
             // Ensure that the last timestep is within the planning period.
-            assert!(match plan.last() {
-                Some(visit) => visit.time < timesteps,
-                None => true,
-            });
+            assert!(
+                match plan.last() {
+                    Some(visit) => visit.time < timesteps,
+                    None => true,
+                },
+                "Some(visit) => visit.time < timesteps, None => true, visit:{:?}",
+                plan.last()
+            );
             // Assert that the first visit of each vessel's plan corresponds to its origin visit.
             assert!(plan
                 .first()

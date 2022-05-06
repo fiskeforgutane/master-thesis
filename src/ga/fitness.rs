@@ -11,6 +11,8 @@ pub struct Weighted {
     pub violation: f64,
     pub revenue: f64,
     pub cost: f64,
+    pub approx_berth_violation: f64,
+    pub spot: f64,
 }
 
 impl Fitness for Weighted {
@@ -19,11 +21,15 @@ impl Fitness for Weighted {
         let violation = solution.violation();
         let revenue = solution.revenue();
         let cost = solution.cost();
+        let berth = solution.approx_berth_violation() as f64;
+        let spot = solution.spot_cost();
 
         (warp * self.warp
             + violation * self.violation
             + cost * self.cost
             + revenue * self.revenue
+            + spot * self.spot
+            + self.approx_berth_violation * berth
             + 100000.0)
             .ln()
     }

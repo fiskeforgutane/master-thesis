@@ -1,4 +1,6 @@
-use grb::{c, expr::GurobiSum, Model, Var};
+pub mod sparse;
+
+use grb::{add_ctsvar, c, expr::GurobiSum, Model, Var};
 use itertools::{iproduct, Itertools};
 use pyo3::pyclass;
 
@@ -41,6 +43,8 @@ pub struct F64Variables {
     pub violation: f64,
     #[pyo3(get)]
     pub timing: f64,
+    #[pyo3(get)]
+    pub a: Vec<Vec<Vec<f64>>>,
 }
 
 pub struct QuantityLp {
@@ -253,38 +257,11 @@ impl QuantityLp {
         let l = (t + 1, v, p).cont(&mut model, "l")?;
         let b = (t, n, v).cont(&mut model, "b")?;
         let a = (t, n, p).cont(&mut model, "a")?;
-        let revenue = model.add_var(
-            "revenue",
-            grb::VarType::Continuous,
-            0.0,
-            0.0,
-            f64::INFINITY,
-            std::iter::empty(),
-        )?;
-        let timing = model.add_var(
-            "timing",
-            grb::VarType::Continuous,
-            0.0,
-            0.0,
-            f64::INFINITY,
-            std::iter::empty(),
-        )?;
-        let spot = model.add_var(
-            "spot",
-            grb::VarType::Continuous,
-            0.0,
-            0.0,
-            f64::INFINITY,
-            std::iter::empty(),
-        )?;
-        let violation = model.add_var(
-            "violation",
-            grb::VarType::Continuous,
-            0.0,
-            0.0,
-            f64::INFINITY,
-            std::iter::empty(),
-        )?;
+
+        let revenue = add_ctsvar!(model, name: "revenue", bounds: 0.0..)?;
+        let timing = add_ctsvar!(model, name: "timinig", bounds: 0.0..)?;
+        let spot = add_ctsvar!(model, name: "spot", bounds: 0.0..)?;
+        let violation = add_ctsvar!(model, name: "violation", bounds: 0.0..)?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
         QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, &a, t, n, v, p)?;
@@ -293,13 +270,15 @@ impl QuantityLp {
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
 
-        // This should probably be taken from the problem instance
-        let discount: f64 = 0.999;
-
         let violation_expr = w.iter().flatten().flatten().grb_sum();
         // We discount later uses of the spot market; effectively making it desirable to perform spot operations as late as possible
         let spot_expr = iproduct!(0..t, 0..n, 0..p)
-            .map(|(t, n, p)| a[t][n][p] * discount.powi(t as i32))
+            .map(|(t, n, p)| {
+                let node = &problem.nodes()[n];
+                let unit_price = node.spot_market_unit_price();
+                let discount = node.spot_market_discount_factor().powi(t as i32);
+                a[t][n][p] * unit_price * discount
+            })
             .grb_sum();
 
         // We use an increasing weight to prefer early deliveries.
@@ -310,7 +289,7 @@ impl QuantityLp {
             .grb_sum();
 
         let timing_expr = iproduct!(0..t, 0..n, 0..v, 0..p)
-            .map(|(t, n, v, p)| x[t][n][v][p] * discount.recip() * t as i32)
+            .map(|(t, n, v, p)| x[t][n][v][p] * t as i32)
             .grb_sum();
 
         model.add_constr("spot", c!(spot == spot_expr))?;
@@ -318,7 +297,7 @@ impl QuantityLp {
         model.add_constr("violation", c!(violation == violation_expr))?;
         model.add_constr("timing", c!(timing == timing_expr))?;
 
-        let obj = violation + 0.5 * spot - 1e-6 * (revenue + timing);
+        let obj = violation + 0.5_f64 * spot - 1e-6_f64 * revenue + 1e-12_f64 * timing;
         model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
@@ -408,7 +387,7 @@ impl QuantityLp {
             Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
         )?;
 
-        let vtype = match self.semicont {
+        let vtype = match self.berth {
             true => grb::VarType::Binary,
             false => grb::VarType::Continuous,
         };
@@ -455,6 +434,7 @@ impl QuantityLp {
         let violation = self.vars.violation.convert(&self.model)?;
         let timing = self.vars.timing.convert(&self.model)?;
         let spot = self.vars.spot.convert(&self.model)?;
+        let a = self.vars.a.convert(&self.model)?;
 
         let v = F64Variables {
             w,
@@ -465,6 +445,7 @@ impl QuantityLp {
             spot,
             violation,
             timing,
+            a,
         };
         Ok(v)
     }

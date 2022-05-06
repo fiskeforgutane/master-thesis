@@ -42,6 +42,10 @@ pub struct Problem {
     #[pyo3(get)]
     /// A distance matrix between the different nodes.
     distances: Vec<Vec<Distance>>,
+    /// production nodes
+    production_nodes: Vec<usize>,
+    /// consumption nodes
+    consumption_nodes: Vec<usize>,
 }
 
 impl Problem {
@@ -68,6 +72,11 @@ impl Problem {
     /// The distance between two nodes
     pub fn distance(&self, from: NodeIndex, to: NodeIndex) -> Distance {
         self.distances[from][to]
+    }
+
+    /// The distance matrix
+    pub fn distances(&self) -> &Vec<Vec<Distance>> {
+        &self.distances
     }
 
     /// The number of elements of the given kind
@@ -99,34 +108,20 @@ impl Problem {
         (quantity.abs() / rate.abs()).ceil() as TimeIndex
     }
     /// Returns the consumption nodes of the problem
-    /// **VERY BAD** should be done once in the constructor
-    pub fn consumption_nodes(&self) -> Vec<&Node> {
-        self.nodes()
-            .iter()
-            .filter_map(|n: &Node| match n.r#type() {
-                NodeType::Consumption => Some(n),
-                NodeType::Production => None,
-            })
-            .collect()
+    pub fn consumption_nodes(&self) -> &Vec<usize> {
+        &self.consumption_nodes
     }
 
     /// Returns the production nodes of the problem
-    /// **VERY BAD** should be done once in the constructor
-    pub fn production_nodes(&self) -> Vec<&Node> {
-        self.nodes()
-            .iter()
-            .filter_map(|n: &Node| match n.r#type() {
-                NodeType::Consumption => None,
-                NodeType::Production => Some(n),
-            })
-            .collect()
+    pub fn production_nodes(&self) -> &Vec<usize> {
+        &self.production_nodes
     }
 
     /// Returns the closes production node for the given node
     pub fn closest_production_node(&self, node: &Node) -> &Node {
-        let prod_nodes = self.production_nodes();
-        prod_nodes
+        self.production_nodes()
             .iter()
+            .map(|n| &self.nodes()[*n])
             .min_by(|a, b| {
                 self.distance(a.index(), node.index())
                     .partial_cmp(&self.distance(b.index(), node.index()))
@@ -165,6 +160,20 @@ impl Problem {
             node: vessel.origin(),
             time: vessel.available_from(),
         }
+    }
+
+    /// calculates the coordinate of the mass center of production nodes
+    pub fn center(&self) -> (f64, f64) {
+        let mut c = (0.0, 0.0);
+        self.production_nodes().iter().for_each(|n| {
+            let coord = self.nodes()[*n].coordinates();
+            c.0 += coord.0;
+            c.1 += coord.1;
+        });
+        (
+            c.0 / self.production_nodes().len() as f64,
+            c.1 / self.production_nodes().len() as f64,
+        )
     }
 }
 
@@ -348,12 +357,30 @@ impl Problem {
             Self::check_vessel(v, vessel, n, t, p)?;
         }
 
+        let consumption_nodes = nodes
+            .iter()
+            .filter_map(|n: &Node| match n.r#type() {
+                NodeType::Consumption => Some(n.index()),
+                NodeType::Production => None,
+            })
+            .collect();
+
+        let production_nodes = nodes
+            .iter()
+            .filter_map(|n: &Node| match n.r#type() {
+                NodeType::Consumption => None,
+                NodeType::Production => Some(n.index()),
+            })
+            .collect();
+
         Ok(Self {
             vessels,
             nodes,
             timesteps,
             products,
             distances,
+            production_nodes,
+            consumption_nodes,
         })
     }
 }
@@ -385,7 +412,7 @@ pub struct Vessel {
     /// The time step from which the vessel becomes available
     available_from: usize,
     /// The initial inventory available for this vessel
-    initial_inventory: FixedInventory,
+    pub initial_inventory: FixedInventory,
     #[pyo3(get)]
     /// The origin node of the vessel
     origin: usize,
@@ -484,10 +511,18 @@ pub struct Node {
     port_fee: Cost,
     /// The maximum inventory capacity of the farm
     capacity: FixedInventory,
+    #[pyo3(get)]
     /// The maximum amount that can be bought/sold in the spot market in a single timestep
     spot_market_limit_per_time: f64,
+    #[pyo3(get)]
     /// The maximum amount that can be bought/sold in the spot market over the course of the planning period
     spot_market_limit: f64,
+    #[pyo3(get)]
+    /// The price (penalty) per unit sold to / bought from the spot market
+    spot_market_unit_price: f64,
+    #[pyo3(get)]
+    /// The discount factor used for spot market prices
+    spot_market_discount_factor: f64,
     /// The change in inventory during each time step.
     inventory_changes: Vec<InventoryChange>,
     #[pyo3(get)]
@@ -501,6 +536,9 @@ pub struct Node {
     cumulative_inventory: Vec<Vec<Quantity>>,
     /// The initial inventory of the node
     initial_inventory: FixedInventory,
+    #[pyo3(get)]
+    /// the coordinates of the node, relative the the mass center of the production nodes
+    coordinates: (f64, f64),
 }
 
 impl Node {
@@ -518,6 +556,9 @@ impl Node {
         initial_inventory: FixedInventory,
         spot_market_limit_per_time: f64,
         spot_market_limit: f64,
+        spot_market_unit_price: f64,
+        spot_market_discount_factor: f64,
+        coordinates: (f64, f64),
     ) -> Self {
         let mut cumulative_inventory = vec![Vec::new(); capacity.num_products()];
 
@@ -544,6 +585,9 @@ impl Node {
             initial_inventory,
             spot_market_limit_per_time,
             spot_market_limit,
+            coordinates,
+            spot_market_unit_price,
+            spot_market_discount_factor,
         }
     }
 
@@ -594,6 +638,16 @@ impl Node {
         self.spot_market_limit
     }
 
+    /// The unit price (penalty) for buying from / selling to the spot market
+    pub fn spot_market_unit_price(&self) -> f64 {
+        self.spot_market_unit_price
+    }
+
+    /// The discount factor used when buying from / selling to the spot market
+    pub fn spot_market_discount_factor(&self) -> f64 {
+        self.spot_market_discount_factor
+    }
+
     /// The inventory at a given time step for a given product, assuming no deliveries.
     pub fn inventory_without_deliveries(&self, product: ProductIndex) -> &[Quantity] {
         self.cumulative_inventory[product].as_slice()
@@ -639,6 +693,10 @@ impl Node {
 
     pub fn cumulative_inventory(&self) -> &Vec<Vec<Quantity>> {
         &self.cumulative_inventory
+    }
+
+    pub fn coordinates(&self) -> (f64, f64) {
+        self.coordinates
     }
 }
 

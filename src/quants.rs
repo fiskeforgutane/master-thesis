@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use float_ord::FloatOrd;
 use grb::Result;
 use pyo3::pyclass;
 
@@ -17,12 +18,11 @@ pub fn initial_orders(problem: &Problem) -> Result<Vec<Order>> {
         let mut quantities: HashMap<NodeIndex, Vec<f64>> = problem
             .production_nodes()
             .iter()
-            .map(|n| (n.index(), res.picked_up(n.index())))
+            .map(|n| (*n, res.picked_up(*n)))
             .collect();
         problem.consumption_nodes().iter().for_each(|n| {
-            let k = n.index();
-            let v = res.delivered(k);
-            quantities.insert(k, v);
+            let v = res.delivered(*n);
+            quantities.insert(*n, v);
         });
         for node in problem.nodes() {
             let quants = quantities.get(&node.index()).unwrap();
@@ -105,11 +105,7 @@ impl Quantities {
             // production nodes sorted on the capacity for the given product
             let mut prod_nodes = problem.production_nodes().clone();
 
-            prod_nodes.sort_by(|a, b| {
-                a.capacity()[product]
-                    .partial_cmp(&b.capacity()[product])
-                    .unwrap()
-            });
+            prod_nodes.sort_by_key(|a| FloatOrd(problem.nodes()[*a].capacity()[product]));
             let mut count = 0;
             for prod_node in prod_nodes {
                 // the remaining demand not covered equally distributed over the remaining production nodes
@@ -117,13 +113,14 @@ impl Quantities {
                 count += 1;
 
                 // current quantity being picked up at the production node
-                let curr = quantities[&prod_node.index()];
+                let curr = quantities[&prod_node];
 
                 // excess product that hasn't been picked up
                 let excess = if curr > 0.0 {
-                    prod_node.capacity()[product]
+                    problem.nodes()[prod_node].capacity()[product]
                 } else {
-                    prod_node.initial_inventory()[product] + consumption(prod_node)
+                    problem.nodes()[prod_node].initial_inventory()[product]
+                        + consumption(&problem.nodes()[prod_node])
                 };
 
                 // extra product to be picked up at the production node to help satisfy the total consumption demand
@@ -133,7 +130,7 @@ impl Quantities {
                 not_covered -= added_pickup;
 
                 // update the demand picked up at the production node
-                *quantities.get_mut(&prod_node.index()).unwrap() += added_pickup;
+                *quantities.get_mut(&prod_node).unwrap() += added_pickup;
             }
         }
         quantities

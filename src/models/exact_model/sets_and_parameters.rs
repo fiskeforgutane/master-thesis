@@ -90,16 +90,8 @@ pub struct Parameters {
 impl Sets {
     pub fn new(problem: &Problem) -> Sets {
         let I: Vec<usize> = problem.nodes().iter().map(|i| i.index()).collect();
-        let Ip = problem
-            .production_nodes()
-            .iter()
-            .map(|i| i.index())
-            .collect();
-        let Ic = problem
-            .consumption_nodes()
-            .iter()
-            .map(|i| i.index())
-            .collect();
+        let Ip = problem.production_nodes().clone();
+        let Ic = problem.consumption_nodes().clone();
         let V = problem.vessels().iter().map(|v| v.index()).collect();
         let T = (0..problem.timesteps()).collect();
         let P = (0..problem.products()).collect();
@@ -383,11 +375,11 @@ impl Sets {
 impl Parameters {
     pub fn new(problem: &Problem) -> Parameters {
         let vessel_capacity: Vec<f64> = problem.vessels().iter().map(|v| v.capacity()).collect();
-        let compartment_capacity: Vec<Vec<f64>> = problem.vessels().iter().map(
-            |v| v.compartments().iter().map(
-                |c| c.0
-            ).collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
+        let compartment_capacity: Vec<Vec<f64>> = problem
+            .vessels()
+            .iter()
+            .map(|v| v.compartments().iter().map(|c| c.0).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
         let initial_inventory: Vec<Vec<f64>> = problem
             .vessels()
             .iter()
