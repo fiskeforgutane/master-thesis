@@ -171,7 +171,7 @@ impl AddVars for (usize, usize, usize) {
         for i in 0..self.0 {
             out.push((self.1, self.2).vars(
                 model,
-                &format!("{},{}", base_name, i),
+                &format!("{}{},", base_name, i),
                 vtype,
                 bounds,
             )?)
@@ -206,7 +206,7 @@ impl AddVars for (usize, usize, usize, usize) {
         for i in 0..self.0 {
             out.push((self.1, self.2, self.3).vars(
                 model,
-                &format!("{},{}", base_name, i),
+                &format!("{}{},", base_name, i),
                 vtype,
                 bounds,
             )?)
@@ -241,7 +241,7 @@ impl AddVars for (usize, usize, usize, usize, usize) {
         for i in 0..self.0 {
             out.push((self.1, self.2, self.3, self.4).vars(
                 model,
-                &format!("{},{}", base_name, i),
+                &format!("{}{},", base_name, i),
                 vtype,
                 bounds,
             )?)
