@@ -239,14 +239,23 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
     }
 }
 
-pub fn run_exact_model(path: &Path, mut output: PathBuf) {
+pub fn run_exact_model(path: &Path, mut output: PathBuf, termination: Termination) {
+    assert!(
+        matches!(termination, Termination::Timeout { .. }),
+        "termination criterion for exact model must be a timeout, not {:?}",
+        termination
+    );
+    let timeout = match termination {
+        Termination::Timeout(_, y) => Some(y.as_secs() as f64),
+        _ => None,
+    }
+    .unwrap();
     let file = std::fs::File::open(path).unwrap();
     let reader = std::io::BufReader::new(file);
     let problem: Problem = serde_json::from_reader(reader).unwrap();
     let problem = Arc::new(problem);
-    let closure_problem = problem.clone();
 
-    let result = ExactModelSolver::solve(&problem);
+    let _ = ExactModelSolver::solve(&problem, timeout);
 }
 
 pub fn run_island_ga<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
@@ -462,7 +471,7 @@ pub fn run_rolling_horizon(
     serde_json::to_writer(file, &visits).expect("writing failed");
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Termination {
     /// Terminate after a given number of epochs
     Epochs(u64),
@@ -552,6 +561,7 @@ enum Commands {
         #[clap(long, default_value_t = 5)]
         step_length: usize,
     },
+    Exact,
 }
 
 fn enable_logger(level: LevelFilter) {
@@ -636,6 +646,14 @@ pub fn main() {
             subproblem_size,
             step_length,
             config,
+        ),
+        Commands::Exact => run_exact_model(
+            path,
+            out,
+            Termination::Timeout(
+                std::time::Instant::now(),
+                std::time::Duration::from_secs(args.stuck_timeout),
+            ),
         ),
     };
 }

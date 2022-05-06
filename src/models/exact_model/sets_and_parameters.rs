@@ -168,12 +168,7 @@ impl Sets {
                 NetworkNodeType::Source => nodes
                     .iter()
                     .filter(|n2| n2.port() != n1.port())
-                    .for_each(|n2| {
-                        if n2.kind() == NetworkNodeType::Sink {
-                            println!("sink added");
-                        }
-                        all_arcs.push(Arc::new(n1, n2, all_arcs.len()))
-                    }),
+                    .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len()))),
                 // if n1 is a source we do not add any arcs
                 NetworkNodeType::Sink => {
                     ();
@@ -326,12 +321,6 @@ impl Sets {
             .filter(|a| all_arcs[**a].get_from().index() == node.index())
             .map(|a| *a)
             .collect::<Vec<_>>();
-        println!(
-            "Forward star for node: {} Arcs: {} Forward star: {:?}",
-            node.index(),
-            vessel_arcs.len(),
-            &fs
-        );
 
         fs
     }

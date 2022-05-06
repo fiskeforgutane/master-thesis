@@ -116,6 +116,7 @@ fn master(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(objective_terms, m)?)?;
     m.add_function(wrap_pyfunction!(solve_multiple_quantities, m)?)?;
     m.add_function(wrap_pyfunction!(python::swap_star_test, m)?)?;
+    m.add_function(wrap_pyfunction!(write_exact, m)?)?;
     m.add_class::<Problem>()?;
     m.add_class::<Vessel>()?;
     m.add_class::<Node>()?;

@@ -356,11 +356,12 @@ impl ExactModelSolver {
         Ok((model, Variables::new(x, z, q, a, s_port, s_vessel)))
     }
 
-    pub fn solve(problem: &Problem) -> Result<ExactModelResults, grb::Error> {
+    pub fn solve(problem: &Problem, timeout: f64) -> Result<ExactModelResults, grb::Error> {
         let sets = Sets::new(problem);
         let parameters = Parameters::new(problem);
         let (m, variables) = ExactModelSolver::build(&problem, &sets, &parameters)?;
         let mut model = m;
+        model.set_param(param::TimeLimit, timeout);
 
         model.optimize()?;
 
