@@ -41,7 +41,7 @@ impl ExactModelSolver {
         // 1 if the vessel traverses the arc, 0 otherwise
         let x: Vec<Vec<Var>> = (&sets.A, vessels).binary(&mut model, &"x_")?;
         // 1 if the vessel is able to unload at the node, 0 otherwise
-        let z: Vec<Vec<Var>> = (sets.Nst, vessels).binary(&mut model, &"z_")?;
+        let z: Vec<Vec<Var>> = (&sets.Nst, vessels).binary(&mut model, &"z_")?;
         // 1 if a vessel's compartment in occupied by a product in timestep t
         let y = (0..vessels)
             .map(|v| {
