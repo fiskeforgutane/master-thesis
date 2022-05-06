@@ -45,18 +45,17 @@ impl ExactModelSolver {
         // 1 if a vessel's compartment in occupied by a product in timestep t
         let y = (0..vessels)
             .map(|v| {
-                (
-                    num_compartments(v),
-                    timesteps,
-                    products
-                )
-                .binary(&mut model, &format!("y_{v}"))
-            }).collect::<grb::Result<Vec<_>>>()?;
+                (num_compartments(v), timesteps, products).binary(&mut model, &format!("y_{v}"))
+            })
+            .collect::<grb::Result<Vec<_>>>()?;
         // Quantity unloaded of product at node by the vessel
         let q = (0..ports)
             .map(|i| {
                 (0..vessels)
-                    .map(|v| (num_compartments(v), timesteps, products).cont(&mut model, &format!("q_{i}")))
+                    .map(|v| {
+                        (num_compartments(v), timesteps, products)
+                            .cont(&mut model, &format!("q_{i}"))
+                    })
                     .collect::<grb::Result<Vec<_>>>()
             })
             .collect::<grb::Result<Vec<_>>>()?;
@@ -111,11 +110,15 @@ impl ExactModelSolver {
                     - s_port[i][t - 1][*p]
                     - parameters.port_type[i]
                         * (parameters.consumption[i][t][*p]
-                            - sets.V.iter().map(|v| {
-                                (0..num_compartments(*v)).map(|c|
-                                    q[i][*v][c][t][*p]
-                                ).grb_sum()
-                            }).grb_sum()
+                            - sets
+                                .V
+                                .iter()
+                                .map(|v| {
+                                    (0..num_compartments(*v))
+                                        .map(|c| q[i][*v][c][t][*p])
+                                        .grb_sum()
+                                })
+                                .grb_sum()
                             - a[i][t][*p]);
 
                 model.add_constr(&format!("port_inventory_{i}_{t}_{p}"), c!(lhs == 0.0_f64))?;
@@ -132,11 +135,15 @@ impl ExactModelSolver {
                 - parameters.initial_port_inventory[*i][*p]
                 - parameters.port_type[*i]
                     * (parameters.consumption[*i][0][*p]
-                        - sets.V.iter().map(|v| {
-                            (0..num_compartments(*v)).map(|c|
-                                q[*i][*v][c][0][*p]
-                            ).grb_sum()
-                        }).grb_sum()
+                        - sets
+                            .V
+                            .iter()
+                            .map(|v| {
+                                (0..num_compartments(*v))
+                                    .map(|c| q[*i][*v][c][0][*p])
+                                    .grb_sum()
+                            })
+                            .grb_sum()
                         - a[*i][0][*p]);
 
             model.add_constr(
@@ -179,15 +186,17 @@ impl ExactModelSolver {
 
         // ensure initial storage in all vessels
         for (v, p) in iproduct!(&sets.V, &sets.P) {
-            let lhs = (0..num_compartments(*v)).map(|c| s_vessel[*v][c][0][*p]).grb_sum()
+            let lhs = (0..num_compartments(*v))
+                .map(|c| s_vessel[*v][c][0][*p])
+                .grb_sum()
                 - parameters.initial_inventory[*v][*p]
                 - sets
                     .I
                     .iter()
                     .map(|i| {
-                        (0..num_compartments(*v)).map(|c| {
-                            parameters.port_type[*i] * q[*i][*v][c][0][*p]
-                        }).grb_sum()
+                        (0..num_compartments(*v))
+                            .map(|c| parameters.port_type[*i] * q[*i][*v][c][0][*p])
+                            .grb_sum()
                     })
                     .grb_sum();
 
@@ -200,13 +209,11 @@ impl ExactModelSolver {
         // there can be a maximum of one product type in each compartment at the same time
         for (v, t) in iproduct!(&sets.V, &sets.T) {
             for c in 0..num_compartments(*v) {
-                let lhs = sets.P.iter().map(|p| {
-                    y[*v][c][*t][*p]
-                }).grb_sum();
+                let lhs = sets.P.iter().map(|p| y[*v][c][*t][*p]).grb_sum();
 
                 model.add_constr(
                     &format!("one_product_per_compartment_{v}_{c}_{t}"),
-                    c!(lhs <= 1),
+                    c!(lhs <= 1.0_f64),
                 )?;
             }
         }
@@ -214,9 +221,7 @@ impl ExactModelSolver {
         // there can be a maximum of one product type in each compartment at the same time
         for (v, t, p) in iproduct!(&sets.V, &sets.T, &sets.P) {
             for c in 0..num_compartments(*v) {
-                let lhs = sets.Ip.iter().map(|i| {
-                    q[*i][*v][c][*t][*p]
-                }).grb_sum();
+                let lhs = sets.Ip.iter().map(|i| q[*i][*v][c][*t][*p]).grb_sum();
 
                 let rhs = parameters.compartment_capacity[*v][c] * y[*v][c][*t][*p];
 
@@ -272,11 +277,15 @@ impl ExactModelSolver {
 
             let lower = parameters.min_loading_rate[i] * z[n.index()][*v];
             let upper = parameters.max_loading_rate[i] * z[n.index()][*v];
-            let loading_rate = sets.P.iter().map(|p| {
-                (0..num_compartments(*v)).map(
-                    |c|  q[i][*v][c][t][*p]
-                ).grb_sum()
-            }).grb_sum();
+            let loading_rate = sets
+                .P
+                .iter()
+                .map(|p| {
+                    (0..num_compartments(*v))
+                        .map(|c| q[i][*v][c][t][*p])
+                        .grb_sum()
+                })
+                .grb_sum();
 
             model.add_constr(
                 &format!("lower_loading_rate_{i}_{t}"),
@@ -314,7 +323,9 @@ impl ExactModelSolver {
 
         let revenue = iproduct!(&sets.N, &sets.V, &sets.P)
             .map(|(n, v, p)| {
-                (0..num_compartments(*v)).map(|c| parameters.revenue[n.port()] * q[n.port()][*v][c][n.time()][*p]).grb_sum()
+                (0..num_compartments(*v))
+                    .map(|c| parameters.revenue[n.port()] * q[n.port()][*v][c][n.time()][*p])
+                    .grb_sum()
             })
             .grb_sum();
 
@@ -326,7 +337,7 @@ impl ExactModelSolver {
             .grb_sum();
 
         let spot_market_cost = iproduct!(&sets.I, &sets.T, &sets.P)
-            .map(|(i, t, p)| parameters.spot_market_cost[*i] * a[*i][*t][*p])
+            .map(|(i, t, p)| parameters.spot_market_cost[*i][*t] * a[*i][*t][*p])
             .grb_sum();
 
         let delay_cost = iproduct!(&sets.N, &sets.V)

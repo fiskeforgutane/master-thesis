@@ -55,8 +55,8 @@ pub struct Parameters {
     pub initial_inventory: Vec<Vec<f64>>,
     /// The cost of traversing an arc with a particular vessel
     pub travel_cost: Vec<Vec<Vec<f64>>>,
-    /// The unit cost of buying a product from the spot marked in a time period
-    pub spot_market_cost: Vec<f64>,
+    /// The unit cost of buying a product from the spot market at node n at time t
+    pub spot_market_cost: Vec<Vec<f64>>,
     /// Berth capacity of a port
     pub berth_capacity: Vec<Vec<usize>>,
     /// Total capacity of a product at a port
@@ -419,7 +419,17 @@ impl Parameters {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-        let spot_market_cost: Vec<f64> = problem.nodes().iter().map(|_| 1.0).collect::<Vec<_>>();
+        let spot_market_cost: Vec<Vec<f64>> = problem
+            .nodes()
+            .iter()
+            .map(|n| {
+                (0..problem.timesteps())
+                    .map(|t| {
+                        n.spot_market_unit_price() * n.spot_market_discount_factor().powi(t as i32)
+                    })
+                    .collect()
+            })
+            .collect::<Vec<_>>();
         let berth_capacity: Vec<Vec<usize>> = problem
             .nodes()
             .iter()
