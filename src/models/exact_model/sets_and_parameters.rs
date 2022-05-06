@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::problem::{Inventory, Problem, Vessel};
 
 use itertools::iproduct;
@@ -123,7 +125,7 @@ impl Sets {
             NetworkNodeType::Sink,
         ));
         let A = Sets::get_all_arcs(&Nst);
-        let Av = Sets::get_arcs(problem, &A);
+        let Av = Sets::get_arcs(problem, &A, &Nst);
         let At = Sets::get_travel_arcs(&A);
         let Fs = iproduct!(problem.vessels(), &Nst)
             .map(|(v, n)| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n))
@@ -160,7 +162,12 @@ impl Sets {
                 NetworkNodeType::Source => nodes
                     .iter()
                     .filter(|n2| n2.port() != n1.port())
-                    .for_each(|n2| all_arcs.push(Arc::new(n1, n2, all_arcs.len()))),
+                    .for_each(|n2| {
+                        if n2.kind() == NetworkNodeType::Sink {
+                            println!("sink added");
+                        }
+                        all_arcs.push(Arc::new(n1, n2, all_arcs.len()))
+                    }),
                 // if n1 is a source we do not add any arcs
                 NetworkNodeType::Sink => {
                     ();
@@ -185,55 +192,110 @@ impl Sets {
         all_arcs
     }
 
-    pub fn get_arcs(problem: &Problem, A: &Vec<Arc>) -> Vec<Vec<ArcIndex>> {
+    pub fn get_arcs(problem: &Problem, A: &Vec<Arc>, Nst: &Vec<NetworkNode>) -> Vec<Vec<ArcIndex>> {
+        let arc_map = A
+            .iter()
+            .map(|arc| ((arc.get_from(), arc.get_to()), arc))
+            .collect::<HashMap<(&NetworkNode, &NetworkNode), &Arc>>();
+
+        let node_map: HashMap<(isize, TimeIndex), &NetworkNode> = Nst
+            .iter()
+            .map(|n| match n.kind() {
+                NetworkNodeType::Source => ((-1, 0), n),
+                NetworkNodeType::Sink => ((-1, problem.timesteps()), n),
+                NetworkNodeType::Normal => ((n.port() as isize, n.time()), n),
+            })
+            .collect();
+
         // Generate the set of arcs for each of the vessels
         let vessel_arcs = problem
             .vessels()
             .iter()
-            .map(|v| Sets::get_vessel_arcs(problem, A, v))
+            .map(|v| {
+                Sets::get_vessel_arcs(
+                    node_map.get(&(-1, 0)).unwrap(),
+                    problem,
+                    &arc_map,
+                    &node_map,
+                    v,
+                )
+            })
             .collect::<Vec<_>>();
 
         vessel_arcs
     }
 
     pub fn get_vessel_arcs(
+        start: &NetworkNode,
         problem: &Problem,
-        all_arcs: &Vec<Arc>,
+        all_arcs: &HashMap<(&NetworkNode, &NetworkNode), &Arc>,
+        nodes: &HashMap<(isize, usize), &NetworkNode>,
         vessel: &Vessel,
     ) -> Vec<ArcIndex> {
-        let check_available = |arc: &Arc| arc.get_from().time() >= vessel.available_from();
-        let check_travel_time = |arc: &Arc| match arc.get_kind() {
-            ArcType::TravelArc => {
-                arc.get_time()
-                    == problem.travel_time(arc.get_from().port(), arc.get_to().port(), vessel)
-            }
-            ArcType::WaitingArc => {
-                arc.get_time()
-                    == problem.travel_time(arc.get_from().port(), arc.get_to().port(), vessel)+1
-            }
-            _ => true,
-        };
-        let check_to_origin = |arc: &Arc| arc.get_to().port() == vessel.origin() && arc.get_to().time() >= vessel.available_from();
-        // let check_leaving = |arc: &Arc| arc.get_from().index() != vessel.origin() && arc.get_from().time() == vessel.available_from();
-
-
-        let vessel_arcs: Vec<ArcIndex> = all_arcs
-            .into_iter()
-            .filter(|a| {
-                match a.get_kind() {
-                    ArcType::TravelArc => {
-                        check_available(a) && check_travel_time(a)
-                    },
-                    ArcType::WaitingArc => check_available(a) && check_travel_time(a),
-                    ArcType::EnteringArc => check_to_origin(a),
-                    ArcType::LeavingArc => check_available(a),
-                    ArcType::NotUsedArc => true,
+        let next = |network_node: &NetworkNode| {
+            match network_node.kind() {
+                // origin or not used arc - directly to sink
+                NetworkNodeType::Source => {
+                    let mut next_nodes = (vessel.available_from()..problem.timesteps())
+                        .map(|t| nodes.get(&(vessel.origin() as isize, t)).unwrap())
+                        .collect::<Vec<_>>();
+                    next_nodes.push(nodes.get(&(-1, problem.timesteps())).unwrap());
+                    Some(next_nodes)
                 }
-            })
-            .map(|a| a.get_index())
-            .collect::<Vec<_>>();
+                // no arcs go out from sink
+                NetworkNodeType::Sink => None,
+                // waiting arc, travel arcs, and arc to sink
+                NetworkNodeType::Normal => {
+                    let mut next_nodes = problem
+                        .nodes()
+                        .iter()
+                        .filter_map(|n| {
+                            if n.index() == network_node.port() {
+                                // waiting arc
+                                nodes.get(&(n.index() as isize, network_node.time() + 1))
+                            } else {
+                                // travel arc
+                                nodes.get(&(
+                                    n.index() as isize,
+                                    network_node.time()
+                                        + problem.travel_time(
+                                            network_node.port(),
+                                            n.index(),
+                                            vessel,
+                                        ),
+                                ))
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    // add sink node
+                    next_nodes.push(nodes.get(&(-1, problem.timesteps())).unwrap());
+                    Some(next_nodes)
+                }
+            }
+        };
 
-        vessel_arcs
+        let mut unexplored = Vec::new();
+        unexplored.push(start);
+        let mut explored: HashSet<&NetworkNode> = HashSet::new();
+        let mut arcs = Vec::new();
+
+        while !unexplored.is_empty() {
+            let current = unexplored.pop().unwrap();
+            let next_nodes = next(current);
+            explored.insert(current);
+            match next_nodes {
+                Some(next_nodes) => {
+                    next_nodes.into_iter().for_each(|x| {
+                        arcs.push(all_arcs.get(&(current, x)).unwrap().get_index());
+                        if !explored.contains(*x) {
+                            unexplored.push(x);
+                        }
+                    });
+                }
+                None => continue,
+            }
+        }
+        arcs
     }
 
     pub fn get_travel_arcs(all_arcs: &Vec<Arc>) -> Vec<ArcIndex> {
@@ -267,7 +329,7 @@ impl Sets {
     ) -> Vec<ArcIndex> {
         vessel_arcs
             .iter()
-            .filter(|a| all_arcs[**a].get_to() == *node)
+            .filter(|a| *all_arcs[**a].get_to() == *node)
             .map(|a| *a)
             .collect::<Vec<_>>()
     }
@@ -366,8 +428,8 @@ impl Parameters {
             .nodes()
             .iter()
             .map(|n| {
-                (0..n.initial_inventory().as_inv().num_products())
-                    .map(|p| n.capacity()[p])
+                (0..problem.products())
+                    .map(|p| n.initial_inventory()[p])
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -378,13 +440,7 @@ impl Parameters {
                 (0..problem.timesteps())
                     .map(|t| {
                         (0..problem.products())
-                            .map(|p| {
-                                if t == 0 {
-                                    0.0
-                                } else {
-                                    n.inventory_change(t - 1, t, p)
-                                }
-                            })
+                            .map(|p| f64::abs(n.inventory_changes()[t][p]))
                             .collect::<Vec<_>>()
                     })
                     .collect::<Vec<_>>()
@@ -450,14 +506,14 @@ impl Parameters {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum NetworkNodeType {
     Source,
     Sink,
     Normal,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NetworkNode {
     // The port
     port: PortIndex,
@@ -584,12 +640,12 @@ impl Arc {
         }
     }
 
-    pub fn get_from(&self) -> NetworkNode {
-        self.from
+    pub fn get_from(&self) -> &NetworkNode {
+        &self.from
     }
 
-    pub fn get_to(&self) -> NetworkNode {
-        self.to
+    pub fn get_to(&self) -> &NetworkNode {
+        &self.to
     }
 
     /// Get the arc type
