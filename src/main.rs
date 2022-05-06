@@ -523,6 +523,20 @@ impl Termination {
     }
 }
 
+impl std::fmt::Display for Termination {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Termination::Epochs(e) => write!(f, "{e} epochs"),
+            Termination::NoViolation => write!(f, "no-violation"),
+            Termination::NoImprovement(_, dur, _) => write!(f, "{} no-improvement", dur.as_secs()),
+            Termination::Timeout(_, dur) => write!(f, "{} timeout", dur.as_secs()),
+            Termination::Never => write!(f, "never"),
+            Termination::Any(lhs, rhs) => write!(f, "({lhs}) | ({rhs})"),
+            Termination::All(lhs, rhs) => write!(f, "({lhs}) & ({rhs})"),
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 #[clap(author = "Fiskefôrgutane", about = "CLI for MIRP solver")]
 struct Args {
@@ -540,6 +554,15 @@ struct Args {
         default_value = "off"
     )]
     log: String,
+    /// The termination criteria used
+    #[clap(
+        short,
+        long,
+        value_name = "never | <count> epochs | <secs> timeout | no-violation | <secs> no-improvement  | '<term> <term> |' | '<term> <term> &'",
+        default_value = "600 no-improvement"
+    )]
+    termination: String,
+
     /// The timeout used when the solution is stuck (in seconds). The elapsed time will be reset each
     /// time a better solution if found
     #[clap(short, long, default_value_t = 3600)]
@@ -579,6 +602,71 @@ fn enable_logger(level: LevelFilter) {
         .init();
 }
 
+#[derive(Debug)]
+pub enum ParseError {
+    ExpectedInt,
+    ExpectedTerm,
+    UnconsumedTokens,
+    EmptyStack,
+    UnrecognizedToken(String),
+}
+
+fn parse_termination(string: &str) -> Result<Box<Termination>, ParseError> {
+    let tokens = string.split_ascii_whitespace();
+
+    enum Arg {
+        Int(u64),
+        Term(Box<Termination>),
+    }
+
+    let mut stack = Vec::new();
+
+    let int = |s: &mut Vec<Arg>| match s.pop() {
+        Some(Arg::Int(x)) => Ok(x),
+        Some(Arg::Term(_)) => Err(ParseError::ExpectedInt),
+        None => Err(ParseError::EmptyStack),
+    };
+
+    let term = |s: &mut Vec<Arg>| match s.pop() {
+        Some(Arg::Term(x)) => Ok(x),
+        Some(Arg::Int(_)) => Err(ParseError::ExpectedTerm),
+        None => Err(ParseError::EmptyStack),
+    };
+
+    for token in tokens {
+        let new = match token {
+            "never" => Arg::Term(Box::new(Termination::Never)),
+            "epochs" => Arg::Term(Box::new(Termination::Epochs(int(&mut stack)?))),
+            "timeout" => Arg::Term(Box::new(Termination::Timeout(
+                std::time::Instant::now(),
+                std::time::Duration::from_secs(int(&mut stack)?),
+            ))),
+            "no-violation" => Arg::Term(Box::new(Termination::NoViolation)),
+            "no-improvement" => Arg::Term(Box::new(Termination::NoImprovement(
+                std::time::Instant::now(),
+                std::time::Duration::from_secs(int(&mut stack)?),
+                std::f64::INFINITY,
+            ))),
+            "|" => Arg::Term(Box::new(Termination::Any(
+                term(&mut stack)?,
+                term(&mut stack)?,
+            ))),
+            "&" => Arg::Term(Box::new(Termination::All(
+                term(&mut stack)?,
+                term(&mut stack)?,
+            ))),
+            x => match x.parse::<u64>() {
+                Ok(num) => Arg::Int(num),
+                Err(_) => return Err(ParseError::UnrecognizedToken(x.to_string())),
+            },
+        };
+
+        stack.push(new);
+    }
+
+    term(&mut stack)
+}
+
 pub fn main() {
     // Parse command line arguments
     let args = Args::parse();
@@ -616,11 +704,8 @@ pub fn main() {
     let timesteps = directory.file_stem().unwrap().to_str().unwrap();
 
     // The termination criteria
-    let termination = Termination::NoImprovement(
-        std::time::Instant::now(),
-        std::time::Duration::from_secs(args.stuck_timeout),
-        std::f64::INFINITY,
-    );
+    let termination = parse_termination(&args.termination).unwrap();
+    println!("Termination: {termination}");
 
     // The output directory is ./solutions/TIME/PROBLEM/,
     let mut out = std::env::current_dir().expect("unable to fetch current dir");
@@ -634,7 +719,7 @@ pub fn main() {
     // Run the GA.
     match args.commands {
         Commands::All { write } => {
-            run_island_ga(path, out, termination, InitRoutingSolution, config, write)
+            run_island_ga(path, out, *termination, InitRoutingSolution, config, write)
         }
         Commands::RollingHorizon {
             subproblem_size,
@@ -642,7 +727,7 @@ pub fn main() {
         } => run_unfixed_rolling_horizon(
             path,
             out,
-            termination,
+            *termination,
             subproblem_size,
             step_length,
             config,
