@@ -3,6 +3,8 @@ use grb::{Expr, Model, Result, Var, VarType};
 use std::hash::Hash;
 use std::{collections::HashMap, fmt::Debug, ops::Range};
 
+use super::exact_model::sets_and_parameters::Arc;
+
 pub trait AddVars {
     type Out;
 
@@ -71,7 +73,7 @@ impl AddVars for usize {
         let mut vec = Vec::with_capacity(*self);
         for i in 0..*self {
             vec.push(model.add_var(
-                &format!("{}_{}", base_name, i),
+                &format!("{},{}", base_name, i),
                 vtype,
                 0.0,
                 bounds.start,
@@ -81,6 +83,45 @@ impl AddVars for usize {
         }
 
         Ok(vec)
+    }
+}
+
+impl AddVars for (&Vec<Arc>, usize) {
+    type Out = Vec<<usize as AddVars>::Out>;
+
+    fn vars_with<F: FnMut(Self) -> Result<Var>>(&self, _func: F) -> Result<Self::Out>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn vars(
+        &self,
+        model: &mut Model,
+        base_name: &str,
+        vtype: VarType,
+        bounds: &Range<f64>,
+    ) -> Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.0.len());
+
+        for arc in self.0 {
+            out.push(self.1.vars(
+                model,
+                &format!(
+                    "{}({},{}),({},{}),",
+                    base_name,
+                    arc.get_from().index(),
+                    arc.get_from().time(),
+                    arc.get_to().index(),
+                    arc.get_to().time(),
+                ),
+                vtype,
+                bounds,
+            )?)
+        }
+
+        Ok(out)
     }
 }
 
@@ -97,7 +138,7 @@ impl AddVars for (usize, usize) {
         for i in 0..self.0 {
             out.push(
                 self.1
-                    .vars(model, &format!("{}_{}", base_name, i), vtype, bounds)?,
+                    .vars(model, &format!("{},{}", base_name, i), vtype, bounds)?,
             )
         }
 
@@ -130,7 +171,7 @@ impl AddVars for (usize, usize, usize) {
         for i in 0..self.0 {
             out.push((self.1, self.2).vars(
                 model,
-                &format!("{}_{}", base_name, i),
+                &format!("{},{}", base_name, i),
                 vtype,
                 bounds,
             )?)
@@ -165,7 +206,7 @@ impl AddVars for (usize, usize, usize, usize) {
         for i in 0..self.0 {
             out.push((self.1, self.2, self.3).vars(
                 model,
-                &format!("{}_{}", base_name, i),
+                &format!("{},{}", base_name, i),
                 vtype,
                 bounds,
             )?)
@@ -200,7 +241,7 @@ impl AddVars for (usize, usize, usize, usize, usize) {
         for i in 0..self.0 {
             out.push((self.1, self.2, self.3, self.4).vars(
                 model,
-                &format!("{}_{}", base_name, i),
+                &format!("{},{}", base_name, i),
                 vtype,
                 bounds,
             )?)

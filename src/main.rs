@@ -36,6 +36,10 @@ use crate::ga::{
 };
 use crate::rolling_horizon::rolling_horizon::RollingHorizon;
 
+use crate::models::exact_model::{
+    model::ExactModelSolver,
+    sets_and_parameters::{Parameters, Sets},
+};
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
@@ -233,6 +237,16 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
 
         std::thread::sleep(std::time::Duration::from_millis(10_000));
     }
+}
+
+pub fn run_exact_model(path: &Path, mut output: PathBuf) {
+    let file = std::fs::File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let problem: Problem = serde_json::from_reader(reader).unwrap();
+    let problem = Arc::new(problem);
+    let closure_problem = problem.clone();
+
+    let result = ExactModelSolver::solve(&problem);
 }
 
 pub fn run_island_ga<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
