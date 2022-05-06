@@ -42,12 +42,26 @@ pub struct Problem {
     #[pyo3(get)]
     /// A distance matrix between the different nodes.
     distances: Vec<Vec<Distance>>,
+    /// Cost of using the spot market per unit
+    spot_market_cost: f64,
+    /// spot market discount factor
+    spot_discount: f64,
 }
 
 impl Problem {
     /// The vessels available for use in the problem. Ordered by index (continuous, starting at 0)
     pub fn vessels(&self) -> &[Vessel] {
         &self.vessels
+    }
+
+    /// Cost of using the spot market per unit
+    pub fn spot_market_cost(&self) -> f64 {
+        self.spot_market_cost
+    }
+
+    /// spot market discount factor
+    pub fn spot_discount(&self) -> f64 {
+        self.spot_discount
     }
 
     /// The nodes of this problem. This contains both consumption and production nodes.
@@ -331,6 +345,8 @@ impl Problem {
         timesteps: usize,
         products: usize,
         distances: Vec<Vec<Distance>>,
+        spot_market_cost: f64,
+        spot_discount: f64,
     ) -> Result<Problem, ProblemConstructionError> {
         let n = nodes.len();
         let _v = vessels.len();
@@ -354,6 +370,8 @@ impl Problem {
             timesteps,
             products,
             distances,
+            spot_market_cost,
+            spot_discount,
         })
     }
 }

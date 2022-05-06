@@ -101,9 +101,19 @@ impl Problem {
         timesteps: usize,
         products: usize,
         distances: Vec<Vec<Distance>>,
+        spot_market_cost: f64,
+        spot_discount: f64,
     ) -> PyResult<Problem> {
-        Problem::new(vessels, nodes, timesteps, products, distances)
-            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
+        Problem::new(
+            vessels,
+            nodes,
+            timesteps,
+            products,
+            distances,
+            spot_market_cost,
+            spot_discount,
+        )
+        .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
     }
 
     pub fn solution_from_json(&self, string: &str) -> PyResult<Vec<Vec<Visit>>> {
