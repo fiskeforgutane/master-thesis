@@ -108,16 +108,16 @@ impl AddVars for (&Vec<NetworkNode>, usize) {
         for node in self.0 {
             let base_name = match node.kind() {
                 super::exact_model::sets_and_parameters::NetworkNodeType::Source => {
-                    &format!("{}({},{}),", base_name, -1, -1,)
+                    format!("{}({},{}),", base_name, -1, -1,)
                 }
                 super::exact_model::sets_and_parameters::NetworkNodeType::Sink => {
-                    &format!("{}({},{}),", base_name, -1, node.time(),)
+                    format!("{}({},{}),", base_name, -1, node.time(),)
                 }
                 super::exact_model::sets_and_parameters::NetworkNodeType::Normal => {
-                    &format!("{}({},{}),", base_name, node.port(), node.time(),)
+                    format!("{}({},{}),", base_name, node.port(), node.time(),)
                 }
             };
-            out.push(self.1.vars(model, base_name, vtype, bounds)?)
+            out.push(self.1.vars(model, &base_name, vtype, bounds)?)
         }
 
         Ok(out)
@@ -145,7 +145,7 @@ impl AddVars for (&Vec<Arc>, usize) {
 
         for arc in self.0 {
             let base_name = match arc.get_kind() {
-                super::exact_model::sets_and_parameters::ArcType::TravelArc => &format!(
+                super::exact_model::sets_and_parameters::ArcType::TravelArc => format!(
                     "{}({},{}),({},{}),",
                     base_name,
                     arc.get_from().port(),
@@ -153,7 +153,7 @@ impl AddVars for (&Vec<Arc>, usize) {
                     arc.get_to().port(),
                     arc.get_to().time(),
                 ),
-                super::exact_model::sets_and_parameters::ArcType::WaitingArc => &format!(
+                super::exact_model::sets_and_parameters::ArcType::WaitingArc => format!(
                     "{}({},{}),({},{}),",
                     base_name,
                     arc.get_from().port(),
@@ -161,7 +161,7 @@ impl AddVars for (&Vec<Arc>, usize) {
                     arc.get_to().port(),
                     arc.get_to().time(),
                 ),
-                super::exact_model::sets_and_parameters::ArcType::EnteringArc => &format!(
+                super::exact_model::sets_and_parameters::ArcType::EnteringArc => format!(
                     "{}({},{}),({},{}),",
                     base_name,
                     -1,
@@ -169,7 +169,7 @@ impl AddVars for (&Vec<Arc>, usize) {
                     arc.get_to().port(),
                     arc.get_to().time(),
                 ),
-                super::exact_model::sets_and_parameters::ArcType::LeavingArc => &format!(
+                super::exact_model::sets_and_parameters::ArcType::LeavingArc => format!(
                     "{}({},{}),({},{}),",
                     base_name,
                     arc.get_from().port(),
@@ -177,7 +177,7 @@ impl AddVars for (&Vec<Arc>, usize) {
                     -1,
                     arc.get_to().time(),
                 ),
-                super::exact_model::sets_and_parameters::ArcType::NotUsedArc => &format!(
+                super::exact_model::sets_and_parameters::ArcType::NotUsedArc => format!(
                     "{}({},{}),({},{}),",
                     base_name,
                     -1,
@@ -186,7 +186,7 @@ impl AddVars for (&Vec<Arc>, usize) {
                     arc.get_to().time(),
                 ),
             };
-            out.push(self.1.vars(model, base_name, vtype, bounds)?)
+            out.push(self.1.vars(model, &base_name, vtype, bounds)?)
         }
 
         Ok(out)
