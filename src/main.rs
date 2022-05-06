@@ -290,71 +290,45 @@ pub fn run_unfixed_rolling_horizon(
     subproblem_size: usize,
     step_length: usize,
     conf: Config,
+    write: bool,
 ) {
-    let main_problem = read_problem(path);
-    let main_closure_problem = main_problem.clone();
+    let problem = read_problem(path);
+    let rh = RollingHorizon::new(problem.clone());
 
-    let num_subproblems = f64::ceil(
-        ((*main_problem).timesteps() as f64 - subproblem_size as f64) / step_length as f64 + 1.0,
-    ) as usize;
-
-    let rh = RollingHorizon::new(main_problem);
-
-    let mut period = 0..subproblem_size;
     let mut init: Arc<Mutex<dyn Initialization<Out = RoutingSolution> + Send>> =
         Arc::new(Mutex::new(InitRoutingSolution));
-    let mut solutions = Vec::new();
-    for i in 0..num_subproblems {
+
+    for end in (subproblem_size..problem.timesteps() + step_length - 1).step_by(step_length) {
+        let end = end.min(problem.timesteps());
+        let period = 0..end;
         println!("Solving subproblem in range: {:?}", period);
 
-        let sub_problem = rh
-            .slice_problem(period)
-            .expect("Failed to create subproblem");
-
-        let sub_problem = Arc::new(sub_problem);
-        let closure_problem = sub_problem.clone();
+        let sub = Arc::new(rh.slice_problem(period).unwrap());
 
         let (best, pop) = run_island_on(
-            sub_problem,
+            sub.clone(),
             output.clone(),
             init,
             termination.clone(),
             conf.clone(),
             false,
         );
-        let a = pop
-            .into_iter()
-            .flatten()
-            .map(|routes| RoutingSolution::new(closure_problem.clone(), routes))
-            .collect();
-        period = 0..(subproblem_size + (i + 1) * step_length).min(main_closure_problem.timesteps());
-        init = Arc::new(Mutex::new(FromPopulation::new(a)));
 
-        solutions.push(best);
+        init = Arc::new(Mutex::new(FromPopulation::new(
+            pop.into_iter()
+                .flatten()
+                .map(move |routes| RoutingSolution::new(sub.clone(), routes))
+                .collect(),
+        )));
+
+        // Write the best at the end of the solve of the subproblem
+        if write {
+            output.push(&format!("{end}.json"));
+            let file = std::fs::File::create(&output).unwrap();
+            serde_json::to_writer(file, &best.to_vec()).expect("writing failed");
+            output.pop();
+        }
     }
-
-    // convert all solutions into one
-    let mut routes = (0..main_closure_problem.vessels().len())
-        .map(|_| Vec::new())
-        .collect::<Vec<_>>();
-    for (i, solution) in solutions.iter().enumerate() {
-        let range = i * step_length..(subproblem_size + (i + 1) * step_length);
-        solution.iter().enumerate().for_each(|(v, plan)| {
-            plan.iter().for_each(|visit| {
-                if range.contains(&visit.time) {
-                    routes[v].push(visit.clone());
-                }
-            })
-        })
-    }
-    let final_sol = solutions.iter().last().unwrap();
-
-    output.push(&format!("final_rh.json"));
-    let file = std::fs::File::create(&output).unwrap();
-    output.pop();
-
-    let visits = final_sol.to_vec();
-    serde_json::to_writer(file, &visits).expect("writing failed");
 }
 
 pub fn run_rolling_horizon(
@@ -523,6 +497,20 @@ impl Termination {
     }
 }
 
+impl std::fmt::Display for Termination {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Termination::Epochs(e) => write!(f, "{e} epochs"),
+            Termination::NoViolation => write!(f, "no-violation"),
+            Termination::NoImprovement(_, dur, _) => write!(f, "{} no-improvement", dur.as_secs()),
+            Termination::Timeout(_, dur) => write!(f, "{} timeout", dur.as_secs()),
+            Termination::Never => write!(f, "never"),
+            Termination::Any(lhs, rhs) => write!(f, "({lhs}) | ({rhs})"),
+            Termination::All(lhs, rhs) => write!(f, "({lhs}) & ({rhs})"),
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 #[clap(author = "Fiskefôrgutane", about = "CLI for MIRP solver")]
 struct Args {
@@ -540,10 +528,15 @@ struct Args {
         default_value = "off"
     )]
     log: String,
-    /// The timeout used when the solution is stuck (in seconds). The elapsed time will be reset each
-    /// time a better solution if found
-    #[clap(short, long, default_value_t = 3600)]
-    stuck_timeout: u64,
+    /// The termination criteria used
+    #[clap(
+        short,
+        long,
+        value_name = "never | <count> epochs | <secs> timeout | no-violation | <secs> no-improvement  | '<term> <term> |' | '<term> <term> &'",
+        default_value = "600 no-improvement"
+    )]
+    termination: String,
+
     /// Subcommands
     #[clap(subcommand)]
     commands: Commands,
@@ -551,7 +544,7 @@ struct Args {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    All {
+    Normal {
         #[clap(long)]
         write: bool,
     },
@@ -560,6 +553,8 @@ enum Commands {
         subproblem_size: usize,
         #[clap(long, default_value_t = 5)]
         step_length: usize,
+        #[clap(long)]
+        write: bool,
     },
     Exact,
 }
@@ -577,6 +572,71 @@ fn enable_logger(level: LevelFilter) {
         })
         .filter(None, level)
         .init();
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    ExpectedInt,
+    ExpectedTerm,
+    UnconsumedTokens,
+    EmptyStack,
+    UnrecognizedToken(String),
+}
+
+fn parse_termination(string: &str) -> Result<Box<Termination>, ParseError> {
+    let tokens = string.split_ascii_whitespace();
+
+    enum Arg {
+        Int(u64),
+        Term(Box<Termination>),
+    }
+
+    let mut stack = Vec::new();
+
+    let int = |s: &mut Vec<Arg>| match s.pop() {
+        Some(Arg::Int(x)) => Ok(x),
+        Some(Arg::Term(_)) => Err(ParseError::ExpectedInt),
+        None => Err(ParseError::EmptyStack),
+    };
+
+    let term = |s: &mut Vec<Arg>| match s.pop() {
+        Some(Arg::Term(x)) => Ok(x),
+        Some(Arg::Int(_)) => Err(ParseError::ExpectedTerm),
+        None => Err(ParseError::EmptyStack),
+    };
+
+    for token in tokens {
+        let new = match token {
+            "never" => Arg::Term(Box::new(Termination::Never)),
+            "epochs" => Arg::Term(Box::new(Termination::Epochs(int(&mut stack)?))),
+            "timeout" => Arg::Term(Box::new(Termination::Timeout(
+                std::time::Instant::now(),
+                std::time::Duration::from_secs(int(&mut stack)?),
+            ))),
+            "no-violation" => Arg::Term(Box::new(Termination::NoViolation)),
+            "no-improvement" => Arg::Term(Box::new(Termination::NoImprovement(
+                std::time::Instant::now(),
+                std::time::Duration::from_secs(int(&mut stack)?),
+                std::f64::INFINITY,
+            ))),
+            "|" => Arg::Term(Box::new(Termination::Any(
+                term(&mut stack)?,
+                term(&mut stack)?,
+            ))),
+            "&" => Arg::Term(Box::new(Termination::All(
+                term(&mut stack)?,
+                term(&mut stack)?,
+            ))),
+            x => match x.parse::<u64>() {
+                Ok(num) => Arg::Int(num),
+                Err(_) => return Err(ParseError::UnrecognizedToken(x.to_string())),
+            },
+        };
+
+        stack.push(new);
+    }
+
+    term(&mut stack)
 }
 
 pub fn main() {
@@ -616,11 +676,8 @@ pub fn main() {
     let timesteps = directory.file_stem().unwrap().to_str().unwrap();
 
     // The termination criteria
-    let termination = Termination::NoImprovement(
-        std::time::Instant::now(),
-        std::time::Duration::from_secs(args.stuck_timeout),
-        std::f64::INFINITY,
-    );
+    let termination = parse_termination(&args.termination).unwrap();
+    println!("Termination: {termination}");
 
     // The output directory is ./solutions/TIME/PROBLEM/,
     let mut out = std::env::current_dir().expect("unable to fetch current dir");
@@ -633,27 +690,22 @@ pub fn main() {
 
     // Run the GA.
     match args.commands {
-        Commands::All { write } => {
-            run_island_ga(path, out, termination, InitRoutingSolution, config, write)
+        Commands::Normal { write } => {
+            run_island_ga(path, out, *termination, InitRoutingSolution, config, write)
         }
         Commands::RollingHorizon {
             subproblem_size,
             step_length,
+            write,
         } => run_unfixed_rolling_horizon(
             path,
             out,
-            termination,
+            *termination,
             subproblem_size,
             step_length,
             config,
+            write,
         ),
-        Commands::Exact => run_exact_model(
-            path,
-            out,
-            Termination::Timeout(
-                std::time::Instant::now(),
-                std::time::Duration::from_secs(args.stuck_timeout),
-            ),
-        ),
+        Commands::Exact => run_exact_model(path, out, *termination),
     };
 }
