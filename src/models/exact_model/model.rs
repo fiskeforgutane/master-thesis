@@ -18,7 +18,7 @@ impl ExactModelSolver {
         // model.set_param(grb::param::OutputFlag, 0)?;
 
         // Disable console output
-       //  model.set_param(param::OutputFlag, 0)?;
+        //  model.set_param(param::OutputFlag, 0)?;
 
         //*****************CREATE VARIABLES*****************//
         let vessels = sets.V.len();
@@ -30,7 +30,7 @@ impl ExactModelSolver {
         let timesteps = sets.T.len();
 
         for v in sets.V.iter() {
-            println!("Vessel: {} Number of arcs: {}", v, sets.Av.len());
+            println!("Vessel: {} Number of arcs: {}", v, sets.Av[*v].len());
         }
         // 1 if the vessel traverses the arc, 0 otherwise
         let x: Vec<Vec<Var>> = (arcs, vessels).binary(&mut model, &"x")?;
@@ -89,6 +89,10 @@ impl ExactModelSolver {
 
         // initial port storage
         for (i, p) in iproduct!(&sets.I, &sets.P) {
+            println!(
+                "node {i} consumption: {:?}",
+                parameters.consumption[*i][0][*p]
+            );
             let lhs = s_port[*i][0][*p]
                 - parameters.initial_port_inventory[*i][*p]
                 - parameters.port_type[*i]
