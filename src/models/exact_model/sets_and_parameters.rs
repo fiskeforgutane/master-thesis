@@ -47,8 +47,10 @@ pub struct Sets {
 
 #[allow(non_snake_case)]
 pub struct Parameters {
-    /// Capacity of vessel v
+    /// Total capacity of vessel v
     pub vessel_capacity: Vec<f64>,
+    /// Capacity of the compartments on vessel v
+    pub compartment_capacity: Vec<Vec<f64>>,
     /// Initial inventory of product p in vessel v
     pub initial_inventory: Vec<Vec<f64>>,
     /// The cost of traversing an arc with a particular vessel
@@ -381,6 +383,11 @@ impl Sets {
 impl Parameters {
     pub fn new(problem: &Problem) -> Parameters {
         let vessel_capacity: Vec<f64> = problem.vessels().iter().map(|v| v.capacity()).collect();
+        let compartment_capacity: Vec<Vec<f64>> = problem.vessels().iter().map(
+            |v| v.compartments().iter().map(
+                |c| c.0
+            ).collect::<Vec<_>>()
+        ).collect::<Vec<_>>();
         let initial_inventory: Vec<Vec<f64>> = problem
             .vessels()
             .iter()
@@ -507,6 +514,7 @@ impl Parameters {
 
         Parameters {
             vessel_capacity,
+            compartment_capacity,
             initial_inventory,
             travel_cost,
             spot_market_cost,

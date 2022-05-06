@@ -31,7 +31,7 @@ impl ExactModelSolver {
         let ports = sets.I.len();
         let nodes = sets.Nst.len();
         let timesteps = sets.T.len();
-        let num_compartments = |v| problem.vessels()[v].compartments().len();
+        let num_compartments = |v: usize| problem.vessels()[v].compartments().len();
 
         for v in sets.V.iter() {
             println!("Vessel: {} Number of arcs: {}", v, sets.Av[*v].len());
@@ -42,9 +42,26 @@ impl ExactModelSolver {
         let x: Vec<Vec<Var>> = (arcs, vessels).binary(&mut model, &"x")?;
         // 1 if the vessel is able to unload at the node, 0 otherwise
         let z: Vec<Vec<Var>> = (nodes, vessels).binary(&mut model, &"z")?;
+        // 1 if a vessel's compartment in occupied by a product in timestep t
+        let y = (0..vessels)
+            .map(|v| {
+                (
+                    num_compartments(v),
+                    timesteps,
+                    products
+                )
+                .binary(&mut model, &format!("y_{v}"))
+            }).collect::<grb::Result<Vec<_>>>()?;
         // Quantity unloaded of product at node by the vessel
-        let q: Vec<Vec<Vec<Vec<Var>>>> =
-            (ports, vessels, timesteps, products).cont(&mut model, &"q")?;
+        let q = (0..ports)
+            .map(|i| {
+                (0..vessels)
+                    .map(|v| (num_compartments(v), timesteps, products).cont(&mut model, &format!("q_{i}")))
+                    .collect::<grb::Result<Vec<_>>>()
+            })
+            .collect::<grb::Result<Vec<_>>>()?;
+
+        // (ports, vessels, max_compartments, timesteps, products).cont(&mut model, &"q")?;
         // The quantity sold of product by port in timestep
         let a: Vec<Vec<Vec<Var>>> = (ports, timesteps, products).cont(&mut model, &"q")?;
         // The current inventory of product in port in timestep
@@ -94,7 +111,11 @@ impl ExactModelSolver {
                     - s_port[i][t - 1][*p]
                     - parameters.port_type[i]
                         * (parameters.consumption[i][t][*p]
-                            - sets.V.iter().map(|v| &q[i][*v][t][*p]).grb_sum()
+                            - sets.V.iter().map(|v| {
+                                (0..num_compartments(*v)).map(|c|
+                                    q[i][*v][c][t][*p]
+                                ).grb_sum()
+                            }).grb_sum()
                             - a[i][t][*p]);
 
                 model.add_constr(&format!("port_inventory_{i}_{t}_{p}"), c!(lhs == 0.0_f64))?;
@@ -111,7 +132,11 @@ impl ExactModelSolver {
                 - parameters.initial_port_inventory[*i][*p]
                 - parameters.port_type[*i]
                     * (parameters.consumption[*i][0][*p]
-                        - sets.V.iter().map(|v| &q[*i][*v][0][*p]).grb_sum()
+                        - sets.V.iter().map(|v| {
+                            (0..num_compartments(*v)).map(|c|
+                                q[*i][*v][c][0][*p]
+                            ).grb_sum()
+                        }).grb_sum()
                         - a[*i][0][*p]);
 
             model.add_constr(
@@ -134,14 +159,14 @@ impl ExactModelSolver {
 
         // ensure balance of vessel storage
         for (v, t, p) in iproduct!(&sets.V, &sets.T, &sets.P) {
-            for c in 0..num_compartments(v) {
+            for c in 0..num_compartments(*v) {
                 if *t > 0 {
                     let lhs = s_vessel[*v][c][*t][*p]
                         - s_vessel[*v][c][*t - 1][*p]
                         - sets
                             .I
                             .iter()
-                            .map(|i| parameters.port_type[*i] * q[*i][*v][*t][*p])
+                            .map(|i| parameters.port_type[*i] * q[*i][*v][c][*t][*p])
                             .grb_sum();
 
                     model.add_constr(
@@ -154,12 +179,16 @@ impl ExactModelSolver {
 
         // ensure initial storage in all vessels
         for (v, p) in iproduct!(&sets.V, &sets.P) {
-            let lhs = s_vessel[*v][0][*p]
+            let lhs = (0..num_compartments(*v)).map(|c| s_vessel[*v][c][0][*p]).grb_sum()
                 - parameters.initial_inventory[*v][*p]
                 - sets
                     .I
                     .iter()
-                    .map(|i| parameters.port_type[*i] * q[*i][*v][0][*p])
+                    .map(|i| {
+                        (0..num_compartments(*v)).map(|c| {
+                            parameters.port_type[*i] * q[*i][*v][c][0][*p]
+                        }).grb_sum()
+                    })
                     .grb_sum();
 
             model.add_constr(
@@ -168,13 +197,45 @@ impl ExactModelSolver {
             )?;
         }
 
+        // there can be a maximum of one product type in each compartment at the same time
+        for (v, t) in iproduct!(&sets.V, &sets.T) {
+            for c in 0..num_compartments(*v) {
+                let lhs = sets.P.iter().map(|p| {
+                    y[*v][c][*t][*p]
+                }).grb_sum();
+
+                model.add_constr(
+                    &format!("one_product_per_compartment_{v}_{c}_{t}"),
+                    c!(lhs <= 1),
+                )?;
+            }
+        }
+
+        // there can be a maximum of one product type in each compartment at the same time
+        for (v, t, p) in iproduct!(&sets.V, &sets.T, &sets.P) {
+            for c in 0..num_compartments(*v) {
+                let lhs = sets.Ip.iter().map(|i| {
+                    q[*i][*v][c][*t][*p]
+                }).grb_sum();
+
+                let rhs = parameters.compartment_capacity[*v][c] * y[*v][c][*t][*p];
+
+                model.add_constr(
+                    &format!("only_load_correct_product_{v}_{c}_{t}_{p}"),
+                    c!(lhs <= rhs),
+                )?;
+            }
+        }
+
         // ensure that the load at the vessels is within the capacity limits
         for (v, t) in iproduct!(&sets.V, &sets.T) {
-            let lhs = sets.P.iter().map(|p| s_vessel[*v][*t][*p]).grb_sum();
+            for c in 0..num_compartments(*v) {
+                let lhs = sets.P.iter().map(|p| s_vessel[*v][c][*t][*p]).grb_sum();
 
-            let rhs = parameters.vessel_capacity[*v];
+                let rhs = parameters.compartment_capacity[*v][c];
 
-            model.add_constr(&format!("vessel_storage_capacity_{v}_{t}"), c!(lhs <= rhs))?;
+                model.add_constr(&format!("vessel_storage_capacity_{v}_{t}"), c!(lhs <= rhs))?;
+            }
         }
 
         // berth capacities must be respected
@@ -211,7 +272,11 @@ impl ExactModelSolver {
 
             let lower = parameters.min_loading_rate[i] * z[n.index()][*v];
             let upper = parameters.max_loading_rate[i] * z[n.index()][*v];
-            let loading_rate = sets.P.iter().map(|p| q[i][*v][t][*p]).grb_sum();
+            let loading_rate = sets.P.iter().map(|p| {
+                (0..num_compartments(*v)).map(
+                    |c|  q[i][*v][c][t][*p]
+                ).grb_sum()
+            }).grb_sum();
 
             model.add_constr(
                 &format!("lower_loading_rate_{i}_{t}"),
@@ -248,7 +313,9 @@ impl ExactModelSolver {
         }
 
         let revenue = iproduct!(&sets.N, &sets.V, &sets.P)
-            .map(|(n, v, p)| parameters.revenue[n.port()] * q[n.port()][*v][n.time()][*p])
+            .map(|(n, v, p)| {
+                (0..num_compartments(*v)).map(|c| parameters.revenue[n.port()] * q[n.port()][*v][c][n.time()][*p]).grb_sum()
+            })
             .grb_sum();
 
         let transportation_cost = iproduct!(&sets.V, &sets.At)
@@ -281,7 +348,7 @@ impl ExactModelSolver {
     pub fn solve(problem: &Problem) -> Result<ExactModelResults, grb::Error> {
         let sets = Sets::new(problem);
         let parameters = Parameters::new(problem);
-        let (m, variables) = ExactModelSolver::build(&sets, &parameters)?;
+        let (m, variables) = ExactModelSolver::build(&problem, &sets, &parameters)?;
         let mut model = m;
 
         model.optimize()?;
@@ -293,7 +360,7 @@ impl ExactModelSolver {
         let sets = Sets::new(problem);
         println!("Timesteps: {} Ports: {}", sets.T.len(), sets.I.len());
         let parameters = Parameters::new(problem);
-        let (model, _) = ExactModelSolver::build(&sets, &parameters)?;
+        let (model, _) = ExactModelSolver::build(&problem, &sets, &parameters)?;
         model.write(path)?;
         Ok(())
     }
@@ -302,10 +369,10 @@ impl ExactModelSolver {
 pub struct ExactModelResults {
     x: Vec<Vec<f64>>,
     z: Vec<Vec<f64>>,
-    q: Vec<Vec<Vec<Vec<f64>>>>,
+    q: Vec<Vec<Vec<Vec<Vec<f64>>>>>,
     a: Vec<Vec<Vec<f64>>>,
     s_port: Vec<Vec<Vec<f64>>>,
-    s_vessel: Vec<Vec<Vec<f64>>>,
+    s_vessel: Vec<Vec<Vec<Vec<f64>>>>,
 }
 
 impl ExactModelResults {
@@ -331,20 +398,20 @@ impl ExactModelResults {
 pub struct Variables {
     x: Vec<Vec<Var>>,
     z: Vec<Vec<Var>>,
-    q: Vec<Vec<Vec<Vec<Var>>>>,
+    q: Vec<Vec<Vec<Vec<Vec<Var>>>>>,
     a: Vec<Vec<Vec<Var>>>,
     s_port: Vec<Vec<Vec<Var>>>,
-    s_vessel: Vec<Vec<Vec<Var>>>,
+    s_vessel: Vec<Vec<Vec<Vec<Var>>>>,
 }
 
 impl Variables {
     pub fn new(
         x: Vec<Vec<Var>>,
         z: Vec<Vec<Var>>,
-        q: Vec<Vec<Vec<Vec<Var>>>>,
+        q: Vec<Vec<Vec<Vec<Vec<Var>>>>>,
         a: Vec<Vec<Vec<Var>>>,
         s_port: Vec<Vec<Vec<Var>>>,
-        s_vessel: Vec<Vec<Vec<Var>>>,
+        s_vessel: Vec<Vec<Vec<Vec<Var>>>>,
     ) -> Variables {
         Variables {
             x,
