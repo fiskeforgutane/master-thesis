@@ -31,7 +31,9 @@ impl ExactModelSolver {
 
         for v in sets.V.iter() {
             println!("Vessel: {} Number of arcs: {}", v, sets.Av[*v].len());
+            println!("Vessel: {} Reverse star: {:?}", v, sets.Fs[*v]);
         }
+        
         // 1 if the vessel traverses the arc, 0 otherwise
         let x: Vec<Vec<Var>> = (arcs, vessels).binary(&mut model, &"x")?;
         // 1 if the vessel is able to unload at the node, 0 otherwise
@@ -55,8 +57,8 @@ impl ExactModelSolver {
         // ensure that the all "normal" nodes have as many arcs entering as those leaving
         // and that the source just has one leaving, and that the sink has one entering
         for (n, v) in iproduct!(&sets.Nst, &sets.V) {
-            let lhs = sets.Fs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
-                - sets.Rs[n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
+            let lhs = sets.Fs[*v][n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
+                - sets.Rs[*v][n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
 
             let rhs = match n.kind() {
                 NetworkNodeType::Source => 1,
@@ -177,7 +179,7 @@ impl ExactModelSolver {
         for (n, v) in iproduct!(&sets.N, &sets.V) {
             let lhs = z[n.index()][*v];
 
-            let rhs = sets.Rs[*v].iter().map(|a| x[*a][*v]).grb_sum();
+            let rhs = sets.Rs[*v][n.index()].iter().map(|a| x[*a][*v]).grb_sum();
 
             let time = n.time();
             let port = n.port();

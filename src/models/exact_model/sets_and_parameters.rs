@@ -40,9 +40,9 @@ pub struct Sets {
     /// Set of all arcs associated with "normal" nodes
     pub At: Vec<ArcIndex>,
     /// Set of all outgoing arcs associated with a node
-    pub Fs: Vec<Vec<ArcIndex>>,
+    pub Fs: Vec<Vec<Vec<ArcIndex>>>,
     /// Set of all incoming arcs associated with a node
-    pub Rs: Vec<Vec<ArcIndex>>,
+    pub Rs: Vec<Vec<Vec<ArcIndex>>>,
 }
 
 #[allow(non_snake_case)]
@@ -127,12 +127,16 @@ impl Sets {
         let A = Sets::get_all_arcs(&Nst);
         let Av = Sets::get_arcs(problem, &A, &Nst);
         let At = Sets::get_travel_arcs(&A);
-        let Fs = iproduct!(problem.vessels(), &Nst)
-            .map(|(v, n)| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n))
-            .collect::<Vec<_>>();
-        let Rs = iproduct!(problem.vessels(), &Nst)
-            .map(|(v, n)| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &A, &n))
-            .collect::<Vec<_>>();
+        let Fs = problem.vessels().iter().map(
+            |v| Nst.iter().map(
+                |n| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n)
+            ).collect::<Vec<_>>()
+        ).collect::<Vec<_>>();
+        let Rs = problem.vessels().iter().map(
+            |v| Nst.iter().map(
+                |n| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &A, &n)
+            ).collect::<Vec<_>>()
+        ).collect::<Vec<_>>();
 
         Sets {
             I,
@@ -315,11 +319,15 @@ impl Sets {
         all_arcs: &Vec<Arc>,
         node: &NetworkNode,
     ) -> Vec<ArcIndex> {
-        vessel_arcs
+        let fs = vessel_arcs
             .iter()
             .filter(|a| all_arcs[**a].get_from().index() == node.index())
             .map(|a| *a)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        println!("Forward star for node: {} Arcs: {} Forward star: {:?}", node.index(), vessel_arcs.len(), &fs);
+
+        fs
+
     }
 
     pub fn get_reverse_star(
