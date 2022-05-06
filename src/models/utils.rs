@@ -3,7 +3,7 @@ use grb::{Expr, Model, Result, Var, VarType};
 use std::hash::Hash;
 use std::{collections::HashMap, fmt::Debug, ops::Range};
 
-use super::exact_model::sets_and_parameters::Arc;
+use super::exact_model::sets_and_parameters::{Arc, NetworkNode};
 
 pub trait AddVars {
     type Out;
@@ -83,6 +83,38 @@ impl AddVars for usize {
         }
 
         Ok(vec)
+    }
+}
+
+impl AddVars for (&Vec<NetworkNode>, usize) {
+    type Out = Vec<<usize as AddVars>::Out>;
+
+    fn vars_with<F: FnMut(Self) -> Result<Var>>(&self, func: F) -> Result<Self::Out>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn vars(
+        &self,
+        model: &mut Model,
+        base_name: &str,
+        vtype: VarType,
+        bounds: &Range<f64>,
+    ) -> Result<Self::Out> {
+        let mut out = Vec::with_capacity(self.0.len());
+
+        for node in self.0 {
+            out.push(self.1.vars(
+                model,
+                &format!("{}({},{}),", base_name, node.port(), node.time(),),
+                vtype,
+                bounds,
+            )?)
+        }
+
+        Ok(out)
     }
 }
 
