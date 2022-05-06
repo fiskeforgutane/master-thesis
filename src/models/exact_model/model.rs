@@ -11,7 +11,11 @@ pub struct ExactModelSolver {}
 
 #[allow(non_snake_case)]
 impl ExactModelSolver {
-    pub fn build(sets: &Sets, parameters: &Parameters) -> grb::Result<(Model, Variables)> {
+    pub fn build(
+        problem: &Problem,
+        sets: &Sets,
+        parameters: &Parameters,
+    ) -> grb::Result<(Model, Variables)> {
         info!("Building exact model.");
 
         let mut model = Model::new("exact_model")?;
@@ -27,6 +31,7 @@ impl ExactModelSolver {
         let ports = sets.I.len();
         let nodes = sets.Nst.len();
         let timesteps = sets.T.len();
+        let num_compartments = |v| problem.vessels()[v].compartments().len();
 
         for v in sets.V.iter() {
             println!("Vessel: {} Number of arcs: {}", v, sets.Av[*v].len());
@@ -46,8 +51,16 @@ impl ExactModelSolver {
         let s_port: Vec<Vec<Vec<Var>>> =
             (ports, timesteps, products).cont(&mut model, &"s_port")?;
         // The current inventory of product in vessel in timestep
-        let s_vessel: Vec<Vec<Vec<Var>>> =
-            (vessels, timesteps, products).cont(&mut model, &"s_vessels")?;
+        let s_vessel = (0..vessels)
+            .map(|v| {
+                (
+                    problem.vessels()[v].compartments().len(),
+                    timesteps,
+                    products,
+                )
+                    .cont(&mut model, &format!("s_vessels_{v}"))
+            })
+            .collect::<grb::Result<Vec<_>>>()?;
 
         model.update()?;
 
@@ -59,10 +72,10 @@ impl ExactModelSolver {
             let lhs = sets.Fs[*v][n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
                 - sets.Rs[*v][n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
 
-            let rhs = match n.kind() {
-                NetworkNodeType::Source => 1,
-                NetworkNodeType::Sink => -1,
-                NetworkNodeType::Normal => 0,
+            let rhs: f64 = match n.kind() {
+                NetworkNodeType::Source => 1.0,
+                NetworkNodeType::Sink => -1.0,
+                NetworkNodeType::Normal => 0.0,
             };
 
             let node_index = n.index();
@@ -121,19 +134,21 @@ impl ExactModelSolver {
 
         // ensure balance of vessel storage
         for (v, t, p) in iproduct!(&sets.V, &sets.T, &sets.P) {
-            if *t > 0 {
-                let lhs = s_vessel[*v][*t][*p]
-                    - s_vessel[*v][*t - 1][*p]
-                    - sets
-                        .I
-                        .iter()
-                        .map(|i| parameters.port_type[*i] * q[*i][*v][*t][*p])
-                        .grb_sum();
+            for c in 0..num_compartments(v) {
+                if *t > 0 {
+                    let lhs = s_vessel[*v][c][*t][*p]
+                        - s_vessel[*v][c][*t - 1][*p]
+                        - sets
+                            .I
+                            .iter()
+                            .map(|i| parameters.port_type[*i] * q[*i][*v][*t][*p])
+                            .grb_sum();
 
-                model.add_constr(
-                    &format!("storage_balance_vessel_{v}_{t}_{p}"),
-                    c!(lhs == 0.0_f64),
-                )?;
+                    model.add_constr(
+                        &format!("storage_balance_vessel_{v}_{t}_{p}"),
+                        c!(lhs == 0.0_f64),
+                    )?;
+                }
             }
         }
 
