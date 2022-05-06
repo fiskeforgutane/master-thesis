@@ -73,7 +73,7 @@ impl AddVars for usize {
         let mut vec = Vec::with_capacity(*self);
         for i in 0..*self {
             vec.push(model.add_var(
-                &format!("{},{}", base_name, i),
+                &format!("{}{}", base_name, i),
                 vtype,
                 0.0,
                 bounds.start,
@@ -138,7 +138,7 @@ impl AddVars for (usize, usize) {
         for i in 0..self.0 {
             out.push(
                 self.1
-                    .vars(model, &format!("{},{}", base_name, i), vtype, bounds)?,
+                    .vars(model, &format!("{}{},", base_name, i), vtype, bounds)?,
             )
         }
 
