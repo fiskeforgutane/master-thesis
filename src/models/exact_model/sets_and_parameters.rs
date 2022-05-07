@@ -386,20 +386,24 @@ impl Parameters {
                     .vessels()
                     .iter()
                     .map(|v| match arc.get_kind() {
-                        ArcType::TravelArc => match problem.nodes()[arc.get_to().port()].r#type() {
-                            crate::problem::NodeType::Consumption => problem.travel_cost(
-                                arc.get_from().port(),
-                                arc.get_to().port(),
-                                v.index(),
-                                &Inventory::new(&vec![1.0]).unwrap(),
-                            ),
-                            crate::problem::NodeType::Production => problem.travel_cost(
-                                arc.get_from().port(),
-                                arc.get_to().port(),
-                                v.index(),
-                                &Inventory::new(&vec![0.0]).unwrap(),
-                            ),
-                        },
+                        ArcType::TravelArc => {
+                            let t_cost = match problem.nodes()[arc.get_to().port()].r#type() {
+                                crate::problem::NodeType::Consumption => problem.travel_cost(
+                                    arc.get_from().port(),
+                                    arc.get_to().port(),
+                                    v.index(),
+                                    &Inventory::new(&vec![1.0]).unwrap(),
+                                ),
+                                crate::problem::NodeType::Production => problem.travel_cost(
+                                    arc.get_from().port(),
+                                    arc.get_to().port(),
+                                    v.index(),
+                                    &Inventory::new(&vec![0.0]).unwrap(),
+                                ),
+                            };
+                            let port_fee = problem.nodes()[arc.get_to().port()].port_fee();
+                            t_cost+port_fee
+                        }
                         ArcType::WaitingArc => 0.0,
                         ArcType::EnteringArc => problem.nodes()[arc.get_to().port()].port_fee(),
                         ArcType::LeavingArc => {
