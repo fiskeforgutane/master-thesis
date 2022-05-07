@@ -54,7 +54,7 @@ pub struct Parameters {
     /// Initial inventory of product p in vessel v
     pub initial_inventory: Vec<Vec<f64>>,
     /// The cost of traversing an arc with a particular vessel
-    pub travel_cost: Vec<Vec<Vec<f64>>>,
+    pub travel_cost: Vec<Vec<f64>>,
     /// The unit cost of buying a product from the spot market at node n at time t
     pub spot_market_cost: Vec<Vec<f64>>,
     /// Berth capacity of a port
@@ -362,7 +362,7 @@ impl Sets {
 }
 
 impl Parameters {
-    pub fn new(problem: &Problem) -> Parameters {
+    pub fn new(problem: &Problem, sets: &Sets) -> Parameters {
         let vessel_capacity: Vec<f64> = problem.vessels().iter().map(|v| v.capacity()).collect();
         let compartment_capacity: Vec<Vec<f64>> = problem
             .vessels()
@@ -378,32 +378,34 @@ impl Parameters {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-        let travel_cost: Vec<Vec<Vec<f64>>> = problem
-            .nodes()
+        let travel_cost: Vec<Vec<f64>> = sets
+            .A
             .iter()
-            .map(|n_1| {
+            .map(|arc| {
                 problem
-                    .nodes()
+                    .vessels()
                     .iter()
-                    .map(|n_2| {
-                        problem
-                            .vessels()
-                            .iter()
-                            .map(|v| match n_2.r#type() {
-                                crate::problem::NodeType::Consumption => problem.travel_cost(
-                                    n_1.index(),
-                                    n_2.index(),
-                                    v.index(),
-                                    &Inventory::new(&vec![1.0]).unwrap(),
-                                ),
-                                crate::problem::NodeType::Production => problem.travel_cost(
-                                    n_1.index(),
-                                    n_2.index(),
-                                    v.index(),
-                                    &Inventory::new(&vec![0.0]).unwrap(),
-                                ),
-                            })
-                            .collect::<Vec<_>>()
+                    .map(|v| match arc.get_kind() {
+                        ArcType::TravelArc => match problem.nodes()[arc.get_to().port()].r#type() {
+                            crate::problem::NodeType::Consumption => problem.travel_cost(
+                                arc.get_from().port(),
+                                arc.get_to().port(),
+                                v.index(),
+                                &Inventory::new(&vec![1.0]).unwrap(),
+                            ),
+                            crate::problem::NodeType::Production => problem.travel_cost(
+                                arc.get_from().port(),
+                                arc.get_to().port(),
+                                v.index(),
+                                &Inventory::new(&vec![0.0]).unwrap(),
+                            ),
+                        },
+                        ArcType::WaitingArc => 0.0,
+                        ArcType::EnteringArc => problem.nodes()[arc.get_to().port()].port_fee(),
+                        ArcType::LeavingArc => {
+                            -(problem.timesteps() as f64 - arc.get_from().time() as f64) * 0.01
+                        }
+                        ArcType::NotUsedArc => 0.0,
                     })
                     .collect::<Vec<_>>()
             })

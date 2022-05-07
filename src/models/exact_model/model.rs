@@ -330,10 +330,7 @@ impl ExactModelSolver {
             .grb_sum();
 
         let transportation_cost = iproduct!(&sets.V, &sets.At)
-            .map(|(v, a)| {
-                parameters.travel_cost[sets.A[*a].get_from().port()][sets.A[*a].get_to().port()][*v]
-                    * x[*a][*v]
-            })
+            .map(|(v, a)| parameters.travel_cost[*a][*v] * x[*a][*v])
             .grb_sum();
 
         let spot_market_cost = iproduct!(&sets.I, &sets.T, &sets.P)
@@ -358,7 +355,7 @@ impl ExactModelSolver {
 
     pub fn solve(problem: &Problem, timeout: f64) -> Result<ExactModelResults, grb::Error> {
         let sets = Sets::new(problem);
-        let parameters = Parameters::new(problem);
+        let parameters = Parameters::new(problem, &sets);
         let (m, variables) = ExactModelSolver::build(&problem, &sets, &parameters)?;
         let mut model = m;
         model.set_param(param::TimeLimit, timeout);
@@ -371,7 +368,7 @@ impl ExactModelSolver {
     pub fn build_and_write(problem: &Problem, path: &str) -> grb::Result<()> {
         let sets = Sets::new(problem);
         println!("Timesteps: {} Ports: {}", sets.T.len(), sets.I.len());
-        let parameters = Parameters::new(problem);
+        let parameters = Parameters::new(problem, &sets);
         let (model, _) = ExactModelSolver::build(&problem, &sets, &parameters)?;
         model.write(path)?;
         Ok(())
