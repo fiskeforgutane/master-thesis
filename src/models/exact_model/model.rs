@@ -329,8 +329,13 @@ impl ExactModelSolver {
             })
             .grb_sum();
 
-        let transportation_cost = iproduct!(&sets.V, &sets.At)
-            .map(|(v, a)| parameters.travel_cost[*a][*v] * x[*a][*v])
+        let transportation_cost = (&sets.V)
+            .into_iter()
+            .flat_map(|v| {
+                (&sets.Av[*v])
+                    .iter()
+                    .map(|a| parameters.travel_cost[*a][*v] * x[*a][*v])
+            })
             .grb_sum();
 
         let spot_market_cost = iproduct!(&sets.I, &sets.T, &sets.P)
