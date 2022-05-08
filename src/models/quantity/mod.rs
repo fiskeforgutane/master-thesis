@@ -281,7 +281,7 @@ impl QuantityLp {
             model.add_constr(
                 &format!("setCap_{}_{}", time, vessel),
                 c!(cap_violation[time][vessel]
-                    >= problem.vessels()[vessel].capacity()
+                    == problem.vessels()[vessel].capacity()
                         - (0..p).map(|product| l[time][vessel][product]).grb_sum()),
             )?;
         }
