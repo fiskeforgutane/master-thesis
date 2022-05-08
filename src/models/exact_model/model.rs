@@ -26,16 +26,14 @@ impl ExactModelSolver {
 
         //*****************CREATE VARIABLES*****************//
         let vessels = sets.V.len();
-        let arcs = sets.A.len();
         let products = sets.P.len();
         let ports = sets.I.len();
-        let nodes = sets.Nst.len();
         let timesteps = sets.T.len();
         let num_compartments = |v: usize| problem.vessels()[v].compartments().len();
 
         for v in sets.V.iter() {
             println!("Vessel: {} Number of arcs: {}", v, sets.Av[*v].len());
-            println!("Vessel: {} Reverse star: {:?}", v, sets.Fs[*v]);
+            println!("Vessel: {} Forward star: {:?}", v, sets.Fs[*v]);
         }
 
         // 1 if the vessel traverses the arc, 0 otherwise
@@ -94,8 +92,10 @@ impl ExactModelSolver {
                 NetworkNodeType::Normal => 0.0,
             };
 
-            let node_index = n.index();
-            model.add_constr(&format!("travel_{v}_{node_index}"), c!(lhs == rhs))?;
+            model.add_constr(
+                &format!("travel_{v}_{}_{}", n.port(), n.time()),
+                c!(lhs == rhs),
+            )?;
         }
 
         // port storage balance
@@ -363,7 +363,7 @@ impl ExactModelSolver {
         let parameters = Parameters::new(problem, &sets);
         let (m, variables) = ExactModelSolver::build(&problem, &sets, &parameters)?;
         let mut model = m;
-        model.set_param(param::TimeLimit, timeout);
+        model.set_param(param::TimeLimit, timeout)?;
 
         model.optimize()?;
 
@@ -380,6 +380,7 @@ impl ExactModelSolver {
     }
 }
 
+#[allow(unused)]
 pub struct ExactModelResults {
     x: Vec<Vec<f64>>,
     z: Vec<Vec<f64>>,

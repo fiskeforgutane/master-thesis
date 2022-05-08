@@ -406,7 +406,8 @@ impl RoutingSolution {
         // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
         let mut lp = self.cache.quantity.borrow_mut();
-        lp.configure(self, false, false).expect("configure failed");
+        lp.configure(self, false, false, false, true)
+            .expect("configure failed");
         lp.solve().expect("solve failed");
         std::mem::drop(lp);
 
@@ -422,7 +423,8 @@ impl RoutingSolution {
         self.invalidate_caches();
 
         let mut lp = self.cache.quantity.borrow_mut();
-        lp.configure(self, true, true).expect("configure failed");
+        lp.configure(self, true, true, true, true)
+            .expect("configure failed");
         lp.solve().expect("solve failed");
 
         lp

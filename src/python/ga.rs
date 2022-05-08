@@ -400,6 +400,7 @@ impl PyGA {
                 let violation = lp.vars.violation.convert(&lp.model).unwrap();
                 let timing = lp.vars.timing.convert(&lp.model).unwrap();
                 let a = lp.vars.a.convert(&lp.model).unwrap();
+                let cap_violation = lp.vars.cap_violation.convert(&lp.model).unwrap();
 
                 let v = F64Variables {
                     w,
@@ -411,6 +412,7 @@ impl PyGA {
                     violation,
                     timing,
                     a,
+                    cap_violation,
                 };
 
                 let obj = (

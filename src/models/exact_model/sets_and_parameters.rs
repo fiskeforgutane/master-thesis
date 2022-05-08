@@ -121,12 +121,22 @@ impl Sets {
         let A = Sets::get_all_arcs(&Nst);
         let Av = Sets::get_arcs(problem, &A, &Nst);
         let At = Sets::get_travel_arcs(&A);
+        for v in 0..problem.vessels().len() {
+            let mut a = Av[v].clone();
+            let l1 = a.len();
+            a.sort();
+            a.dedup();
+            let l2 = a.len();
+            if l1 != l2 {
+                println!("duplicates in vessel {v}");
+            }
+        }
         let Fs = problem
             .vessels()
             .iter()
             .map(|v| {
                 Nst.iter()
-                    .map(|n| Sets::get_forward_star(Av.get(v.index()).unwrap(), &A, &n))
+                    .map(|n| Sets::get_forward_star(&Av[v.index()], &A, &n))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -135,7 +145,7 @@ impl Sets {
             .iter()
             .map(|v| {
                 Nst.iter()
-                    .map(|n| Sets::get_reverse_star(Av.get(v.index()).unwrap(), &A, &n))
+                    .map(|n| Sets::get_reverse_star(&Av[v.index()], &A, &n))
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -296,6 +306,9 @@ impl Sets {
                 None => continue,
             }
         }
+        // remove duplicates
+        arcs.sort();
+        arcs.dedup();
         arcs
     }
 
@@ -402,7 +415,7 @@ impl Parameters {
                                 ),
                             };
                             let port_fee = problem.nodes()[arc.get_to().port()].port_fee();
-                            t_cost+port_fee
+                            t_cost + port_fee
                         }
                         ArcType::WaitingArc => 0.0,
                         ArcType::EnteringArc => problem.nodes()[arc.get_to().port()].port_fee(),

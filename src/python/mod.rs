@@ -249,10 +249,13 @@ pub fn solve_quantities(
     routes: Vec<Vec<Visit>>,
     semicont: bool,
     berth: bool,
+    load_restrictions: bool,
+    tight: bool,
 ) -> PyResult<F64Variables> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
-    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.configure(&solution, semicont, berth, load_restrictions, tight)
+        .map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
     Ok(res)
 }
@@ -263,6 +266,8 @@ pub fn solve_multiple_quantities(
     solutions: Vec<Vec<Vec<Visit>>>,
     semicont: bool,
     berth: bool,
+    load_restrictions: bool,
+    tight: bool,
 ) -> PyResult<Vec<F64Variables>> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
 
@@ -270,7 +275,8 @@ pub fn solve_multiple_quantities(
     let arc = Arc::new(problem);
     for routes in solutions {
         let solution = RoutingSolution::new(arc.clone(), routes);
-        lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+        lp.configure(&solution, semicont, berth, load_restrictions, tight)
+            .map_err(pyerr)?;
         results.push(lp.solve_python().map_err(pyerr)?);
     }
 
@@ -310,10 +316,13 @@ pub fn objective_terms(
     routes: Vec<Vec<Visit>>,
     semicont: bool,
     berth: bool,
+    load_restrictions: bool,
+    tight: bool,
 ) -> PyResult<ObjectiveTerms> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
-    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.configure(&solution, semicont, berth, load_restrictions, tight)
+        .map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
 
     Ok(ObjectiveTerms {
@@ -333,10 +342,13 @@ pub fn write_model(
     routes: Vec<Vec<Visit>>,
     semicont: bool,
     berth: bool,
+    load_restrictions: bool,
+    tight: bool,
 ) -> PyResult<()> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
-    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.configure(&solution, semicont, berth, load_restrictions, tight)
+        .map_err(pyerr)?;
     lp.model.write(filename).map_err(pyerr)?;
 
     Ok(())

@@ -19,6 +19,7 @@ pub struct Variables {
     pub l: Vec<Vec<Vec<Var>>>,
     pub b: Vec<Vec<Vec<Var>>>,
     pub a: Vec<Vec<Vec<Var>>>,
+    pub cap_violation: Vec<Vec<Var>>,
     pub violation: Var,
     pub spot: Var,
     pub revenue: Var,
@@ -45,6 +46,8 @@ pub struct F64Variables {
     pub timing: f64,
     #[pyo3(get)]
     pub a: Vec<Vec<Vec<f64>>>,
+    #[pyo3(get)]
+    pub cap_violation: Vec<Vec<f64>>,
 }
 
 pub struct QuantityLp {
@@ -228,6 +231,64 @@ impl QuantityLp {
         Ok(())
     }
 
+    fn reset_load_bounds(
+        model: &mut Model,
+        problem: &Problem,
+        l: &[Vec<Vec<Var>>],
+        cap_violation: &[Vec<Var>],
+    ) -> grb::Result<()> {
+        let (v, t, p) = (
+            problem.vessels().len(),
+            problem.timesteps(),
+            problem.products(),
+        );
+
+        model.set_obj_attr_batch(
+            grb::attr::UB,
+            iproduct!(0..v, 0..t).map(|(vessel, time)| {
+                (
+                    cap_violation[time][vessel],
+                    problem.vessels()[vessel].capacity(),
+                )
+            }),
+        )?;
+
+        model.set_obj_attr_batch(
+            grb::attr::UB,
+            iproduct!(0..v, 0..t).flat_map(|(vessel, time)| {
+                (0..p).map(move |product| {
+                    (
+                        l[time][vessel][product],
+                        problem.vessels()[vessel].capacity(),
+                    )
+                })
+            }),
+        )?;
+
+        Ok(())
+    }
+
+    fn cap_restrictions(
+        model: &mut Model,
+        problem: &Problem,
+        l: &[Vec<Vec<Var>>],
+        cap_violation: &[Vec<Var>],
+        v: usize,
+        t: usize,
+        p: usize,
+    ) -> grb::Result<()> {
+        for (time, vessel) in iproduct!(0..t, 0..v) {
+            model.add_constr(
+                &format!("setCap_{}_{}", time, vessel),
+                c!(cap_violation[time][vessel]
+                    == problem.vessels()[vessel].capacity()
+                        - (0..p).map(|product| l[time][vessel][product]).grb_sum()),
+            )?;
+        }
+
+        Ok(())
+    }
+
     fn multiplier(kind: NodeType) -> f64 {
         match kind {
             NodeType::Consumption => -1.0,
@@ -257,6 +318,7 @@ impl QuantityLp {
         let l = (t + 1, v, p).cont(&mut model, "l")?;
         let b = (t, n, v).cont(&mut model, "b")?;
         let a = (t, n, p).cont(&mut model, "a")?;
+        let cap_violation = (t, v).cont(&mut model, "cap_violation")?;
 
         let revenue = add_ctsvar!(model, name: "revenue", bounds: 0.0..)?;
         let timing = add_ctsvar!(model, name: "timinig", bounds: 0.0..)?;
@@ -269,6 +331,7 @@ impl QuantityLp {
         QuantityLp::rate_constraints(&mut model, problem, &x, t, n, v, p)?;
         QuantityLp::berth_capacity(&mut model, problem, &x, t, n, v, p, &b)?;
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
+        QuantityLp::cap_restrictions(&mut model, problem, &l, &cap_violation, v, t, p)?;
 
         let violation_expr = w.iter().flatten().flatten().grb_sum();
         // We discount later uses of the spot market; effectively making it desirable to perform spot operations as late as possible
@@ -309,6 +372,7 @@ impl QuantityLp {
                 l,
                 b,
                 a,
+                cap_violation,
                 violation,
                 spot,
                 revenue,
@@ -319,8 +383,14 @@ impl QuantityLp {
         })
     }
 
+    /// Returns the indicies of the x-variables in the LP that are allowed to take positive values
+    ///
+    /// ## Arguments
+    /// * `solution` - the given routing solution that is evaluated
+    /// * `tight` - true if all visits (except the origin) should be constrained by the maximum time it takes to fully load or unload the vessel, if false, only reaching the next visit is considered
     pub fn active<'s>(
         solution: &'s RoutingSolution,
+        tight: bool,
     ) -> impl Iterator<Item = (TimeIndex, NodeIndex, VesselIndex, ProductIndex)> + 's {
         let problem = solution.problem();
         let p = problem.products();
@@ -339,7 +409,13 @@ impl QuantityLp {
                     // In addition, we can further restrict the active time periods by looking at the longest possible time
                     // the vessel can spend at the node doing constant loading/unloading.
                     let rate = problem.nodes()[v1.node].min_unloading_amount();
-                    let max_loading_time = (vessel.capacity() / rate).ceil() as usize;
+                    let max_loading_time = if problem.origin_visit(v) == v1 || !tight {
+                        // do not tighten
+                        departure_time
+                    } else {
+                        // allow to tighten
+                        (vessel.capacity() / rate).ceil() as usize
+                    };
 
                     (v1.time..=departure_time.min(v1.time + max_loading_time))
                         .flat_map(move |t| (0..p).map(move |p| (t, v1.node, v, p)))
@@ -348,15 +424,32 @@ impl QuantityLp {
     }
 
     /// Set up the model to be ready to solve quantities for `solution`.
+    ///
+    /// ## Arguments
+    /// * `solution` - the given routing solution that is evaluated
+    /// * `semicont` - whether to enable semicont deliveries or not
+    /// * `berth` - whether to enabel berth restrictions or not
+    /// * `load_restrictions` - wether to seek to arrive empty at production nodes and leave them full
+    /// * `tight` - true if all visits (except the origin) should be constrained by the maximum time it takes to fully load or unload the vessel, if false, only reaching the next visit is considered
     pub fn configure(
         &mut self,
         solution: &RoutingSolution,
         semicont: bool,
         berth: bool,
+        load_restrictions: bool,
+        tight: bool,
     ) -> grb::Result<()> {
         self.semicont = semicont;
 
         self.berth = berth;
+
+        // reset load bounds
+        QuantityLp::reset_load_bounds(
+            &mut self.model,
+            solution.problem(),
+            &self.vars.l,
+            &self.vars.cap_violation,
+        )?;
 
         // By default: disable `all` variables
         let model = &self.model;
@@ -369,6 +462,25 @@ impl QuantityLp {
                 xs.iter()
                     .flat_map(|xs| xs.iter().flat_map(|xs| xs.iter().map(|x| (*x, 0.0))))
             }),
+        )?;
+
+        let indices = iproduct!(
+            0..solution.problem().vessels().len(),
+            0..solution.problem().timesteps()
+        );
+
+        // Disable all obj-coefficients for travel empty and travel at cap
+        model.set_obj_attr_batch(
+            grb::attr::Obj,
+            indices
+                .clone()
+                .map(|(v, t)| (self.vars.cap_violation[t][v], 0.0)),
+        )?;
+
+        let l = &self.vars.l;
+        model.set_obj_attr_batch(
+            grb::attr::Obj,
+            indices.flat_map(|(v, t)| (0..problem.products()).map(move |p| (l[t][v][p], 0.0))),
         )?;
 
         let lower = |n: usize| match self.semicont {
@@ -384,7 +496,7 @@ impl QuantityLp {
         // set variable type
         model.set_obj_attr_batch(
             grb::attr::VType,
-            Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
+            Self::active(solution, tight).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
         )?;
 
         let vtype = match self.berth {
@@ -395,20 +507,85 @@ impl QuantityLp {
         // set variable type
         model.set_obj_attr_batch(
             grb::attr::VType,
-            Self::active(solution).map(|(t, n, v, _)| (self.vars.b[t][n][v], vtype)),
+            Self::active(solution, tight).map(|(t, n, v, _)| (self.vars.b[t][n][v], vtype)),
         )?;
 
         // set lower bound
         model.set_obj_attr_batch(
             grb::attr::LB,
-            Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], lower(n))),
+            Self::active(solution, tight).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], lower(n))),
         )?;
 
         // Re-enable the relevant x(t, n, v, p) variables
         model.set_obj_attr_batch(
             grb::attr::UB,
-            Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
+            Self::active(solution, tight)
+                .map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
         )?;
+
+        let kind = |n: usize| solution.problem().nodes()[n].r#type();
+
+        let iterator = solution.iter().enumerate().flat_map(|(v, plan)| {
+            plan.iter()
+                .enumerate()
+                .skip(1)
+                .map(move |(visit_idx, visit)| (v, plan, visit_idx, visit))
+        });
+
+        // identify arrivals at production nodes
+        let prod_arrivals = iterator.clone().filter_map(|(v, plan, visit_idx, visit)| {
+            // check that the previous visit is not at a production node
+            let prev = plan[visit_idx - 1].node;
+            if let NodeType::Production = kind(prev) {
+                None
+            } else {
+                match kind(visit.node) {
+                    NodeType::Consumption => None,
+                    NodeType::Production => Some((visit.time, v)),
+                }
+            }
+        });
+
+        // identify arrivals at the first consumption node after visiting a production node
+        let cons_arrivals = iterator.filter_map(|(v, plan, visit_idx, visit)| {
+            let prev = plan[visit_idx - 1].node;
+            if let NodeType::Consumption = kind(prev) {
+                None
+            } else {
+                match kind(visit.node) {
+                    NodeType::Consumption => Some((visit.time, v)),
+                    NodeType::Production => None,
+                }
+            }
+        });
+
+        // set objective coefficient for production arrivals
+        let l = &self.vars.l;
+
+        let a = prod_arrivals
+            .clone()
+            .flat_map(|(t, v)| (0..problem.products()).map(move |p| (l[t][v][p], 1.0)));
+        let b = cons_arrivals
+            .clone()
+            .map(|(t, v)| (self.vars.cap_violation[t][v], 1.0));
+
+        model.set_obj_attr_batch(grb::attr::Obj, a.chain(b))?;
+
+        if load_restrictions {
+            // set production arrivals to be empty
+            let l = &self.vars.l;
+            model.set_obj_attr_batch(
+                grb::attr::UB,
+                prod_arrivals
+                    .flat_map(|(t, v)| (0..problem.products()).map(move |p| (l[t][v][p], 0.0))),
+            )?;
+
+            // set consumption arrivals to be full if coming from production
+            /* model.set_obj_attr_batch(
+                grb::attr::UB,
+                cons_arrivals.map(|(t, v)| (self.vars.cap_violation[t][v], 0.0)),
+            )?; */
+        }
 
         Ok(())
     }
@@ -435,6 +612,7 @@ impl QuantityLp {
         let timing = self.vars.timing.convert(&self.model)?;
         let spot = self.vars.spot.convert(&self.model)?;
         let a = self.vars.a.convert(&self.model)?;
+        let cap_violation = self.vars.cap_violation.convert(&self.model)?;
 
         let v = F64Variables {
             w,
@@ -446,6 +624,7 @@ impl QuantityLp {
             violation,
             timing,
             a,
+            cap_violation,
         };
         Ok(v)
     }

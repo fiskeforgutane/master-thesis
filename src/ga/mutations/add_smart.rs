@@ -34,7 +34,7 @@ impl AddSmart {
             FloatOrd(get(&w[t][n][p]).abs())
         };
 
-        let max_violation_key = QuantityLp::active(solution).max_by_key(key).unwrap();
+        let max_violation_key = QuantityLp::active(solution, true).max_by_key(key).unwrap();
 
         let (time, node, _, product) = max_violation_key.into();
 

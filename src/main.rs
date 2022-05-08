@@ -36,10 +36,7 @@ use crate::ga::{
 };
 use crate::rolling_horizon::rolling_horizon::RollingHorizon;
 
-use crate::models::exact_model::{
-    model::ExactModelSolver,
-    sets_and_parameters::{Parameters, Sets},
-};
+use crate::models::exact_model::model::ExactModelSolver;
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
@@ -239,7 +236,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
     }
 }
 
-pub fn run_exact_model(path: &Path, mut output: PathBuf, termination: Termination) {
+pub fn run_exact_model(path: &Path, mut _output: PathBuf, termination: Termination) {
     assert!(
         matches!(termination, Termination::Timeout { .. }),
         "termination criterion for exact model must be a timeout, not {:?}",
