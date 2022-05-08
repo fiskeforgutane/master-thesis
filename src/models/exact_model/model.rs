@@ -94,9 +94,8 @@ impl ExactModelSolver {
                 NetworkNodeType::Normal => 0.0,
             };
 
-            let node_index = n.index();
             model.add_constr(
-                &format!("travel_{v}_{}_{}", n.port(), n.port()),
+                &format!("travel_{v}_{}_{}", n.port(), n.time()),
                 c!(lhs == rhs),
             )?;
         }
