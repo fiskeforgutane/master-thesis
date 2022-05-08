@@ -314,10 +314,12 @@ pub fn objective_terms(
     routes: Vec<Vec<Visit>>,
     semicont: bool,
     berth: bool,
+    load_restrictions: bool,
 ) -> PyResult<ObjectiveTerms> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
-    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.configure(&solution, semicont, berth, load_restrictions)
+        .map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
 
     Ok(ObjectiveTerms {
@@ -337,10 +339,11 @@ pub fn write_model(
     routes: Vec<Vec<Visit>>,
     semicont: bool,
     berth: bool,
+    load_restrictions:bool,
 ) -> PyResult<()> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
-    lp.configure(&solution, semicont, berth).map_err(pyerr)?;
+    lp.configure(&solution, semicont, berth,load_restrictions).map_err(pyerr)?;
     lp.model.write(filename).map_err(pyerr)?;
 
     Ok(())
