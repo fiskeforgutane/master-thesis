@@ -383,8 +383,14 @@ impl QuantityLp {
         })
     }
 
+    /// Returns the indicies of the x-variables in the LP that are allowed to take positive values
+    ///
+    /// ## Arguments
+    /// * `solution` - the given routing solution that is evaluated
+    /// * `tight` - true if all visits (except the origin) should be constrained by the maximum time it takes to fully load or unload the vessel, if false, only reaching the next visit is considered
     pub fn active<'s>(
         solution: &'s RoutingSolution,
+        tight: bool,
     ) -> impl Iterator<Item = (TimeIndex, NodeIndex, VesselIndex, ProductIndex)> + 's {
         let problem = solution.problem();
         let p = problem.products();
@@ -403,7 +409,11 @@ impl QuantityLp {
                     // In addition, we can further restrict the active time periods by looking at the longest possible time
                     // the vessel can spend at the node doing constant loading/unloading.
                     let rate = problem.nodes()[v1.node].min_unloading_amount();
-                    let max_loading_time = (vessel.capacity() / rate).ceil() as usize;
+                    let max_loading_time = if problem.origin_visit(v) == v1 || !tight {
+                        usize::MAX
+                    } else {
+                        (vessel.capacity() / rate).ceil() as usize
+                    };
 
                     (v1.time..=departure_time.min(v1.time + max_loading_time))
                         .flat_map(move |t| (0..p).map(move |p| (t, v1.node, v, p)))
@@ -412,12 +422,20 @@ impl QuantityLp {
     }
 
     /// Set up the model to be ready to solve quantities for `solution`.
+    ///
+    /// ## Arguments
+    /// * `solution` - the given routing solution that is evaluated
+    /// * `semicont` - whether to enable semicont deliveries or not
+    /// * `berth` - whether to enabel berth restrictions or not
+    /// * `load_restrictions` - wether to seek to arrive empty at production nodes and leave them full
+    /// * `tight` - true if all visits (except the origin) should be constrained by the maximum time it takes to fully load or unload the vessel, if false, only reaching the next visit is considered
     pub fn configure(
         &mut self,
         solution: &RoutingSolution,
         semicont: bool,
         berth: bool,
         load_restrictions: bool,
+        tight: bool,
     ) -> grb::Result<()> {
         self.semicont = semicont;
 
@@ -476,7 +494,7 @@ impl QuantityLp {
         // set variable type
         model.set_obj_attr_batch(
             grb::attr::VType,
-            Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
+            Self::active(solution, tight).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], vtype)),
         )?;
 
         let vtype = match self.berth {
@@ -487,19 +505,20 @@ impl QuantityLp {
         // set variable type
         model.set_obj_attr_batch(
             grb::attr::VType,
-            Self::active(solution).map(|(t, n, v, _)| (self.vars.b[t][n][v], vtype)),
+            Self::active(solution, tight).map(|(t, n, v, _)| (self.vars.b[t][n][v], vtype)),
         )?;
 
         // set lower bound
         model.set_obj_attr_batch(
             grb::attr::LB,
-            Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], lower(n))),
+            Self::active(solution, tight).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], lower(n))),
         )?;
 
         // Re-enable the relevant x(t, n, v, p) variables
         model.set_obj_attr_batch(
             grb::attr::UB,
-            Self::active(solution).map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
+            Self::active(solution, tight)
+                .map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
         )?;
 
         let kind = |n: usize| solution.problem().nodes()[n].r#type();
