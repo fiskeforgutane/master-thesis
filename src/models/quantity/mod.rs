@@ -410,8 +410,10 @@ impl QuantityLp {
                     // the vessel can spend at the node doing constant loading/unloading.
                     let rate = problem.nodes()[v1.node].min_unloading_amount();
                     let max_loading_time = if problem.origin_visit(v) == v1 || !tight {
-                        usize::MAX
+                        // do not tighten
+                        departure_time
                     } else {
+                        // allow to tighten
                         (vessel.capacity() / rate).ceil() as usize
                     };
 
