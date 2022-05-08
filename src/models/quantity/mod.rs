@@ -325,13 +325,15 @@ impl QuantityLp {
         QuantityLp::alpha_limits(&mut model, problem, &a, t, n)?;
         QuantityLp::cap_restrictions(&mut model, problem, &l, &cap_violation, v, t, p)?;
 
-        // This should probably be taken from the problem instance
-        let discount: f64 = 0.999;
-
         let violation_expr = w.iter().flatten().flatten().grb_sum();
         // We discount later uses of the spot market; effectively making it desirable to perform spot operations as late as possible
         let spot_expr = iproduct!(0..t, 0..n, 0..p)
-            .map(|(t, n, p)| a[t][n][p] * discount.powi(t as i32))
+            .map(|(t, n, p)| {
+                let node = &problem.nodes()[n];
+                let unit_price = node.spot_market_unit_price();
+                let discount = node.spot_market_discount_factor().powi(t as i32);
+                a[t][n][p] * unit_price * discount
+            })
             .grb_sum();
 
         // We use an increasing weight to prefer early deliveries.
@@ -350,7 +352,7 @@ impl QuantityLp {
         model.add_constr("violation", c!(violation == violation_expr))?;
         model.add_constr("timing", c!(timing == timing_expr))?;
 
-        let obj = violation + 0.5 * spot - 1e-6 * revenue + 1e-12 * timing;
+        let obj = violation + 0.5_f64 * spot - 1e-6_f64 * revenue + 1e-12_f64 * timing;
         model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
