@@ -26,10 +26,8 @@ impl ExactModelSolver {
 
         //*****************CREATE VARIABLES*****************//
         let vessels = sets.V.len();
-        let arcs = sets.A.len();
         let products = sets.P.len();
         let ports = sets.I.len();
-        let nodes = sets.Nst.len();
         let timesteps = sets.T.len();
         let num_compartments = |v: usize| problem.vessels()[v].compartments().len();
 
@@ -365,7 +363,7 @@ impl ExactModelSolver {
         let parameters = Parameters::new(problem, &sets);
         let (m, variables) = ExactModelSolver::build(&problem, &sets, &parameters)?;
         let mut model = m;
-        model.set_param(param::TimeLimit, timeout);
+        model.set_param(param::TimeLimit, timeout)?;
 
         model.optimize()?;
 
@@ -382,6 +380,7 @@ impl ExactModelSolver {
     }
 }
 
+#[allow(unused)]
 pub struct ExactModelResults {
     x: Vec<Vec<f64>>,
     z: Vec<Vec<f64>>,

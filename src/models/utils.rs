@@ -89,7 +89,7 @@ impl AddVars for usize {
 impl AddVars for (&Vec<NetworkNode>, usize) {
     type Out = Vec<<usize as AddVars>::Out>;
 
-    fn vars_with<F: FnMut(Self) -> Result<Var>>(&self, func: F) -> Result<Self::Out>
+    fn vars_with<F: FnMut(Self) -> Result<Var>>(&self, _func: F) -> Result<Self::Out>
     where
         Self: Sized,
     {
