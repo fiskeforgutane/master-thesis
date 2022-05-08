@@ -95,7 +95,10 @@ impl ExactModelSolver {
             };
 
             let node_index = n.index();
-            model.add_constr(&format!("travel_{v}_{node_index}"), c!(lhs == rhs))?;
+            model.add_constr(
+                &format!("travel_{v}_{}_{}", n.port(), n.port()),
+                c!(lhs == rhs),
+            )?;
         }
 
         // port storage balance
