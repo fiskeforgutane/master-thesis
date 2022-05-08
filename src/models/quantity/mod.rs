@@ -279,10 +279,8 @@ impl QuantityLp {
             model.add_constr(
                 &format!("setCap_{}_{}", time, vessel),
                 c!(cap_violation[time][vessel]
-                    == (0..p)
-                        .map(|product| problem.vessels()[vessel].capacity()
-                            - l[time][vessel][product])
-                        .grb_sum()),
+                    == problem.vessels()[vessel].capacity()
+                        - (0..p).map(|product| l[time][vessel][product]).grb_sum()),
             )?;
         }
 
@@ -560,10 +558,10 @@ impl QuantityLp {
             )?;
 
             // set consumption arrivals to be full if coming from production
-            model.set_obj_attr_batch(
+            /* model.set_obj_attr_batch(
                 grb::attr::UB,
                 cons_arrivals.map(|(t, v)| (self.vars.cap_violation[t][v], 0.0)),
-            )?;
+            )?; */
         }
 
         Ok(())
