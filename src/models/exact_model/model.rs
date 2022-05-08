@@ -35,7 +35,7 @@ impl ExactModelSolver {
 
         for v in sets.V.iter() {
             println!("Vessel: {} Number of arcs: {}", v, sets.Av[*v].len());
-            println!("Vessel: {} Reverse star: {:?}", v, sets.Fs[*v]);
+            println!("Vessel: {} Forward star: {:?}", v, sets.Fs[*v]);
         }
 
         // 1 if the vessel traverses the arc, 0 otherwise
