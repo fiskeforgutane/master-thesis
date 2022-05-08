@@ -560,10 +560,10 @@ impl QuantityLp {
             )?;
 
             // set consumption arrivals to be full if coming from production
-            /* model.set_obj_attr_batch(
+            model.set_obj_attr_batch(
                 grb::attr::UB,
                 cons_arrivals.map(|(t, v)| (self.vars.cap_violation[t][v], 0.0)),
-            )?; */
+            )?;
         }
 
         Ok(())
