@@ -397,6 +397,21 @@ pub trait ConvertVars {
     fn convert(&self, model: &Model) -> grb::Result<Self::Out>;
 }
 
+impl<K, V: ConvertVars> ConvertVars for HashMap<K, V>
+where
+    K: std::cmp::Eq + Hash + Clone,
+{
+    type Out = HashMap<K, V::Out>;
+
+    fn convert(&self, model: &Model) -> grb::Result<Self::Out> {
+        let mut out = HashMap::with_capacity(self.len());
+        for (k, v) in self.into_iter() {
+            out.insert(k.clone(), v.convert(model)?);
+        }
+        Ok(out)
+    }
+}
+
 impl<T: ConvertVars> ConvertVars for Vec<T> {
     type Out = Vec<T::Out>;
 

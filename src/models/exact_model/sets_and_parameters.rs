@@ -9,7 +9,7 @@ type VesselIndex = usize;
 type ProductIndex = usize;
 type CompartmentIndex = usize;
 type TimeIndex = usize;
-type ArcIndex = usize;
+pub type ArcIndex = usize;
 type NodeIndex = usize;
 
 #[derive(Debug)]

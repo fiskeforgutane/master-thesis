@@ -1,6 +1,8 @@
-use crate::models::exact_model::sets_and_parameters::NetworkNodeType;
+use std::collections::HashMap;
+
+use crate::models::exact_model::sets_and_parameters::{ArcIndex, NetworkNodeType};
 use crate::models::utils::{AddVars, ConvertVars};
-use crate::problem::Problem;
+use crate::problem::{Problem, VesselIndex};
 use grb::prelude::*;
 use itertools::iproduct;
 use log::info;
@@ -37,7 +39,27 @@ impl ExactModelSolver {
         }
 
         // 1 if the vessel traverses the arc, 0 otherwise
-        let x: Vec<Vec<Var>> = (&sets.A, vessels).binary(&mut model, &"x_")?;
+        let model_ref = &mut model;
+        let x: HashMap<(ArcIndex, VesselIndex), Var> = (0..vessels)
+            .flat_map(|v| sets.Av[v].iter().map(move |a| (*a, v)))
+            .map(|(a, v)| {
+                let arc = sets.A[a];
+                let from = arc.get_from().port();
+                let to = arc.get_to().port();
+                let from_time = arc.get_from().time();
+                let to_time = arc.get_to().time();
+                let var = model_ref.add_var(
+                    &format!("x_({},{}),({},{}),{}", from, from_time, to, to_time, v),
+                    grb::VarType::Binary,
+                    0.0,
+                    f64::NEG_INFINITY,
+                    f64::INFINITY,
+                    std::iter::empty(),
+                )?;
+                Ok(((a, v), var))
+            })
+            .collect::<grb::Result<HashMap<(ArcIndex, VesselIndex), grb::Var>>>()?;
+
         // 1 if the vessel is able to unload at the node, 0 otherwise
         let z: Vec<Vec<Var>> = (&sets.Nst, vessels).binary(&mut model, &"z_")?;
         // 1 if a vessel's compartment in occupied by a product in timestep t
@@ -83,8 +105,14 @@ impl ExactModelSolver {
         // ensure that the all "normal" nodes have as many arcs entering as those leaving
         // and that the source just has one leaving, and that the sink has one entering
         for (n, v) in iproduct!(&sets.Nst, &sets.V) {
-            let lhs = sets.Fs[*v][n.index()].iter().map(|a| &x[*a][*v]).grb_sum()
-                - sets.Rs[*v][n.index()].iter().map(|a| &x[*a][*v]).grb_sum();
+            let lhs = sets.Fs[*v][n.index()]
+                .iter()
+                .map(|a| x.get(&(*a, *v)).unwrap())
+                .grb_sum()
+                - sets.Rs[*v][n.index()]
+                    .iter()
+                    .map(|a| x.get(&(*a, *v)).unwrap())
+                    .grb_sum();
 
             let rhs: f64 = match n.kind() {
                 NetworkNodeType::Source => 1.0,
@@ -262,7 +290,10 @@ impl ExactModelSolver {
                 println!("node: {:?}", n);
             }
 
-            let rhs = sets.Rs[*v][n.index()].iter().map(|a| x[*a][*v]).grb_sum();
+            let rhs = sets.Rs[*v][n.index()]
+                .iter()
+                .map(|a| x.get(&(*a, *v)).unwrap())
+                .grb_sum();
 
             let time = n.time();
             let port = n.port();
@@ -334,7 +365,7 @@ impl ExactModelSolver {
             .flat_map(|v| {
                 (&sets.Av[*v])
                     .iter()
-                    .map(|a| parameters.travel_cost[*a][*v] * x[*a][*v])
+                    .map(|a| parameters.travel_cost[*a][*v] * *x.get(&(*a, *v)).unwrap())
             })
             .grb_sum();
 
@@ -382,7 +413,7 @@ impl ExactModelSolver {
 
 #[allow(unused)]
 pub struct ExactModelResults {
-    x: Vec<Vec<f64>>,
+    x: HashMap<(ArcIndex, VesselIndex), f64>,
     z: Vec<Vec<f64>>,
     q: Vec<Vec<Vec<Vec<Vec<f64>>>>>,
     a: Vec<Vec<Vec<f64>>>,
@@ -411,7 +442,7 @@ impl ExactModelResults {
 }
 
 pub struct Variables {
-    x: Vec<Vec<Var>>,
+    x: HashMap<(ArcIndex, VesselIndex), Var>,
     z: Vec<Vec<Var>>,
     q: Vec<Vec<Vec<Vec<Vec<Var>>>>>,
     a: Vec<Vec<Vec<Var>>>,
@@ -421,7 +452,7 @@ pub struct Variables {
 
 impl Variables {
     pub fn new(
-        x: Vec<Vec<Var>>,
+        x: HashMap<(ArcIndex, VesselIndex), Var>,
         z: Vec<Vec<Var>>,
         q: Vec<Vec<Vec<Vec<Vec<Var>>>>>,
         a: Vec<Vec<Vec<Var>>>,
