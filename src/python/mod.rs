@@ -35,9 +35,17 @@ impl Problem {
         timesteps: usize,
         products: usize,
         distances: Vec<Vec<Distance>>,
+        travel_at_capacity: bool,
     ) -> PyResult<Problem> {
-        Problem::new(vessels, nodes, timesteps, products, distances)
-            .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
+        Problem::new(
+            vessels,
+            nodes,
+            timesteps,
+            products,
+            distances,
+            travel_at_capacity,
+        )
+        .map_err(|err| PyErr::new::<PyValueError, _>(format!("{:?}", err)))
     }
 
     pub fn solution_from_json(&self, string: &str) -> PyResult<Vec<Vec<Visit>>> {

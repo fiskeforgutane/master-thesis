@@ -42,6 +42,10 @@ pub struct Problem {
     #[pyo3(get)]
     /// A distance matrix between the different nodes.
     distances: Vec<Vec<Distance>>,
+    #[pyo3(get)]
+    /// Whether or not we enforce "travel at capacity"-restrictions.
+    /// These enforce that a vessel is full when it leaves a production node, and empty when it arrives at one
+    travel_at_capacity: bool,
     /// production nodes
     production_nodes: Vec<usize>,
     /// consumption nodes
@@ -77,6 +81,11 @@ impl Problem {
     /// The distance matrix
     pub fn distances(&self) -> &Vec<Vec<Distance>> {
         &self.distances
+    }
+
+    /// Whether "travel at capacity" is enforced
+    pub fn travel_at_capacity(&self) -> bool {
+        self.travel_at_capacity
     }
 
     /// The number of elements of the given kind
@@ -340,6 +349,7 @@ impl Problem {
         timesteps: usize,
         products: usize,
         distances: Vec<Vec<Distance>>,
+        travel_at_capacity: bool,
     ) -> Result<Problem, ProblemConstructionError> {
         let n = nodes.len();
         let _v = vessels.len();
@@ -381,6 +391,7 @@ impl Problem {
             distances,
             production_nodes,
             consumption_nodes,
+            travel_at_capacity,
         })
     }
 }

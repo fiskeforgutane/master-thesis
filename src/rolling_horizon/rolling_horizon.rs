@@ -50,6 +50,7 @@ impl RollingHorizon {
             range.end - range.start,
             self.problem.products(),
             self.problem.distances().clone(),
+            self.problem.travel_at_capacity(),
         )
     }
 
@@ -113,6 +114,7 @@ impl RollingHorizon {
             period.end - period.start,
             self.problem.products(),
             self.problem.distances().clone(),
+            self.problem.travel_at_capacity(),
         )
     }
 }
