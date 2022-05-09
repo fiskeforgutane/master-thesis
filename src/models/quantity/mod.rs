@@ -571,22 +571,6 @@ impl QuantityLp {
 
         model.set_obj_attr_batch(grb::attr::Obj, a.chain(b))?;
 
-        if load_restrictions {
-            // set production arrivals to be empty
-            let l = &self.vars.l;
-            model.set_obj_attr_batch(
-                grb::attr::UB,
-                prod_arrivals
-                    .flat_map(|(t, v)| (0..problem.products()).map(move |p| (l[t][v][p], 0.0))),
-            )?;
-
-            // set consumption arrivals to be full if coming from production
-            /* model.set_obj_attr_batch(
-                grb::attr::UB,
-                cons_arrivals.map(|(t, v)| (self.vars.cap_violation[t][v], 0.0)),
-            )?; */
-        }
-
         Ok(())
     }
 
