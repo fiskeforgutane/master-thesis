@@ -208,15 +208,15 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         }
 
         println!(
-            "{:>010}: F = {}. warp = {}, apx berth = {}, violation = {}, revenue = {}, cost = {}",
+            "{:>010}: F = {}. warp = {}, apx berth = {}, violation = {}, obj = {}, revenue = {}, cost = {}",
             epochs,
             fitness.of(&problem, &best),
             best.warp(),
             best.approx_berth_violation(),
             best.violation(),
+            best.cost() + best.spot_cost() - best.revenue(),
             best.revenue(),
             best.cost(),
-            //worst_fitness.0
         );
 
         if write {
