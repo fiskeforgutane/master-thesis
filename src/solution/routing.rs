@@ -407,7 +407,7 @@ impl RoutingSolution {
         let cache = &self.cache;
         let mut lp = self.cache.quantity.borrow_mut();
         let travel_at_capacity = self.problem.travel_at_capacity();
-        lp.configure(self, false, false, travel_at_capacity, true)
+        lp.configure(self, false, false, travel_at_capacity, false)
             .expect("configure failed");
         lp.solve().expect("solve failed");
         std::mem::drop(lp);
