@@ -406,7 +406,8 @@ impl RoutingSolution {
         // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
         let mut lp = self.cache.quantity.borrow_mut();
-        lp.configure(self, false, false, false, true)
+        let travel_at_capacity = self.problem.travel_at_capacity();
+        lp.configure(self, false, false, travel_at_capacity, true)
             .expect("configure failed");
         lp.solve().expect("solve failed");
         std::mem::drop(lp);
