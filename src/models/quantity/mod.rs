@@ -383,6 +383,39 @@ impl QuantityLp {
         })
     }
 
+    pub fn add_compartment_constraints(&mut self, problem: &Problem) -> grb::Result<()> {
+        // Whether compartment c if assigned to hold product p, for each vessel
+        let model = &mut self.model;
+        let p = problem.products();
+        let t = problem.timesteps();
+        for (v, vessel) in problem.vessels().iter().enumerate() {
+            let c = vessel.compartments().len();
+            let assigned = (t, p, c).binary(model, &format!("compartment_{v}"))?;
+            // Product must be carried in compartments
+            for t in 0..t {
+                // Each product must have enough assigned silos to cover their quantity.
+                for p in 0..p {
+                    let lhs = self.vars.l[t][v][p];
+                    let rhs = assigned[t][p]
+                        .iter()
+                        .enumerate()
+                        .map(|(c, &assigned)| vessel.compartments()[c].0 * assigned)
+                        .grb_sum();
+
+                    model.add_constr(&format!("assign_ub_{v}_{t}_{p}"), c!(lhs <= rhs))?;
+                }
+
+                // A compartment can only be assigned to at most one feed type
+                for c in 0..c {
+                    let lhs = (0..p).map(|p| assigned[t][p][c]).grb_sum();
+                    model.add_constr(&format!("one_p_per_c_{v}_{t}_{c}"), c!(lhs <= 1.0_f64))?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Returns the indicies of the x-variables in the LP that are allowed to take positive values
     ///
     /// ## Arguments
