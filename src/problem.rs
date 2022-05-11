@@ -381,7 +381,7 @@ impl Problem {
         // check that initial inventory of vessel is less than its capacity
         let capacity = vessel.compartments().iter().map(|c| c.0).sum::<f64>();
         let initial_inventory = vessel.initial_inventory().0.total();
-        if initial_inventory > capacity {
+        if initial_inventory - capacity > 1e-10 {
             return Err(ProblemConstructionError::VesselInitialInventoryError {
                 vessel: v,
                 capacity,
