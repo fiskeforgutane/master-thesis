@@ -346,7 +346,7 @@ impl Problem {
                 NodeType::Production => 1,
             };
             for time in 0..t {
-                if sign * (node.inventory_changes()[t][p] as isize) < 0 {
+                if sign * (node.inventory_changes()[time][product] as isize) < 0 {
                     return Err(ProblemConstructionError::InventoryChangeError {
                         expected_sign: sign,
                         found: sign * -1,
