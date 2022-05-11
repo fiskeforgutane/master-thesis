@@ -246,7 +246,7 @@ pub enum ProblemConstructionError {
     /// Origin is not a valid node index
     OriginDoesNotExist { vessel: Vessel },
     /// Consumption node as positive inventory change or production negative
-    InventoryChangeError { expected_sign: usize, found: usize },
+    InventoryChangeError { expected_sign: isize, found: isize },
 }
 
 impl Problem {
