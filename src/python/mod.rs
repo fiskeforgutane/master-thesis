@@ -175,6 +175,20 @@ impl Node {
         ))
     }
 
+    #[pyo3(name = "capacity")]
+    pub fn py_capacity(&self) -> Vec<f64> {
+        (0..self.capacity().num_products())
+            .map(|i| self.capacity()[i])
+            .collect()
+    }
+
+    #[pyo3(name = "initial_inventory")]
+    pub fn py_initial_inventory(&self) -> Vec<f64> {
+        (0..self.initial_inventory().num_products())
+            .map(|i| self.initial_inventory()[i])
+            .collect()
+    }
+
     pub fn __str__(&self) -> String {
         format!("{:#?}", self)
     }
