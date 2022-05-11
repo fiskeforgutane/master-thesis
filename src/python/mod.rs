@@ -193,6 +193,10 @@ impl Compartment {
     pub fn __repr__(&self) -> String {
         self.__str__()
     }
+
+    pub fn capacity(&self) -> f64 {
+        self.0
+    }
 }
 
 pub fn pyerr<D: Debug>(err: D) -> PyErr {
