@@ -345,6 +345,7 @@ impl Problem {
                 NodeType::Consumption => -1,
                 NodeType::Production => 1,
             };
+            println!("time:::!!!!!:::: {t}");
             for time in 0..t {
                 if sign * (node.inventory_changes()[time][product] as isize) < 0 {
                     return Err(ProblemConstructionError::InventoryChangeError {
