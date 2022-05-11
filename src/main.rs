@@ -565,7 +565,7 @@ enum Commands {
         #[clap(long)]
         checkpoint_termination: Option<String>,
         #[clap(long)]
-        checkpoints: Vec<usize>,
+        checkpoints: Option<Vec<usize>>,
     },
     Exact,
 }
@@ -718,7 +718,7 @@ pub fn main() {
             step_length,
             config,
             write,
-            checkpoints,
+            checkpoints.unwrap_or_default(),
             *checkpoint_termination
                 .map(|t| parse_termination(&t).unwrap())
                 .unwrap_or(termination.clone()),
