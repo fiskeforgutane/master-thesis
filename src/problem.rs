@@ -245,6 +245,8 @@ pub enum ProblemConstructionError {
     SpeedIsZero { vessel: Vessel },
     /// Origin is not a valid node index
     OriginDoesNotExist { vessel: Vessel },
+    /// Consumption node as positive inventory change or production negative
+    InventoryChangeError { expected_sign: usize, found: usize },
 }
 
 impl Problem {
@@ -335,6 +337,21 @@ impl Problem {
                     capacity: node.capacity[product],
                     initial_inv: node.initial_inventory[product],
                 });
+            }
+        }
+
+        for product in 0..p {
+            let sign = match node.r#type() {
+                NodeType::Consumption => -1,
+                NodeType::Production => 1,
+            };
+            for time in 0..t {
+                if sign * node.inventory_changes()[t][p] < 0 {
+                    return Err(ProblemConstructionError::InventoryChangeError {
+                        expected_sign: sign,
+                        found: sign * -1,
+                    });
+                }
             }
         }
 
