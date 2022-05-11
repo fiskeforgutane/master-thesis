@@ -8,6 +8,7 @@ use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::iter::once;
 use std::sync::Mutex;
 use std::{
     path::{Path, PathBuf},
@@ -282,12 +283,14 @@ pub fn run_island_ga<I: Initialization<Out = RoutingSolution> + Clone + Send + '
 
 pub fn run_unfixed_rolling_horizon(
     path: &Path,
-    mut output: PathBuf,
+    mut out: PathBuf,
     termination: Termination,
     subproblem_size: usize,
     step_length: usize,
     conf: Config,
     write: bool,
+    checkpoints: Vec<usize>,
+    checkpoint_termination: Termination,
 ) {
     let problem = read_problem(path);
     let rh = RollingHorizon::new(problem.clone());
@@ -295,21 +298,28 @@ pub fn run_unfixed_rolling_horizon(
     let mut init: Arc<Mutex<dyn Initialization<Out = RoutingSolution> + Send>> =
         Arc::new(Mutex::new(InitRoutingSolution));
 
-    for end in (subproblem_size..problem.timesteps() + step_length - 1).step_by(step_length) {
-        let end = end.min(problem.timesteps());
+    // The "normal" ends, i.e. (start, start + step, ...)
+    let normal = (subproblem_size..problem.timesteps()).step_by(step_length);
+    // Our `ends` will consist of both the normal ones and the checkpoints, plus the full problem size
+    let ends = normal
+        .chain(checkpoints.iter().cloned())
+        .chain(once(problem.timesteps()))
+        .sorted()
+        .dedup();
+
+    for end in ends {
         let period = 0..end;
         println!("Solving subproblem in range: {:?}", period);
 
         let sub = Arc::new(rh.slice_problem(period).unwrap());
 
-        let (best, pop) = run_island_on(
-            sub.clone(),
-            output.clone(),
-            init,
-            termination.clone(),
-            conf.clone(),
-            false,
-        );
+        // We use a different termination criterion for the checkpoints
+        let term = match checkpoints.contains(&end) {
+            true => checkpoint_termination.clone(),
+            false => termination.clone(),
+        };
+
+        let (best, pop) = run_island_on(sub.clone(), out.clone(), init, term, conf.clone(), false);
 
         init = Arc::new(Mutex::new(FromPopulation::new(
             pop.into_iter()
@@ -320,10 +330,10 @@ pub fn run_unfixed_rolling_horizon(
 
         // Write the best at the end of the solve of the subproblem
         if write {
-            output.push(&format!("{end}.json"));
-            let file = std::fs::File::create(&output).unwrap();
+            out.push(&format!("{end}.json"));
+            let file = std::fs::File::create(&out).unwrap();
             serde_json::to_writer(file, &best.to_vec()).expect("writing failed");
-            output.pop();
+            out.pop();
         }
     }
 }
@@ -552,6 +562,10 @@ enum Commands {
         step_length: usize,
         #[clap(long)]
         write: bool,
+        #[clap(long)]
+        checkpoint_termination: Option<String>,
+        #[clap(long)]
+        checkpoints: Vec<usize>,
     },
     Exact,
 }
@@ -694,14 +708,20 @@ pub fn main() {
             subproblem_size,
             step_length,
             write,
+            checkpoint_termination,
+            checkpoints,
         } => run_unfixed_rolling_horizon(
             path,
             out,
-            *termination,
+            *termination.clone(),
             subproblem_size,
             step_length,
             config,
             write,
+            checkpoints,
+            *checkpoint_termination
+                .map(|t| parse_termination(&t).unwrap())
+                .unwrap_or(termination.clone()),
         ),
         Commands::Exact => run_exact_model(path, out, *termination),
     };
