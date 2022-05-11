@@ -1,7 +1,8 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::ops::{DerefMut, RangeInclusive};
+use std::iter::once;
+use std::ops::{DerefMut, Range, RangeInclusive};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
@@ -680,29 +681,44 @@ impl RoutingSolution {
     ) -> impl Iterator<
         Item = (
             VesselIndex,
-            impl Iterator<Item = (NodeIndex, RangeInclusive<usize>)> + '_,
+            impl Iterator<Item = (NodeIndex, Range<usize>)> + '_,
         ),
     > + '_ {
         let problem = self.problem();
-        self.iter_with_terminals()
-            .enumerate()
-            .map(move |(v, plan)| {
-                let vessel = &problem.vessels()[v];
-                (
-                    v,
-                    plan.tuple_windows().flat_map(move |(v1, v2)| {
+        let t = problem.timesteps();
+        self.iter().enumerate().map(move |(v, plan)| {
+            let vessel = &problem.vessels()[v];
+            (
+                v,
+                plan.iter()
+                    .map(|x| Some(*x))
+                    .chain(once(None))
+                    .tuple_windows()
+                    .flat_map(move |(v1, v2)| {
+                        // Guaranteed to be Some(..) by construction
+                        let v1 = v1.unwrap();
+
                         problem
                             .nodes()
                             .iter()
-                            .filter(move |n| n.index() != v1.node && n.index() != v2.node)
+                            .filter(move |n| {
+                                v1.node != n.index()
+                                    && v2.map(|v2| v2.node != n.index()).unwrap_or(true)
+                            })
                             .filter_map(move |n| {
+                                // We will default to an "artificial end node" for v2.
+                                let v2 = v2.unwrap_or(Visit {
+                                    node: n.index(),
+                                    time: t,
+                                });
+
                                 let t1 = problem.travel_time(v1.node, n.index(), vessel);
                                 let t2 = problem.travel_time(n.index(), v2.node, vessel);
 
                                 // TODO: check off by one (?)
                                 let earliest_arrival = v1.time + t1;
                                 let latest_departure = v2.time.max(t2) - t2;
-                                let available = earliest_arrival..=latest_departure;
+                                let available = earliest_arrival..latest_departure;
 
                                 match available.is_empty() {
                                     true => None,
@@ -710,8 +726,8 @@ impl RoutingSolution {
                                 }
                             })
                     }),
-                )
-            })
+            )
+        })
     }
 
     pub fn duration(&self, plan_idx: usize, visit_idx: usize) -> usize {
