@@ -224,6 +224,8 @@ pub struct Cache {
     /// A hint to the amount of sum of berth violations in the solution
     /// The `hint` is simply sum(max(visits at node `n` at time `t` - berth capacity, 0) for all (n, t))
     approx_berth_violation: Cell<Option<usize>>,
+    /// A large positive number used to avoid negative fitness when using weighted fitness
+    positive_term: Cell<Option<f64>>,
 }
 
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
@@ -261,6 +263,7 @@ impl Clone for RoutingSolution {
                 timing: Cell::new(None),
                 approx_berth_violation: Cell::new(None),
                 spot: Cell::new(None),
+                positive_term: Cell::new(None),
             },
         }
     }
@@ -329,6 +332,7 @@ impl RoutingSolution {
             timing: Cell::new(None),
             approx_berth_violation: Cell::new(None),
             spot: Cell::new(None),
+            positive_term: Cell::new(None),
         };
 
         Self {
@@ -499,6 +503,15 @@ impl RoutingSolution {
         cached.get().unwrap()
     }
 
+    /// A large postive term used to avoid negative fitness when using weighted fitness
+    pub fn positive_term(&self) -> f64 {
+        let cached = &self.cache.positive_term;
+        if cached.get().is_none() {
+            self.update_positive_term();
+        }
+        cached.get().unwrap()
+    }
+
     /// Recycle this solution into a new fresh one with no content.
     /// This allows us to reuse the inner heap-allocated structures.
     /// The result is an empty solution that is unlikely to need allocations when pushing visits,
@@ -654,6 +667,31 @@ impl RoutingSolution {
         self.update_violation(&quantities);
         self.update_timing(&quantities);
         self.update_spot(&quantities)
+    }
+
+    /// sets the positive term in the cache. This is only done once
+    fn update_positive_term(&self) {
+        let max_revenue = self
+            .problem()
+            .nodes()
+            .iter()
+            .map(|n| {
+                let total_change: f64 = (0..self.problem().products())
+                    .map(|p| f64::abs(n.inventory_change(0, self.problem().timesteps() - 1, p)))
+                    .sum();
+                let initial = n.initial_inventory().as_inv().total();
+
+                // the total quantity that can be delivered/picked up at the node during the planning period
+                let can_handle = match n.r#type() {
+                    crate::problem::NodeType::Consumption => {
+                        total_change - initial + n.capacity().as_inv().total()
+                    }
+                    crate::problem::NodeType::Production => total_change + initial,
+                };
+                n.revenue() * can_handle
+            })
+            .sum::<f64>();
+        self.cache.spot.set(Some(max_revenue));
     }
 
     /// Invalidate all the cached values on this object (objective function values, etc.)

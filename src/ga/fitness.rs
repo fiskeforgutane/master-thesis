@@ -30,7 +30,7 @@ impl Fitness for Weighted {
             + revenue * self.revenue
             + spot * self.spot
             + self.approx_berth_violation * berth
-            + 100000.0)
-            .ln()
+            + solution.positive_term())
+        .ln()
     }
 }
