@@ -20,7 +20,7 @@ impl AddSmart {
     ///
     /// # Arguments
     /// * `solution` - The routing solution that should be investigated
-    pub fn most_significant_violation(solution: &RoutingSolution) -> (NodeIndex, TimeIndex) {
+    pub fn most_significant_violation(solution: &RoutingSolution) -> Option<(NodeIndex, TimeIndex)> {
         let lp = solution.quantities();
         let w = &lp.vars.w;
 
@@ -41,10 +41,9 @@ impl AddSmart {
         // backtrack to find the time period in which the violation started
         let violation_start = (0..time)
             .rev()
-            .find_or_last(|t| f64::abs(get(&w[*t][node][product])) <= 1e-5)
-            .unwrap();
+            .find_or_last(|t| f64::abs(get(&w[*t][node][product])) <= 1e-5);
 
-        (node, violation_start)
+        Some((node, violation_start?))
     }
 
     /// Retrieves the vessel that is closest to the given node at the given time.
@@ -103,7 +102,10 @@ impl AddSmart {
 
 impl Mutation for AddSmart {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        let (node, time) = Self::most_significant_violation(solution);
+        let (node, time) = match  Self::most_significant_violation(solution) {
+            Some(x) => x,
+            None => return,
+        };
         let closest_vessel = Self::find_closest_vessel(problem, solution, node, time);
 
         match closest_vessel {
