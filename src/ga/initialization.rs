@@ -1,18 +1,24 @@
 use std::{
     cell::RefCell,
+    iter::once,
     rc::Rc,
     sync::{Arc, Mutex},
 };
 
 use float_ord::FloatOrd;
-use log::trace;
+use log::{debug, trace};
 use rand::Rng;
 
 use crate::{
     models::quantity::QuantityLp,
     problem::{Node, Problem, Vessel},
-    solution::{routing::RoutingSolution, Visit},
+    solution::{
+        routing::{Evaluation, RoutingSolution},
+        Visit,
+    },
 };
+
+use super::Fitness;
 
 pub trait Initialization {
     type Out;
@@ -281,3 +287,184 @@ impl Initialization for GreedyWithBlinks {
 }
 
 pub struct StartPopulation {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Improvement {
+    pub warp: isize,
+    pub approx_berth_violation: isize,
+    pub violation: FloatOrd<f64>,
+    pub loss: FloatOrd<f64>,
+}
+
+impl Improvement {
+    pub fn between(incumbent: Evaluation, candidate: Evaluation) -> Improvement {
+        Improvement {
+            warp: incumbent.warp as isize - candidate.warp as isize,
+            approx_berth_violation: incumbent.approx_berth_violation as isize
+                - candidate.approx_berth_violation as isize,
+            violation: FloatOrd(incumbent.violation - candidate.violation),
+            loss: FloatOrd(
+                (incumbent.cost + incumbent.spot_cost - incumbent.revenue)
+                    - (candidate.cost + candidate.spot_cost - candidate.revenue),
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// Greedy with blinks and lookahead
+pub struct Greedy {
+    /// The blink rate between insertion ranges
+    pub inter_blink_rate: f64,
+    /// The blink rate within an insertion range
+    pub intra_blink_rate: f64,
+    /// The number of lookaheads to do
+    pub lookahead: usize,
+    /// We will only evaluate the first `range_max` within each continuous insertion range
+    pub range_max: usize,
+    /// The epsilon used to abort the construction
+    pub epsilon: Improvement,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Insertion {
+    vessel: usize,
+    visit: Visit,
+}
+
+impl Greedy {
+    /// Insert `insertion` into `solution`
+    fn insert(insertion: Insertion, solution: &mut RoutingSolution) {
+        let mut solution = solution.mutate();
+        solution[insertion.vessel].mutate().push(insertion.visit);
+    }
+
+    /// Removes `insertion` from `solution`
+    fn remove(insertion: Insertion, solution: &mut RoutingSolution) {
+        let mut solution = solution.mutate();
+        let mut plan = solution[insertion.vessel].mutate();
+        let inserted = plan.iter().position(|&v| v == insertion.visit);
+
+        if let Some(x) = inserted {
+            plan.remove(x);
+        }
+    }
+
+    /// Evaluate `insertion` in `solution` using a lookahead of `lookahead` on the plan of the `insertion.vessel`
+    /// That is: if there's a lookahead, we will also try all the possible insertions on `insertion.vessel` *after* `insertion` has been performed
+    pub fn evaluate(
+        &self,
+        insertion: Insertion,
+        solution: &mut RoutingSolution,
+        lookahead: usize,
+    ) -> Evaluation {
+        // Do the insertion.
+        Self::insert(insertion, solution);
+
+        let mut evaluation = solution.evaluation();
+
+        // See if we're able to get a better result by performing the look-ahead
+        if lookahead > 0 {
+            let lookaheads = solution
+                .available()
+                .nth(insertion.vessel)
+                .expect("exists by constrction")
+                .1
+                .collect::<Vec<_>>();
+
+            for (node, range) in lookaheads {
+                for time in range.take(self.range_max) {
+                    evaluation = evaluation.min(self.evaluate(
+                        Insertion {
+                            vessel: insertion.vessel,
+                            visit: Visit { time, node },
+                        },
+                        solution,
+                        lookahead,
+                    ))
+                }
+            }
+        }
+
+        // Undo the insertion.
+        Self::remove(insertion, solution);
+
+        evaluation
+    }
+}
+
+impl Initialization for Greedy {
+    type Out = RoutingSolution;
+
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+        let t = problem.timesteps();
+        // We start with an empty solution
+        let mut solution = RoutingSolution::new_with_model(
+            problem.clone(),
+            vec![Vec::new(); problem.count::<Vessel>()],
+            quantities.clone(),
+        );
+
+        let mut incumbent = solution.evaluation();
+
+        loop {
+            debug!("Incumbent: {incumbent:?}");
+
+            let candidates = solution
+                .available()
+                .map(|(v, it)| (v, it.collect::<Vec<_>>()))
+                .collect::<Vec<_>>();
+
+            let mut best: Option<Evaluation> = None;
+            let mut insertion: Option<Insertion> = None;
+
+            for (vessel, it) in candidates.into_iter() {
+                for (node, range) in it.into_iter() {
+                    // Do some random blinks.
+                    if rand::thread_rng().gen_bool(self.inter_blink_rate) {
+                        continue;
+                    }
+
+                    // Find the best evaluation
+                    let (evaluation, time) = range
+                        .take(self.range_max)
+                        .map(|time| {
+                            let visit = Visit { node, time };
+                            let insertion = Insertion { vessel, visit };
+
+                            match rand::thread_rng().gen_bool(self.intra_blink_rate) {
+                                true => (Evaluation::bad(), t),
+                                false => {
+                                    (self.evaluate(insertion, &mut solution, self.lookahead), t)
+                                }
+                            }
+                        })
+                        .min()
+                        .unwrap();
+
+                    // Update the best insertion
+                    if evaluation <= best.unwrap_or(Evaluation::bad()) {
+                        insertion = Some(Insertion {
+                            vessel,
+                            visit: Visit { node, time },
+                        });
+                        best = Some(evaluation);
+                    }
+                }
+            }
+
+            let (candidate, insertion) = match (best, insertion) {
+                (Some(best), Some(insertion)) => (best, insertion),
+                _ => return solution,
+            };
+
+            if Improvement::between(incumbent, candidate) <= self.epsilon {
+                return solution;
+            }
+
+            // Note: we can not use `candidate` here, in case lookahead is used.
+            Self::insert(insertion, &mut solution);
+            incumbent = solution.evaluation();
+        }
+    }
+}

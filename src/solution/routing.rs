@@ -6,6 +6,7 @@ use std::ops::{DerefMut, Range, RangeInclusive};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
+use float_ord::FloatOrd;
 use itertools::{iproduct, Itertools};
 use log::trace;
 use pyo3::pyclass;
@@ -835,6 +836,82 @@ impl RoutingSolution {
             .find_or_last(|v| v.time >= time)
             .unwrap();
         (visit.node, visit.time)
+    }
+
+    /// A full evaluation of this solution
+    pub fn evaluation(&self) -> Evaluation {
+        Evaluation {
+            warp: self.warp(),
+            violation: self.violation(),
+            cost: self.cost(),
+            revenue: self.revenue(),
+            spot_cost: self.spot_cost(),
+            approx_berth_violation: self.approx_berth_violation(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Evaluation {
+    /// The amount of time warp in this plan i.e. the sum of the number of time periods we would need to "missing timesteps"
+    /// between visits where it is physically impossible to travel between two nodes (only considering travel time; not loading time)
+    pub warp: usize,
+    /// The total inventory violations (excess/shortage)
+    pub violation: Quantity,
+    /// The total cost of the solution.
+    pub cost: Cost,
+    /// The total revenue of the solution.
+    pub revenue: Cost,
+    /// The spot penalty of the solution
+    pub spot_cost: Cost,
+    /// A hint to the amount of sum of berth violations in the solution
+    /// The `hint` is simply sum(max(visits at node `n` at time `t` - berth capacity, 0) for all (n, t))
+    pub approx_berth_violation: usize,
+}
+
+impl Evaluation {
+    /// The worst Evaluation (i.e. largest) possible.
+    pub fn bad() -> Evaluation {
+        Evaluation {
+            // Note: we do not use usize::MAX in case someone would convert this to isize.
+            warp: isize::MAX as usize,
+            violation: f64::INFINITY,
+            cost: f64::INFINITY,
+            revenue: 0.0,
+            spot_cost: 0.0,
+            // Note: we do not use usize::MAX in case someone would convert this to isize.
+            approx_berth_violation: isize::MAX as usize,
+        }
+    }
+}
+
+impl PartialEq for Evaluation {
+    fn eq(&self, other: &Self) -> bool {
+        self.partial_cmp(other) == Some(Ordering::Equal)
+    }
+}
+
+impl PartialOrd for Evaluation {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        (
+            self.warp,
+            self.approx_berth_violation,
+            FloatOrd(self.violation),
+            FloatOrd(self.cost + self.spot_cost - self.revenue),
+        )
+            .partial_cmp(&(
+                other.warp,
+                other.approx_berth_violation,
+                FloatOrd(other.violation),
+                FloatOrd(other.cost + other.spot_cost - other.revenue),
+            ))
+    }
+}
+
+impl Eq for Evaluation {}
+impl Ord for Evaluation {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
