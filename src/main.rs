@@ -125,6 +125,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         cost: 1.0,
         approx_berth_violation: 1e8,
         spot: 1.0,
+        offset: problem.max_revenue() + 1.0,
     };
 
     let config = move || ga::Config {
