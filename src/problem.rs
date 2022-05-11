@@ -222,11 +222,22 @@ pub enum ProblemConstructionError {
         expected: usize,
         actual: usize,
     },
+    /// Node `node` has initial inventory exceeding its capacity
+    NodeInitialInventory {
+        node: usize,
+        capacity: f64,
+        initial_inv: f64,
+    },
     /// Vessel `vessel` has the wrong dimension for the inventory
     VesselInventorySizeMismatch {
         vessel: usize,
         expected: usize,
         actual: usize,
+    },
+    VesselInitialInventoryError {
+        vessel: usize,
+        capacity: f64,
+        initial: f64,
     },
     /// A vessel has a negative capacity for a compartment
     VesseNegativeCompartmentCapacity { vessel: usize, compartment: usize },
@@ -317,6 +328,16 @@ impl Problem {
             }
         }
 
+        for product in 0..p {
+            if node.capacity[product] < node.initial_inventory[product] {
+                return Err(ProblemConstructionError::NodeInitialInventory {
+                    node: i,
+                    capacity: node.capacity[product],
+                    initial_inv: node.initial_inventory[product],
+                });
+            }
+        }
+
         Ok(())
     }
 
@@ -338,6 +359,17 @@ impl Problem {
                     compartment: c,
                 });
             }
+        }
+
+        // check that initial inventory of vessel is less than its capacity
+        let capacity = vessel.compartments().iter().map(|c| c.0).sum::<f64>();
+        let initial_inventory = vessel.initial_inventory().0.total();
+        if initial_inventory > capacity {
+            return Err(ProblemConstructionError::VesselInitialInventoryError {
+                vessel: v,
+                capacity,
+                initial: initial_inventory,
+            });
         }
 
         Ok(())
