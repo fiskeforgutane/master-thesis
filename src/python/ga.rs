@@ -325,6 +325,7 @@ pub fn weighted(
     cost: f64,
     berth: f64,
     spot: f64,
+    offset: f64,
 ) -> Weighted {
     Weighted {
         warp,
@@ -333,6 +334,7 @@ pub fn weighted(
         cost,
         approx_berth_violation: berth,
         spot,
+        offset,
     }
 }
 

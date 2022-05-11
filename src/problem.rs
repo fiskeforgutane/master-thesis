@@ -184,6 +184,28 @@ impl Problem {
             c.1 / self.production_nodes().len() as f64,
         )
     }
+
+    /// The maximum attainable revenue for this problem
+    pub fn max_revenue(&self) -> f64 {
+        self.nodes()
+            .iter()
+            .map(|n| {
+                let initial = n.initial_inventory().as_inv().total();
+                let total_change: f64 = (0..self.products())
+                    .map(|p| f64::abs(n.inventory_change(0, self.timesteps() - 1, p)))
+                    .sum();
+
+                // the total quantity that can be delivered/picked up at the node during the planning period
+                let can_handle = match n.r#type() {
+                    crate::problem::NodeType::Consumption => {
+                        total_change - initial + n.capacity().as_inv().total()
+                    }
+                    crate::problem::NodeType::Production => total_change + initial,
+                };
+                n.revenue() * can_handle
+            })
+            .sum()
+    }
 }
 
 #[derive(Debug)]
