@@ -6,12 +6,16 @@ use std::{
 };
 
 use float_ord::FloatOrd;
-use log::{debug, trace};
+use log::{debug, info, trace};
 use rand::Rng;
 
 use crate::{
     models::quantity::QuantityLp,
-    problem::{Node, Problem, Vessel},
+    problem::{
+        Node,
+        NodeType::{Consumption, Production},
+        Problem, Vessel,
+    },
     solution::{
         routing::{Evaluation, RoutingSolution},
         Visit,
@@ -357,11 +361,48 @@ impl Greedy {
         insertion: Insertion,
         solution: &mut RoutingSolution,
         lookahead: usize,
-    ) -> Evaluation {
+    ) -> (FloatOrd<f64>, Evaluation) {
         // Do the insertion.
         Self::insert(insertion, solution);
 
-        let mut evaluation = solution.evaluation();
+        let timesteps = solution.problem().timesteps();
+        let p = solution.problem().products();
+        let v = insertion.vessel;
+        let t = insertion.visit.time;
+        let n = insertion.visit.node;
+        let kind = solution.problem().nodes()[n].r#type();
+        let capacity = solution.problem().nodes()[n].capacity().clone();
+
+        let quantities = solution.quantities();
+
+        let mut weighty = 0.0;
+
+        for p in 0..p {
+            let delivered = (t..timesteps)
+                .map(|t| {
+                    quantities
+                        .model
+                        .get_obj_attr(grb::attr::X, &quantities.vars.x[t][n][v][p])
+                        .unwrap()
+                })
+                .sum::<f64>();
+
+            let inventory = quantities
+                .model
+                .get_obj_attr(grb::attr::X, &quantities.vars.s[t][n][p])
+                .unwrap();
+
+            let distance_from_breach = match kind {
+                Consumption => inventory,
+                Production => capacity[p] - inventory,
+            };
+
+            weighty += delivered * (capacity[p] - distance_from_breach.max(0.0)) / capacity[p];
+        }
+
+        drop(quantities);
+
+        let mut evaluation = (FloatOrd(-weighty), solution.evaluation());
 
         // See if we're able to get a better result by performing the look-ahead
         if lookahead > 0 {
@@ -373,14 +414,17 @@ impl Greedy {
                 .collect::<Vec<_>>();
 
             for (node, range) in lookaheads {
-                for time in range.take(self.range_max) {
+                for time in range
+                    .filter(|&t| t > insertion.visit.time)
+                    .take(self.range_max)
+                {
                     evaluation = evaluation.min(self.evaluate(
                         Insertion {
                             vessel: insertion.vessel,
                             visit: Visit { time, node },
                         },
                         solution,
-                        lookahead,
+                        lookahead - 1,
                     ))
                 }
             }
@@ -408,48 +452,64 @@ impl Initialization for Greedy {
         let mut incumbent = solution.evaluation();
 
         loop {
-            debug!("Incumbent: {incumbent:?}");
-
-            let candidates = solution
+            info!("Incumbent: {incumbent:?}");
+            info!(
+                "Incumbent obj = {}",
+                incumbent.cost + incumbent.spot_cost - incumbent.revenue
+            );
+            debug!("Routes: {:?}", solution.to_vec());
+            let mut candidates = solution
                 .available()
                 .map(|(v, it)| (v, it.collect::<Vec<_>>()))
                 .collect::<Vec<_>>();
 
-            let mut best: Option<Evaluation> = None;
+            let mut best: Option<(FloatOrd<f64>, Evaluation)> = None;
             let mut insertion: Option<Insertion> = None;
 
-            for (vessel, it) in candidates.into_iter() {
-                for (node, range) in it.into_iter() {
-                    // Do some random blinks.
-                    if rand::thread_rng().gen_bool(self.inter_blink_rate) {
-                        continue;
-                    }
+            let (t0, vessel) = solution
+                .iter()
+                .enumerate()
+                .map(|(v, plan)| (plan.last().unwrap().time, v))
+                .min()
+                .unwrap();
 
-                    // Find the best evaluation
-                    let (evaluation, time) = range
-                        .take(self.range_max)
-                        .map(|time| {
-                            let visit = Visit { node, time };
-                            let insertion = Insertion { vessel, visit };
+            let (vessel, it) = candidates.swap_remove(vessel);
+            for (node, range) in it.into_iter() {
+                debug!("v = {vessel}, n = {node}, t = {range:?}");
+                // Do some random blinks.
+                if rand::thread_rng().gen_bool(self.inter_blink_rate) {
+                    continue;
+                }
 
-                            match rand::thread_rng().gen_bool(self.intra_blink_rate) {
-                                true => (Evaluation::bad(), t),
-                                false => {
-                                    (self.evaluate(insertion, &mut solution, self.lookahead), t)
-                                }
-                            }
-                        })
-                        .min()
-                        .unwrap();
+                // Find the best evaluation
+                let (evaluation, time) = match range
+                    .filter(|&t| t > t0)
+                    .take(self.range_max)
+                    .map(|time| {
+                        let visit = Visit { node, time };
+                        let insertion = Insertion { vessel, visit };
 
-                    // Update the best insertion
-                    if evaluation <= best.unwrap_or(Evaluation::bad()) {
-                        insertion = Some(Insertion {
-                            vessel,
-                            visit: Visit { node, time },
-                        });
-                        best = Some(evaluation);
-                    }
+                        match rand::thread_rng().gen_bool(self.intra_blink_rate) {
+                            true => ((FloatOrd(f64::INFINITY), Evaluation::bad()), time),
+                            false => (
+                                self.evaluate(insertion, &mut solution, self.lookahead),
+                                time,
+                            ),
+                        }
+                    })
+                    .min()
+                {
+                    Some(x) => x,
+                    None => continue,
+                };
+
+                // Update the best insertion
+                if evaluation <= best.unwrap_or((FloatOrd(f64::INFINITY), Evaluation::bad())) {
+                    insertion = Some(Insertion {
+                        vessel,
+                        visit: Visit { node, time },
+                    });
+                    best = Some(evaluation);
                 }
             }
 
@@ -458,7 +518,10 @@ impl Initialization for Greedy {
                 _ => return solution,
             };
 
-            if Improvement::between(incumbent, candidate) <= self.epsilon {
+            info!("Choose {insertion:?}");
+
+            if Improvement::between(incumbent, candidate.1) <= self.epsilon {
+                debug!("Improvement below epsilon");
                 return solution;
             }
 
