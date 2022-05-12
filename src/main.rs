@@ -293,6 +293,8 @@ pub fn run_unfixed_rolling_horizon(
     checkpoints: Vec<usize>,
     checkpoint_termination: Termination,
 ) {
+    println!("Checkpoints: {checkpoints:?}");
+    println!("Checkpoint termination: {checkpoint_termination}");
     let problem = read_problem(path);
     let rh = RollingHorizon::new(problem.clone());
 
@@ -306,7 +308,10 @@ pub fn run_unfixed_rolling_horizon(
         .chain(checkpoints.iter().cloned())
         .chain(once(problem.timesteps()))
         .sorted()
-        .dedup();
+        .dedup()
+        .collect::<Vec<_>>();
+
+    println!("RH: {ends:?}");
 
     for end in ends {
         let period = 0..end;
