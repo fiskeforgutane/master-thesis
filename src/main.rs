@@ -25,22 +25,87 @@ pub mod utils;
 
 use crate::ga::{
     chromosome::InitRoutingSolution,
-    fitness::{self},
+    fitness::{self, Weighted},
     initialization::{FromPopulation, Initialization},
     mutations::{
-        rr, AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
-        TimeSetter, Twerk, TwoOpt, TwoOptMode,
+        rr, AddRandom, AddSmart, Bounce, BounceMode, Dedup, DedupPolicy, InterSwap, IntraSwap,
+        RedCost, RemoveRandom, ReplaceNode, SwapStar, TimeSetter, Twerk, TwoOpt, TwoOptMode,
     },
-    parent_selection,
+    parent_selection::Tournament,
     recombinations::PIX,
-    survival_selection, Fitness, Stochastic,
+    survival_selection::{Elite, Proportionate},
+    Stochastic,
 };
 use crate::rolling_horizon::rolling_horizon::RollingHorizon;
 
+use crate::ga::{Fitness, Mutation, ParentSelection, Recombination, SurvivalSelection};
 use crate::models::exact_model::model::ExactModelSolver;
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
+
+pub fn weighted(problem: &Problem) -> Weighted {
+    Weighted {
+        warp: 1e8,
+        violation: 1e4,
+        revenue: -1.0,
+        cost: 1.0,
+        approx_berth_violation: 1e8,
+        spot: 1.0,
+        offset: problem.max_revenue() + 1.0,
+    }
+}
+
+pub fn ga_config(
+    problem: Arc<Problem>,
+) -> ga::Config<
+    impl ParentSelection,
+    impl Recombination,
+    impl Mutation,
+    impl SurvivalSelection,
+    impl Fitness,
+> {
+    let fitness = weighted(&problem);
+    ga::Config {
+        problem,
+        population_size: 3,
+        child_count: 3,
+        parent_selection: Tournament::new(2).unwrap(),
+        recombination: Stochastic::new(0.01, PIX),
+        mutation: chain!(
+            Stochastic::new(0.01, AddRandom::new()),
+            Stochastic::new(0.01, RemoveRandom::new()),
+            Stochastic::new(0.01, InterSwap),
+            Stochastic::new(0.01, IntraSwap),
+            Stochastic::new(0.01, RedCost::red_cost_mutation(10)),
+            Stochastic::new(0.01, Twerk::everybody()),
+            Stochastic::new(0.01, Twerk::some_random_person()),
+            Stochastic::new(0.01, TwoOpt::new(TwoOptMode::IntraRandom)),
+            Stochastic::new(0.01, TimeSetter::new(0.5).unwrap()),
+            Stochastic::new(0.01, ReplaceNode::new(0.1)),
+            Stochastic::new(0.01, SwapStar),
+            Dedup(DedupPolicy::KeepFirst),
+            Stochastic::new(0.01, Bounce::new(3, BounceMode::All)),
+            Stochastic::new(0.01, Bounce::new(3, BounceMode::Random)),
+            Stochastic::new(0.01, AddSmart),
+            Stochastic::new(0.01, rr::Period::new(0.1, 0.8, 15, 3)),
+            Stochastic::new(0.01, rr::Vessel::new(0.1, 0.8, 3)),
+            Stochastic::new(
+                0.01,
+                rr::sisr::SlackInductionByStringRemoval::new(rr::sisr::Config {
+                    average_removal: 2,
+                    max_cardinality: 5,
+                    alpha: 0.0,
+                    blink_rate: 0.1,
+                    first_n: 5,
+                    epsilon: (0.9, 10.0),
+                })
+            )
+        ),
+        selection: Elite(1, Proportionate(|x| 1.0 / (1.0 + x))),
+        fitness,
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -133,7 +198,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         problem: closure_problem.clone(),
         population_size: conf.population,
         child_count: conf.children,
-        parent_selection: parent_selection::Tournament::new(3).unwrap(),
+        parent_selection: Tournament::new(3).unwrap(),
         recombination: Stochastic::new(conf.pix, PIX),
         mutation: chain!(
             Stochastic::new(conf.add_random, AddRandom::new()),
@@ -175,10 +240,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
                 rr::sisr::SlackInductionByStringRemoval::new(conf.rr_sisr.1)
             )
         ),
-        selection: survival_selection::Elite(
-            1,
-            survival_selection::Proportionate(|x| 1.0 / (1.0 + x)),
-        ),
+        selection: Elite(1, Proportionate(|x| 1.0 / (1.0 + x))),
         fitness,
     };
 
