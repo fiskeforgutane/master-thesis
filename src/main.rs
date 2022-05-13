@@ -18,6 +18,7 @@ use std::{
 
 pub mod ga;
 pub mod models;
+pub mod parse;
 pub mod problem;
 pub mod quants;
 pub mod rolling_horizon;
@@ -613,7 +614,6 @@ struct Args {
         parse(try_from_str = Termination::try_from)
     )]
     termination: Termination,
-
     /// Subcommands
     #[clap(subcommand)]
     commands: Commands,

@@ -14,23 +14,18 @@ pub trait ParentSelection {
 
 pub trait Recombination {
     fn apply(&mut self, problem: &Problem, left: &mut RoutingSolution, right: &mut RoutingSolution);
-
-    fn with_probability(self, p: f64) -> Stochastic<Self>
-    where
-        Self: Sized,
-    {
-        Stochastic::new(p, self)
-    }
 }
 
 pub trait Mutation {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution);
+}
 
-    fn with_probability(self, p: f64) -> Stochastic<Self>
-    where
-        Self: Sized,
-    {
-        Stochastic::new(p, self)
+impl<M> Mutation for Box<M>
+where
+    M: Mutation + ?Sized,
+{
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+        M::apply(self, problem, solution)
     }
 }
 
