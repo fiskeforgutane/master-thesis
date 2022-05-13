@@ -5,6 +5,7 @@ use env_logger::Builder;
 use itertools::Itertools;
 use log::LevelFilter;
 
+use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -608,9 +609,10 @@ struct Args {
         short,
         long,
         value_name = "never | <count> epochs | <secs> timeout | no-violation | <secs> no-improvement  | '<term> <term> |' | '<term> <term> &'",
-        default_value = "600 no-improvement"
+        default_value = "600 no-improvement",
+        parse(try_from_str = Termination::try_from)
     )]
-    termination: String,
+    termination: Termination,
 
     /// Subcommands
     #[clap(subcommand)]
@@ -630,8 +632,8 @@ enum Commands {
         step_length: usize,
         #[clap(long)]
         write: bool,
-        #[clap(long)]
-        checkpoint_termination: Option<String>,
+        #[clap(long, parse(try_from_str = Termination::try_from))]
+        checkpoint_termination: Option<Termination>,
         #[clap(long)]
         checkpoints: Option<Vec<usize>>,
     },
@@ -653,7 +655,7 @@ fn enable_logger(level: LevelFilter) {
         .init();
 }
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum ParseError {
     ExpectedInt,
     ExpectedTerm,
@@ -662,60 +664,66 @@ pub enum ParseError {
     UnrecognizedToken(String),
 }
 
-fn parse_termination(string: &str) -> Result<Box<Termination>, ParseError> {
-    let tokens = string.split_ascii_whitespace();
+impl std::error::Error for ParseError {}
 
-    enum Arg {
-        Int(u64),
-        Term(Box<Termination>),
-    }
+impl<'s> std::convert::TryFrom<&'s str> for Termination {
+    type Error = ParseError;
 
-    let mut stack = Vec::new();
+    fn try_from(value: &'s str) -> Result<Self, Self::Error> {
+        let tokens = value.split_ascii_whitespace();
 
-    let int = |s: &mut Vec<Arg>| match s.pop() {
-        Some(Arg::Int(x)) => Ok(x),
-        Some(Arg::Term(_)) => Err(ParseError::ExpectedInt),
-        None => Err(ParseError::EmptyStack),
-    };
+        enum Arg {
+            Int(u64),
+            Term(Box<Termination>),
+        }
 
-    let term = |s: &mut Vec<Arg>| match s.pop() {
-        Some(Arg::Term(x)) => Ok(x),
-        Some(Arg::Int(_)) => Err(ParseError::ExpectedTerm),
-        None => Err(ParseError::EmptyStack),
-    };
+        let mut stack = Vec::new();
 
-    for token in tokens {
-        let new = match token {
-            "never" => Arg::Term(Box::new(Termination::Never)),
-            "epochs" => Arg::Term(Box::new(Termination::Epochs(int(&mut stack)?))),
-            "timeout" => Arg::Term(Box::new(Termination::Timeout(
-                std::time::Instant::now(),
-                std::time::Duration::from_secs(int(&mut stack)?),
-            ))),
-            "no-violation" => Arg::Term(Box::new(Termination::NoViolation)),
-            "no-improvement" => Arg::Term(Box::new(Termination::NoImprovement(
-                std::time::Instant::now(),
-                std::time::Duration::from_secs(int(&mut stack)?),
-                std::f64::INFINITY,
-            ))),
-            "|" => Arg::Term(Box::new(Termination::Any(
-                term(&mut stack)?,
-                term(&mut stack)?,
-            ))),
-            "&" => Arg::Term(Box::new(Termination::All(
-                term(&mut stack)?,
-                term(&mut stack)?,
-            ))),
-            x => match x.parse::<u64>() {
-                Ok(num) => Arg::Int(num),
-                Err(_) => return Err(ParseError::UnrecognizedToken(x.to_string())),
-            },
+        let int = |s: &mut Vec<Arg>| match s.pop() {
+            Some(Arg::Int(x)) => Ok(x),
+            Some(Arg::Term(_)) => Err(ParseError::ExpectedInt),
+            None => Err(ParseError::EmptyStack),
         };
 
-        stack.push(new);
-    }
+        let term = |s: &mut Vec<Arg>| match s.pop() {
+            Some(Arg::Term(x)) => Ok(x),
+            Some(Arg::Int(_)) => Err(ParseError::ExpectedTerm),
+            None => Err(ParseError::EmptyStack),
+        };
 
-    term(&mut stack)
+        for token in tokens {
+            let new = match token {
+                "never" => Arg::Term(Box::new(Termination::Never)),
+                "epochs" => Arg::Term(Box::new(Termination::Epochs(int(&mut stack)?))),
+                "timeout" => Arg::Term(Box::new(Termination::Timeout(
+                    std::time::Instant::now(),
+                    std::time::Duration::from_secs(int(&mut stack)?),
+                ))),
+                "no-violation" => Arg::Term(Box::new(Termination::NoViolation)),
+                "no-improvement" => Arg::Term(Box::new(Termination::NoImprovement(
+                    std::time::Instant::now(),
+                    std::time::Duration::from_secs(int(&mut stack)?),
+                    std::f64::INFINITY,
+                ))),
+                "|" => Arg::Term(Box::new(Termination::Any(
+                    term(&mut stack)?,
+                    term(&mut stack)?,
+                ))),
+                "&" => Arg::Term(Box::new(Termination::All(
+                    term(&mut stack)?,
+                    term(&mut stack)?,
+                ))),
+                x => match x.parse::<u64>() {
+                    Ok(num) => Arg::Int(num),
+                    Err(_) => return Err(ParseError::UnrecognizedToken(x.to_string())),
+                },
+            };
+
+            stack.push(new);
+        }
+
+        term(&mut stack).map(|x| *x)
+    }
 }
 
 pub fn main() {
@@ -755,7 +763,7 @@ pub fn main() {
     let timesteps = directory.file_stem().unwrap().to_str().unwrap();
 
     // The termination criteria
-    let termination = parse_termination(&args.termination).unwrap();
+    let termination = args.termination;
     println!("Termination: {termination}");
 
     // The output directory is ./solutions/TIME/PROBLEM/,
@@ -770,7 +778,7 @@ pub fn main() {
     // Run the GA.
     match args.commands {
         Commands::Normal { write } => {
-            run_island_ga(path, out, *termination, InitRoutingSolution, config, write)
+            run_island_ga(path, out, termination, InitRoutingSolution, config, write)
         }
         Commands::RollingHorizon {
             subproblem_size,
@@ -781,16 +789,14 @@ pub fn main() {
         } => run_unfixed_rolling_horizon(
             path,
             out,
-            *termination.clone(),
+            termination.clone(),
             subproblem_size,
             step_length,
             config,
             write,
             checkpoints.unwrap_or_default(),
-            *checkpoint_termination
-                .map(|t| parse_termination(&t).unwrap())
-                .unwrap_or(termination.clone()),
+            checkpoint_termination.unwrap_or(termination),
         ),
-        Commands::Exact => run_exact_model(path, out, *termination),
+        Commands::Exact => run_exact_model(path, out, termination),
     };
 }
