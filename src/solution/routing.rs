@@ -2,7 +2,7 @@ use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::iter::once;
-use std::ops::{DerefMut, Range, RangeInclusive};
+use std::ops::{DerefMut, Range};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
@@ -407,8 +407,7 @@ impl RoutingSolution {
         // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
         let mut lp = self.cache.quantity.borrow_mut();
-        let travel_at_capacity = self.problem.travel_at_capacity();
-        lp.configure(self, false, false, travel_at_capacity, false)
+        lp.configure(self, false, false, false)
             .expect("configure failed");
         lp.solve().expect("solve failed");
         std::mem::drop(lp);
@@ -425,7 +424,7 @@ impl RoutingSolution {
         self.invalidate_caches();
 
         let mut lp = self.cache.quantity.borrow_mut();
-        lp.configure(self, true, true, true, true)
+        lp.configure(self, true, true, true)
             .expect("configure failed");
         lp.solve().expect("solve failed");
 

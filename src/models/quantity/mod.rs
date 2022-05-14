@@ -469,7 +469,6 @@ impl QuantityLp {
         solution: &RoutingSolution,
         semicont: bool,
         berth: bool,
-        load_restrictions: bool,
         tight: bool,
     ) -> grb::Result<()> {
         self.semicont = semicont;
