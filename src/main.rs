@@ -305,8 +305,6 @@ enum Commands {
         subproblem_size: usize,
         #[clap(long, default_value_t = 5)]
         step_length: usize,
-        #[clap(long)]
-        write: bool,
         #[clap(long, parse(try_from_str = Termination::try_from))]
         checkpoint_termination: Option<Termination>,
         #[clap(long)]
@@ -331,7 +329,7 @@ fn enable_logger(level: LevelFilter) {
             writeln!(
                 buf,
                 "{} [{}] - {}",
-                Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
                 record.level(),
                 record.args()
             )
@@ -390,7 +388,6 @@ pub fn main() {
         Commands::RollingHorizon {
             subproblem_size,
             step_length,
-            write,
             checkpoint_termination,
             checkpoints,
             population,

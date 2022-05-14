@@ -12,7 +12,7 @@ pub mod traits;
 
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use log::{info, trace};
+use log::{debug, trace};
 pub use traits::*;
 
 use crate::{models::quantity::QuantityLp, problem::Problem, solution::routing::RoutingSolution};
@@ -215,11 +215,11 @@ where
             })
             .unwrap();
 
-        info!("Lowest fitness: {:?}", fitness.of(problem, best));
-        info!("Time warp: {:?}", best.warp());
-        info!("Shortage: {:?}", best.violation());
-        info!("Revenue: {:?}", best.revenue());
-        info!("Cost: {:?}", best.cost());
+        debug!("Lowest fitness: {:?}", fitness.of(problem, best));
+        debug!("Time warp: {:?}", best.warp());
+        debug!("Shortage: {:?}", best.violation());
+        debug!("Revenue: {:?}", best.revenue());
+        debug!("Cost: {:?}", best.cost());
 
         trace!("End of epoch");
     }

@@ -1,10 +1,12 @@
 pub mod ga;
 pub mod models;
+pub mod parse;
 pub mod problem;
 pub mod python;
 pub mod quants;
 pub mod rolling_horizon;
 pub mod solution;
+pub mod termination;
 pub mod utils;
 
 use crate::python::ga::*;

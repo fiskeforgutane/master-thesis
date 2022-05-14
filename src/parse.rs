@@ -23,6 +23,7 @@ use crate::{
     termination::Termination,
 };
 use derive_more::Display;
+use log::debug;
 
 #[derive(Debug, Display)]
 pub enum ParseMutationError {
@@ -59,7 +60,7 @@ pub fn std_mutation() -> Box<dyn RPNMutation> {
         Stochastic::new(0.01, TwoOpt::new(TwoOptMode::IntraRandom)),
         Stochastic::new(0.01, TimeSetter::new(0.5).unwrap()),
         Stochastic::new(0.01, ReplaceNode::new(0.1)),
-        Stochastic::new(0.01, SwapStar),
+        // Stochastic::new(0.01, SwapStar), <- crashes
         Dedup(DedupPolicy::KeepFirst),
         Stochastic::new(0.01, Bounce::new(3, BounceMode::All)),
         Stochastic::new(0.01, Bounce::new(3, BounceMode::Random)),
@@ -103,8 +104,9 @@ impl<'s> TryFrom<&'s str> for Box<dyn RPNMutation> {
 
         let float = |s: &mut Vec<Arg>| match s.pop() {
             Some(Arg::Float(x)) => Ok(x),
-            None => Err(EmptyStack),
+            Some(Arg::Int(x)) => Ok(x as f64),
             Some(_) => Err(ExpectedFloat),
+            None => Err(EmptyStack),
         };
 
         let mutation = |s: &mut Vec<Arg>| match s.pop() {
@@ -114,6 +116,7 @@ impl<'s> TryFrom<&'s str> for Box<dyn RPNMutation> {
         };
 
         for token in tokens {
+            debug!("token = {token}");
             let new = match token {
                 "nop" => Arg::Mut(Box::new(Nop)),
                 "std" => Arg::Mut(std_mutation()),

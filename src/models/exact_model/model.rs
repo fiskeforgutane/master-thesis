@@ -3,7 +3,7 @@ use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::Problem;
 use grb::prelude::*;
 use itertools::iproduct;
-use log::info;
+use log::{debug, info};
 
 use super::sets_and_parameters::{Parameters, Sets};
 
@@ -16,7 +16,7 @@ impl ExactModelSolver {
         sets: &Sets,
         parameters: &Parameters,
     ) -> grb::Result<(Model, Variables)> {
-        info!("Building exact model.");
+        debug!("Building exact model.");
 
         let mut model = Model::new("exact_model")?;
         // model.set_param(grb::param::OutputFlag, 0)?;
@@ -353,7 +353,7 @@ impl ExactModelSolver {
 
         model.update()?;
 
-        info!("Successfully built exact model",);
+        debug!("Successfully built exact model",);
 
         Ok((model, Variables::new(x, z, q, a, s_port, s_vessel)))
     }

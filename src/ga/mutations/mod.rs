@@ -107,7 +107,7 @@ impl std::fmt::Display for Dedup {
 impl std::fmt::Display for Bounce {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let passes = self.passes;
-        write!(f, "{passes} replace-node")
+        write!(f, "{passes} bounce")
     }
 }
 
