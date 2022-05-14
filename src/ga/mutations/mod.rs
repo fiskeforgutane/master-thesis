@@ -173,6 +173,6 @@ where
         let a = &self.0;
         let b = &self.1;
 
-        write!(f, "{b} {a}")
+        write!(f, "{a} {b}")
     }
 }
