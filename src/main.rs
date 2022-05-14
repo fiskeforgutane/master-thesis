@@ -618,9 +618,9 @@ struct Args {
     /// The mutation used
     #[clap(
         short, long,
-        parse(try_from_str = Box::<dyn Mutation>::try_from)
+        parse(try_from_str = Box::<dyn RPNMutation>::try_from)
     )]
-    mutation: Box<dyn Mutation>,
+    mutation: Box<dyn RPNMutation>,
 
     /// Subcommands
     #[clap(subcommand)]

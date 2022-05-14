@@ -1,5 +1,5 @@
 use std::{
-    fmt::write,
+    fmt::{write, Display},
     num::{ParseFloatError, ParseIntError},
 };
 
@@ -28,7 +28,10 @@ pub enum ParseError {
 
 impl std::error::Error for ParseError {}
 
-impl<'s> TryFrom<&'s str> for Box<dyn Mutation> {
+pub trait RPNMutation: Mutation + Display {}
+impl<M> RPNMutation for M where M: Mutation + Display {}
+
+impl<'s> TryFrom<&'s str> for Box<dyn RPNMutation> {
     type Error = ParseError;
 
     fn try_from(value: &'s str) -> Result<Self, Self::Error> {
@@ -37,7 +40,7 @@ impl<'s> TryFrom<&'s str> for Box<dyn Mutation> {
         enum Arg {
             Int(usize),
             Float(f64),
-            Mut(Box<dyn Mutation>),
+            Mut(Box<dyn RPNMutation>),
         }
 
         let mut stack: Vec<Arg> = Vec::new();
