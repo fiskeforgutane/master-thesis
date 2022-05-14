@@ -15,6 +15,7 @@ pub struct Weighted {
     pub spot: f64,
     pub travel_empty: f64,
     pub travel_at_cap: f64,
+    pub offset: f64,
 }
 
 impl Fitness for Weighted {
@@ -36,7 +37,8 @@ impl Fitness for Weighted {
             + berth * self.approx_berth_violation
             + travel_empty * self.travel_empty
             + travel_at_cap * self.travel_at_cap
-            + 100000.0)
+            + self.approx_berth_violation * berth
+            + self.offset)
             .ln()
     }
 }

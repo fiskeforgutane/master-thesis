@@ -77,6 +77,7 @@ impl ComputeNode {
     #[new]
     pub fn new(problem: Problem, islands: usize) -> Self {
         let problem = Arc::new(problem);
+        let max_revenue = problem.max_revenue();
         let config = move || ga::Config {
             problem: problem.clone(),
             population_size: 100,
@@ -111,6 +112,7 @@ impl ComputeNode {
                 spot: 1.0,
                 travel_empty: 1e5,
                 travel_at_cap: 1e5,
+                offset: max_revenue + 1.0,
             },
         };
 

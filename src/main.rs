@@ -128,6 +128,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         spot: 1.0,
         travel_empty: 1e5,
         travel_at_cap: 1e5,
+        offset: problem.max_revenue() + 1.0,
     };
 
     let config = move || ga::Config {
@@ -296,6 +297,8 @@ pub fn run_unfixed_rolling_horizon(
     checkpoints: Vec<usize>,
     checkpoint_termination: Termination,
 ) {
+    println!("Checkpoints: {checkpoints:?}");
+    println!("Checkpoint termination: {checkpoint_termination}");
     let problem = read_problem(path);
     let rh = RollingHorizon::new(problem.clone());
 
@@ -309,7 +312,10 @@ pub fn run_unfixed_rolling_horizon(
         .chain(checkpoints.iter().cloned())
         .chain(once(problem.timesteps()))
         .sorted()
-        .dedup();
+        .dedup()
+        .collect::<Vec<_>>();
+
+    println!("RH: {ends:?}");
 
     for end in ends {
         let period = 0..end;

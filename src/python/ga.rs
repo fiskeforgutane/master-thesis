@@ -327,6 +327,7 @@ pub fn weighted(
     spot: f64,
     travel_empty: f64,
     travel_at_cap: f64,
+    offset: f64,
 ) -> Weighted {
     Weighted {
         warp,
@@ -337,6 +338,7 @@ pub fn weighted(
         spot,
         travel_empty,
         travel_at_cap,
+        offset,
     }
 }
 
