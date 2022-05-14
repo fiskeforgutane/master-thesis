@@ -20,7 +20,7 @@ pub enum BounceMode {
 /// in such a way that they (hopefully) get enought space to become travel time feasible.
 pub struct Bounce {
     rng: rand::rngs::StdRng,
-    passes: usize,
+    pub passes: usize,
     mode: BounceMode,
 }
 

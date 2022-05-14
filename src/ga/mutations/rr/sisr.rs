@@ -19,7 +19,7 @@ use crate::{
 /// G. V. Berge adapted for use in a VRP variant with MIRP-style time windows.
 pub struct SlackInductionByStringRemoval {
     /// The configuration of the SISRs algorithm
-    config: Config,
+    pub config: Config,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

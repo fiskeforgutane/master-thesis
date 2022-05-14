@@ -29,11 +29,11 @@ where
 /// A ruin and recreate method that removes a single vessel's path, and inserts in in a greedily using greedy insertion with blinks
 pub struct Vessel {
     rng: StdRng,
-    blink_rate: f64,
-    removal_rate: f64,
-    epsilon: (f64, f64),
+    pub blink_rate: f64,
+    pub removal_rate: f64,
+    pub epsilon: (f64, f64),
     /// The number of candidates generated for one node out from the previous, typically set to 2-4.
-    c: usize,
+    pub c: usize,
 }
 
 impl Vessel {

@@ -42,6 +42,7 @@ use crate::rolling_horizon::rolling_horizon::RollingHorizon;
 
 use crate::ga::{Fitness, Mutation, ParentSelection, Recombination, SurvivalSelection};
 use crate::models::exact_model::model::ExactModelSolver;
+use crate::parse::*;
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
@@ -588,7 +589,7 @@ impl std::fmt::Display for Termination {
     }
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[clap(author = "Fiskefôrgutane", about = "CLI for MIRP solver")]
 struct Args {
     /// Sets the configuration file used.
@@ -614,6 +615,13 @@ struct Args {
         parse(try_from_str = Termination::try_from)
     )]
     termination: Termination,
+    /// The mutation used
+    #[clap(
+        short, long,
+        parse(try_from_str = Box::<dyn Mutation>::try_from)
+    )]
+    mutation: Box<dyn Mutation>,
+
     /// Subcommands
     #[clap(subcommand)]
     commands: Commands,

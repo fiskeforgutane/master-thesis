@@ -23,8 +23,8 @@ pub enum RedCostMode {
 /// This mutation exploits the dual solution of the quantities LP to direct the search towards a hopefulle better solution.
 #[derive(Debug, Clone)]
 pub struct RedCost {
-    mode: RedCostMode,
-    max_visits: usize,
+    pub mode: RedCostMode,
+    pub max_visits: usize,
 }
 
 #[derive(Debug, Clone)]

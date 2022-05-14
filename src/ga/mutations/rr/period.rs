@@ -16,11 +16,11 @@ use super::Dropout;
 /// A ruin and recreate method that removes visits within a random time period, and repairs the solution by greedily inserting visits using greedy insertion with blinks
 pub struct Period {
     rng: StdRng,
-    blink_rate: f64,
-    removal_rate: f64,
-    epsilon: (f64, f64),
-    max_size: usize,
-    c: usize,
+    pub blink_rate: f64,
+    pub removal_rate: f64,
+    pub epsilon: (f64, f64),
+    pub max_size: usize,
+    pub c: usize,
 }
 
 impl Period {

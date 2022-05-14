@@ -14,7 +14,7 @@ use crate::{
 /// the same kind as `b`.
 pub struct ReplaceNode {
     rng: StdRng,
-    blink_rate: f64,
+    pub blink_rate: f64,
 }
 
 impl ReplaceNode {

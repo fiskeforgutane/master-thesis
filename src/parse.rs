@@ -1,3 +1,8 @@
+use std::{
+    fmt::write,
+    num::{ParseFloatError, ParseIntError},
+};
+
 use crate::ga::{
     mutations::{
         rr::{
@@ -17,6 +22,8 @@ pub enum ParseError {
     ExpectedFloat,
     ExpectedMutation,
     EmptyStack,
+    ParseFloatError(ParseFloatError),
+    ParseIntError(ParseIntError),
 }
 
 impl std::error::Error for ParseError {}
@@ -91,7 +98,10 @@ impl<'s> TryFrom<&'s str> for Box<dyn Mutation> {
                     float(&mut stack)?,
                     mutation(&mut stack)?,
                 ))),
-                _ => panic!(),
+                x => match x.contains('.') {
+                    true => Arg::Float(x.parse().map_err(|e| ParseError::ParseFloatError(e))?),
+                    false => Arg::Int(x.parse().map_err(|e| ParseError::ParseIntError(e))?),
+                },
             };
 
             // At this point, we will chain them all together
