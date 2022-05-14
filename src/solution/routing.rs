@@ -2,7 +2,7 @@ use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::iter::once;
-use std::ops::{DerefMut, Range, RangeInclusive};
+use std::ops::{DerefMut, Range};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 
@@ -225,6 +225,10 @@ pub struct Cache {
     /// A hint to the amount of sum of berth violations in the solution
     /// The `hint` is simply sum(max(visits at node `n` at time `t` - berth capacity, 0) for all (n, t))
     approx_berth_violation: Cell<Option<usize>>,
+    /// The travel empty violation given from the LP
+    travel_empty: Cell<Option<f64>>,
+    /// The travel at cap violation given from the LP
+    travel_at_cap: Cell<Option<f64>>,
 }
 
 /// A solution of the routing within a `Problem`, i.e. where and when each vessel arrives at different nodes throughout the planning period.
@@ -262,6 +266,8 @@ impl Clone for RoutingSolution {
                 timing: Cell::new(None),
                 approx_berth_violation: Cell::new(None),
                 spot: Cell::new(None),
+                travel_empty: Cell::new(None),
+                travel_at_cap: Cell::new(None),
             },
         }
     }
@@ -330,6 +336,8 @@ impl RoutingSolution {
             timing: Cell::new(None),
             approx_berth_violation: Cell::new(None),
             spot: Cell::new(None),
+            travel_empty: Cell::new(None),
+            travel_at_cap: Cell::new(None),
         };
 
         Self {
@@ -407,8 +415,7 @@ impl RoutingSolution {
         // If the LP hasn't been solved for the current state, we'll do so
         let cache = &self.cache;
         let mut lp = self.cache.quantity.borrow_mut();
-        let travel_at_capacity = self.problem.travel_at_capacity();
-        lp.configure(self, false, false, travel_at_capacity, false)
+        lp.configure(self, false, false, false)
             .expect("configure failed");
         lp.solve().expect("solve failed");
         std::mem::drop(lp);
@@ -425,7 +432,7 @@ impl RoutingSolution {
         self.invalidate_caches();
 
         let mut lp = self.cache.quantity.borrow_mut();
-        lp.configure(self, true, true, true, true)
+        lp.configure(self, true, true, true)
             .expect("configure failed");
         lp.solve().expect("solve failed");
 
@@ -500,6 +507,24 @@ impl RoutingSolution {
         cached.get().unwrap()
     }
 
+    /// The total travel at capacity violation for this solution
+    pub fn travel_at_cap(&self) -> Quantity {
+        let cached = &self.cache.travel_at_cap;
+        if cached.get().is_none() {
+            self.update();
+        }
+        cached.get().unwrap()
+    }
+
+    /// The total travel empty violation for this solution
+    pub fn travel_empty(&self) -> Quantity {
+        let cached = &self.cache.travel_empty;
+        if cached.get().is_none() {
+            self.update();
+        }
+        cached.get().unwrap()
+    }
+
     /// Recycle this solution into a new fresh one with no content.
     /// This allows us to reuse the inner heap-allocated structures.
     /// The result is an empty solution that is unlikely to need allocations when pushing visits,
@@ -562,6 +587,26 @@ impl RoutingSolution {
         self.cache.approx_berth_violation.set(Some(violation));
 
         violation
+    }
+
+    fn update_travel_empty(&self, quantities: &QuantityLp) -> f64 {
+        let lp = quantities;
+        let travel_empty_violation = lp
+            .model
+            .get_obj_attr(grb::attr::X, &lp.vars.travel_empty)
+            .expect("failed to retrieve variable");
+        self.cache.travel_empty.set(Some(travel_empty_violation));
+        travel_empty_violation
+    }
+
+    fn update_travel_at_capacity(&self, quantities: &QuantityLp) -> f64 {
+        let lp = quantities;
+        let travel_at_cap_violation = lp
+            .model
+            .get_obj_attr(grb::attr::X, &lp.vars.travel_at_cap)
+            .expect("failed to retrieve variable");
+        self.cache.travel_at_cap.set(Some(travel_at_cap_violation));
+        travel_at_cap_violation
     }
 
     fn update_violation(&self, quantities: &QuantityLp) -> f64 {
@@ -654,7 +699,9 @@ impl RoutingSolution {
         self.update_revenue(&quantities);
         self.update_violation(&quantities);
         self.update_timing(&quantities);
-        self.update_spot(&quantities)
+        self.update_spot(&quantities);
+        self.update_travel_empty(&quantities);
+        self.update_travel_at_capacity(&quantities);
     }
 
     /// Invalidate all the cached values on this object (objective function values, etc.)
@@ -665,6 +712,8 @@ impl RoutingSolution {
         self.cache.revenue.set(None);
         self.cache.approx_berth_violation.set(None);
         self.cache.timing.set(None);
+        self.cache.travel_empty.set(None);
+        self.cache.travel_at_cap.set(None);
     }
 
     /// Convert to a double array of visits
