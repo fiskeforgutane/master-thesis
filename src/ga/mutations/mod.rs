@@ -33,7 +33,7 @@ pub use twerk::*;
 pub use two_opt::*;
 pub use vessel_swap::*;
 
-use super::{Chain, Stochastic};
+use super::{Chain, Nop, Stochastic};
 
 impl std::fmt::Display for AddRandom {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -160,7 +160,7 @@ where
         let p = self.0;
         let m = &self.1;
 
-        write!(f, "{p} {m} ?")
+        write!(f, "{m} {p} ?")
     }
 }
 
@@ -174,5 +174,11 @@ where
         let b = &self.1;
 
         write!(f, "{a} {b}")
+    }
+}
+
+impl std::fmt::Display for Nop {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "nop")
     }
 }

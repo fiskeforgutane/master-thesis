@@ -618,6 +618,7 @@ struct Args {
     /// The mutation used
     #[clap(
         short, long,
+        default_value = "std",
         parse(try_from_str = Box::<dyn RPNMutation>::try_from)
     )]
     mutation: Box<dyn RPNMutation>,
@@ -772,7 +773,10 @@ pub fn main() {
 
     // The termination criteria
     let termination = args.termination;
+    let mutation = args.mutation;
     println!("Termination: {termination}");
+    println!("Mutation:    {mutation}");
+    panic!("yo");
 
     // The output directory is ./solutions/TIME/PROBLEM/,
     let mut out = std::env::current_dir().expect("unable to fetch current dir");
