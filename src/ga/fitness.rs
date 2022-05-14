@@ -13,6 +13,8 @@ pub struct Weighted {
     pub cost: f64,
     pub approx_berth_violation: f64,
     pub spot: f64,
+    pub travel_empty: f64,
+    pub travel_at_cap: f64,
 }
 
 impl Fitness for Weighted {
@@ -23,13 +25,17 @@ impl Fitness for Weighted {
         let cost = solution.cost();
         let berth = solution.approx_berth_violation() as f64;
         let spot = solution.spot_cost();
+        let travel_empty = solution.travel_empty();
+        let travel_at_cap = solution.travel_at_cap();
 
         (warp * self.warp
             + violation * self.violation
             + cost * self.cost
             + revenue * self.revenue
             + spot * self.spot
-            + self.approx_berth_violation * berth
+            + berth * self.approx_berth_violation
+            + travel_empty * self.travel_empty
+            + travel_at_cap * self.travel_at_cap
             + 100000.0)
             .ln()
     }

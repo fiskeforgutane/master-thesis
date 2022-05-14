@@ -355,6 +355,8 @@ pub fn objective_terms(
         cost: solution.cost(),
         timing: res.timing,
         warp: solution.warp() as f64,
+        travel_empty: res.travel_empty,
+        travel_at_capacity: res.travel_at_cap,
     })
 }
 
@@ -390,4 +392,8 @@ pub struct ObjectiveTerms {
     pub timing: f64,
     #[pyo3(get)]
     pub warp: f64,
+    #[pyo3(get)]
+    pub travel_empty: f64,
+    #[pyo3(get)]
+    pub travel_at_capacity: f64,
 }
