@@ -211,7 +211,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         }
 
         println!(
-            "{:>010}: F = {}. warp = {}, apx berth = {}, violation = {}, obj = {}, revenue = {}, cost = {}",
+            "{:>010}: F = {}. warp = {}, apx berth = {}, violation = {}, obj = {}, revenue = {}, cost = {}, travel empty: {}, travel at cap: {}",
             epochs,
             fitness.of(&problem, &best),
             best.warp(),
@@ -220,6 +220,8 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
             best.cost() + best.spot_cost() - best.revenue(),
             best.revenue(),
             best.cost(),
+            best.travel_empty(),
+            best.travel_at_cap(),
         );
 
         if write {
@@ -464,6 +466,8 @@ pub enum Termination {
     NoImprovement(std::time::Instant, std::time::Duration, f64),
     /// Maximum running time from `Instant`
     Timeout(std::time::Instant, std::time::Duration),
+    /// Terminate upon finding a solution with no travel empty or travel at capacity violation
+    LoadViolation,
     /// Run forever
     Never,
     /// Terminate if either of the two termination criteria
@@ -502,6 +506,11 @@ impl Termination {
 
                 (std::time::Instant::now() - *last) > *duration
             }
+            Termination::LoadViolation => {
+                solution.warp() == 0
+                    && solution.travel_at_cap() < 1e-3
+                    && solution.travel_empty() < 1e-3
+            }
         }
     }
 }
@@ -516,6 +525,7 @@ impl std::fmt::Display for Termination {
             Termination::Never => write!(f, "never"),
             Termination::Any(lhs, rhs) => write!(f, "({lhs}) | ({rhs})"),
             Termination::All(lhs, rhs) => write!(f, "({lhs}) & ({rhs})"),
+            Termination::LoadViolation => write!(f, "no-load-violation"),
         }
     }
 }
