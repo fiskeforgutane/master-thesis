@@ -53,7 +53,7 @@ impl Mutation for Relocate {
             .max_by_key(|(_, (v1, v2, v3))| cost(v1, v2, v3));
 
         let (i, visit) = match most_expensive {
-            Some((i, (_, v2, _))) => (i + 1, v2.unwrap()),
+            Some((i, (_, v2, _))) => (i, v2.unwrap()),
             None => return,
         };
 
@@ -85,7 +85,7 @@ impl Mutation for Relocate {
         // get the plan of the vessel where the removed vist will be inserted
         let mut plan = mutator[plan_idx].mutate();
 
-        // if there is only one time period between prev and next, push next one later and its next and so on until there is room
+        /* // if there is only one time period between prev and next, push next one later and its next and so on until there is room
         for i in (idx - 1)..(plan.len() - 1) {
             let visit1 = plan[i];
             let visit2 = &mut plan[i + 1];
@@ -94,7 +94,7 @@ impl Mutation for Relocate {
                 break;
             }
             visit2.time += 1;
-        }
+        } */
 
         // create the visit to insert
         let to_insert = Visit {
@@ -102,6 +102,8 @@ impl Mutation for Relocate {
             time: plan[idx - 1].time + 1,
         };
         plan.insert(idx, to_insert);
+        // #help - use fix
+        plan.fix();
 
         // call bounce to hopefully fix timing
         let mut bounce = Bounce::new(25, BounceMode::All);
