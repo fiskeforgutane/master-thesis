@@ -5,16 +5,10 @@ use env_logger::Builder;
 use itertools::Itertools;
 use log::{info, LevelFilter};
 
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
-use std::fs::OpenOptions;
 use std::io::Write;
 use std::iter::once;
 use std::sync::Mutex;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::PathBuf, sync::Arc};
 
 pub mod ga;
 pub mod models;
@@ -27,8 +21,7 @@ pub mod termination;
 pub mod utils;
 
 use crate::ga::{
-    chromosome::InitRoutingSolution,
-    fitness::{self, Weighted},
+    fitness::Weighted,
     initialization::{Empty, FromPopulation, Initialization},
     mutations::{
         rr, AddRandom, AddSmart, Bounce, BounceMode, Dedup, DedupPolicy, InterSwap, IntraSwap,

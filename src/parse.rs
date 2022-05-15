@@ -1,5 +1,5 @@
 use std::{
-    fmt::{write, Display},
+    fmt::Display,
     num::{ParseFloatError, ParseIntError},
     path::Path,
 };
