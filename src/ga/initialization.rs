@@ -281,3 +281,14 @@ impl Initialization for GreedyWithBlinks {
 }
 
 pub struct StartPopulation {}
+
+pub struct Empty {}
+
+impl Initialization for Empty {
+    type Out = RoutingSolution;
+
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+        let vessels = problem.count::<Vessel>();
+        RoutingSolution::new_with_model(problem, vec![Vec::new(); vessels], quantities)
+    }
+}
