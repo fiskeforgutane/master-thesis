@@ -1,5 +1,3 @@
-use float_ord::FloatOrd;
-
 use rand::{
     prelude::{IteratorRandom, StdRng},
     SeedableRng,

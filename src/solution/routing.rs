@@ -2,7 +2,7 @@ use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::iter::once;
-use std::ops::{DerefMut, Range, RangeInclusive};
+use std::ops::{DerefMut, Range};
 use std::rc::Rc;
 use std::{ops::Deref, sync::Arc};
 

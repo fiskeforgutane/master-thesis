@@ -2,7 +2,7 @@ use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::{NodeIndex, ProductIndex};
 use grb::prelude::*;
 use itertools::iproduct;
-use log::{info, trace, debug};
+use log::{debug, trace};
 
 use super::sets_and_parameters::{Parameters, Sets};
 
@@ -18,8 +18,8 @@ impl TransportationSolver {
     ) -> grb::Result<(Model, Variables)> {
         debug!("Building transportation model for product {}", product);
 
-        trace!("sets: {:#?}",sets);
-        trace!("params: {:#?}",parameters);
+        trace!("sets: {:#?}", sets);
+        trace!("params: {:#?}", parameters);
 
         let mut model = Model::new(&format!("transport_model_{}", product))?;
         model.set_param(grb::param::OutputFlag, 0)?;

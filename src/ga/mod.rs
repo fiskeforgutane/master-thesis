@@ -12,7 +12,7 @@ pub mod traits;
 
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use log::{debug, trace};
+use log::trace;
 pub use traits::*;
 
 use crate::{models::quantity::QuantityLp, problem::Problem, solution::routing::RoutingSolution};

@@ -3,7 +3,7 @@ use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::Problem;
 use grb::prelude::*;
 use itertools::iproduct;
-use log::{debug, info};
+use log::debug;
 
 use super::sets_and_parameters::{Parameters, Sets};
 

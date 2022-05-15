@@ -4,7 +4,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use float_ord::FloatOrd;
 use log::{debug, trace};
 use rand::Rng;
 

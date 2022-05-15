@@ -112,7 +112,7 @@ pub fn ga_config(
 
 pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
     problem: Arc<Problem>,
-    mut output: PathBuf,
+    output: PathBuf,
     init: I,
     mut termination: Termination,
     config: &Config,
