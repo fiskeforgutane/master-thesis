@@ -915,25 +915,72 @@ impl Ord for Evaluation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Improvement {
     pub warp: isize,
     pub approx_berth_violation: isize,
-    pub violation: FloatOrd<f64>,
-    pub loss: FloatOrd<f64>,
+    pub violation: f64,
+    pub loss: f64,
+}
+
+impl PartialEq for Improvement {
+    fn eq(&self, other: &Self) -> bool {
+        let lhs = (
+            self.warp,
+            self.approx_berth_violation,
+            FloatOrd(self.violation),
+            FloatOrd(self.loss),
+        );
+        let rhs = (
+            other.warp,
+            other.approx_berth_violation,
+            FloatOrd(other.violation),
+            FloatOrd(other.loss),
+        );
+
+        lhs.eq(&rhs)
+    }
+}
+
+impl Eq for Improvement {}
+
+impl PartialOrd for Improvement {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for Improvement {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let lhs = (
+            self.warp,
+            self.approx_berth_violation,
+            FloatOrd(self.violation),
+            FloatOrd(self.loss),
+        );
+        let rhs = (
+            other.warp,
+            other.approx_berth_violation,
+            FloatOrd(other.violation),
+            FloatOrd(other.loss),
+        );
+
+        lhs.cmp(&rhs)
+    }
 }
 
 impl Improvement {
     pub fn between(incumbent: Evaluation, candidate: Evaluation) -> Improvement {
+        let approx_berth_violation =
+            incumbent.approx_berth_violation as isize - candidate.approx_berth_violation as isize;
+        let loss = (incumbent.cost + incumbent.spot_cost - incumbent.revenue)
+            - (candidate.cost + candidate.spot_cost - candidate.revenue);
+
         Improvement {
             warp: incumbent.warp as isize - candidate.warp as isize,
-            approx_berth_violation: incumbent.approx_berth_violation as isize
-                - candidate.approx_berth_violation as isize,
-            violation: FloatOrd(incumbent.violation - candidate.violation),
-            loss: FloatOrd(
-                (incumbent.cost + incumbent.spot_cost - incumbent.revenue)
-                    - (candidate.cost + candidate.spot_cost - candidate.revenue),
-            ),
+            approx_berth_violation,
+            violation: incumbent.violation - candidate.violation,
+            loss,
         }
     }
 }

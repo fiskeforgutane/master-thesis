@@ -8,7 +8,10 @@ use rand::{
 use crate::{
     ga::{initialization::GreedyWithBlinks, Mutation},
     problem::Vessel,
-    solution::{routing::Plan, Visit},
+    solution::{
+        routing::{Evaluation, Improvement, Plan},
+        Visit,
+    },
 };
 
 use super::Dropout;
@@ -18,7 +21,7 @@ pub struct Period {
     rng: StdRng,
     pub blink_rate: f64,
     pub removal_rate: f64,
-    pub epsilon: (f64, f64),
+    pub epsilon: Improvement,
     pub max_size: usize,
     pub c: usize,
 }
@@ -29,7 +32,12 @@ impl Period {
             rng: StdRng::from_entropy(),
             blink_rate,
             removal_rate,
-            epsilon: (1.0, 1.0),
+            epsilon: Improvement {
+                warp: 0,
+                approx_berth_violation: todo!(),
+                violation: todo!(),
+                loss: todo!(),
+            },
             max_size,
             c,
         }
@@ -57,11 +65,7 @@ impl Mutation for Period {
             }
         }
 
-        let mut best = (
-            solution.warp(),
-            FloatOrd(solution.violation()),
-            FloatOrd(solution.cost() - solution.revenue()),
-        );
+        let mut best = Evaluation::bad();
 
         // The indices of the last visit evaluated in every plan
         let mut indices = problem

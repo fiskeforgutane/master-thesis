@@ -4,7 +4,10 @@ use rand::{
     Rng, SeedableRng,
 };
 
-use crate::ga::{initialization::GreedyWithBlinks, Mutation};
+use crate::{
+    ga::{initialization::GreedyWithBlinks, Mutation},
+    solution::routing::{Evaluation, Improvement},
+};
 
 pub trait Dropout<T> {
     fn dropout<F: Fn(T) -> bool>(&mut self, eligible: F, removal_rate: f64);
@@ -31,7 +34,7 @@ pub struct Vessel {
     rng: StdRng,
     pub blink_rate: f64,
     pub removal_rate: f64,
-    pub epsilon: (f64, f64),
+    pub epsilon: Improvement,
     /// The number of candidates generated for one node out from the previous, typically set to 2-4.
     pub c: usize,
 }
@@ -42,7 +45,13 @@ impl Vessel {
             rng: StdRng::from_entropy(),
             blink_rate,
             removal_rate,
-            epsilon: (1.0, 1.0),
+            // Note: was previously (1.0, 1.0) for violation and loss
+            epsilon: Improvement {
+                warp: 0,
+                approx_berth_violation: 0,
+                violation: 0.0,
+                loss: 1.0,
+            },
             c,
         }
     }
@@ -64,11 +73,7 @@ impl Mutation for Vessel {
             plan.dropout(|x| x != origin, self.removal_rate);
         }
 
-        let mut best = (
-            solution.warp(),
-            FloatOrd(solution.violation()),
-            FloatOrd(solution.cost() - solution.revenue()),
-        );
+        let mut best = Evaluation::bad();
         let mut idx = 0;
         // Gredily construct a new vessel plan based on greedy insertion with blinks
         let greedy = GreedyWithBlinks::new(self.blink_rate);

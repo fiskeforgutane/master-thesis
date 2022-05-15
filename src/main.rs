@@ -45,7 +45,7 @@ use crate::ga::{Fitness, Mutation, ParentSelection, Recombination, SurvivalSelec
 use crate::models::exact_model::model::ExactModelSolver;
 use crate::parse::*;
 use crate::problem::Problem;
-use crate::solution::routing::RoutingSolution;
+use crate::solution::routing::{Improvement, RoutingSolution};
 use crate::solution::Visit;
 use crate::termination::Termination;
 
@@ -103,7 +103,12 @@ pub fn ga_config(
                     alpha: 0.0,
                     blink_rate: 0.1,
                     first_n: 5,
-                    epsilon: (0.9, 10.0),
+                    epsilon: Improvement {
+                        warp: 0,
+                        approx_berth_violation: 0,
+                        violation: 0.9,
+                        loss: 10.0,
+                    },
                 })
             )
         ),

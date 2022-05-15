@@ -20,6 +20,7 @@ use crate::{
         Chain, Mutation, Nop, Stochastic,
     },
     problem::Problem,
+    solution::routing::Improvement,
     termination::Termination,
 };
 use derive_more::Display;
@@ -75,7 +76,12 @@ pub fn std_mutation() -> Box<dyn RPNMutation> {
                 alpha: 0.0,
                 blink_rate: 0.1,
                 first_n: 5,
-                epsilon: (0.9, 10.0),
+                epsilon: Improvement {
+                    warp: 0,
+                    approx_berth_violation: 0,
+                    violation: 0.9,
+                    loss: 10.0,
+                },
             })
         )
     ))
@@ -89,7 +95,7 @@ impl<'s> TryFrom<&'s str> for Box<dyn RPNMutation> {
         let tokens = value.split_ascii_whitespace();
 
         enum Arg {
-            Int(usize),
+            Int(i64),
             Float(f64),
             Mut(Box<dyn RPNMutation>),
         }
@@ -124,33 +130,43 @@ impl<'s> TryFrom<&'s str> for Box<dyn RPNMutation> {
                 "remove-random" => Arg::Mut(Box::new(RemoveRandom::new())),
                 "interswap" => Arg::Mut(Box::new(InterSwap)),
                 "intraswap" => Arg::Mut(Box::new(IntraSwap)),
-                "redcost" => Arg::Mut(Box::new(RedCost::red_cost_mutation(int(&mut stack)?))),
+                "redcost" => Arg::Mut(Box::new(RedCost::red_cost_mutation(
+                    int(&mut stack)?.try_into().unwrap(),
+                ))),
                 "twerk" => Arg::Mut(Box::new(Twerk::everybody())),
                 "2opt" => Arg::Mut(Box::new(TwoOpt::new(TwoOptMode::IntraRandom))),
                 "time-setter" => Arg::Mut(Box::new(TimeSetter::new(float(&mut stack)?).unwrap())),
                 "replace-node" => Arg::Mut(Box::new(ReplaceNode::new(float(&mut stack)?))),
                 "swap*" => Arg::Mut(Box::new(SwapStar)),
                 "dedup" => Arg::Mut(Box::new(Dedup(DedupPolicy::KeepFirst))),
-                "bounce" => Arg::Mut(Box::new(Bounce::new(int(&mut stack)?, BounceMode::All))),
+                "bounce" => Arg::Mut(Box::new(Bounce::new(
+                    int(&mut stack)?.try_into().unwrap(),
+                    BounceMode::All,
+                ))),
                 "add-smart" => Arg::Mut(Box::new(AddSmart)),
                 "rr-period" => Arg::Mut(Box::new(Period::new(
                     float(&mut stack)?,
                     float(&mut stack)?,
-                    int(&mut stack)?,
-                    int(&mut stack)?,
+                    int(&mut stack)?.try_into().unwrap(),
+                    int(&mut stack)?.try_into().unwrap(),
                 ))),
                 "rr-vessel" => Arg::Mut(Box::new(Vessel::new(
                     float(&mut stack)?,
                     float(&mut stack)?,
-                    int(&mut stack)?,
+                    int(&mut stack)?.try_into().unwrap(),
                 ))),
                 "sisr" => Arg::Mut(Box::new(SlackInductionByStringRemoval::new(sisr::Config {
-                    average_removal: int(&mut stack)?,
-                    max_cardinality: int(&mut stack)?,
+                    average_removal: int(&mut stack)?.try_into().unwrap(),
+                    max_cardinality: int(&mut stack)?.try_into().unwrap(),
                     alpha: float(&mut stack)?,
                     blink_rate: float(&mut stack)?,
-                    first_n: int(&mut stack)?,
-                    epsilon: (float(&mut stack)?, float(&mut stack)?),
+                    first_n: int(&mut stack)?.try_into().unwrap(),
+                    epsilon: Improvement {
+                        warp: int(&mut stack)?.try_into().unwrap(),
+                        approx_berth_violation: int(&mut stack)?.try_into().unwrap(),
+                        violation: float(&mut stack)?,
+                        loss: float(&mut stack)?,
+                    },
                 }))),
                 "?" => Arg::Mut(Box::new(Stochastic::new(
                     float(&mut stack)?,

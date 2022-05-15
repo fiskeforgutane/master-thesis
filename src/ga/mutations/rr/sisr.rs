@@ -13,7 +13,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ga::{initialization::GreedyWithBlinks, Mutation},
     problem::{NodeIndex, Problem, TimeIndex, VesselIndex},
-    solution::{routing::RoutingSolution, Visit},
+    solution::{
+        routing::{Improvement, RoutingSolution},
+        Visit,
+    },
 };
 /// Implements a variant of the SISRs R&R algorithm presented by J. Christiaens and
 /// G. V. Berge adapted for use in a VRP variant with MIRP-style time windows.
@@ -35,8 +38,8 @@ pub struct Config {
     pub blink_rate: f64,
     /// We only consider the first `n` times in each continuous range of insertion points
     pub first_n: usize,
-    /// The epsilon for (violation, cost)
-    pub epsilon: (f64, f64),
+    /// The epsilon used for insertions
+    pub epsilon: Improvement,
     // The initial temperature
     // pub t0: f64,
     // The end temperature
@@ -245,11 +248,7 @@ impl Mutation for SlackInductionByStringRemoval {
 
         let greedy = GreedyWithBlinks::new(self.config.blink_rate);
 
-        let mut best = (
-            solution.warp(),
-            FloatOrd(solution.violation()),
-            FloatOrd(solution.cost() - solution.revenue()),
-        );
+        let mut best = solution.evaluation();
 
         debug!("SISR start = {:?}", solution.to_vec());
         loop {

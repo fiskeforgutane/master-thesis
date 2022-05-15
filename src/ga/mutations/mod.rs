@@ -33,6 +33,8 @@ pub use twerk::*;
 pub use two_opt::*;
 pub use vessel_swap::*;
 
+use crate::solution::routing::Improvement;
+
 use super::{Chain, Nop, Stochastic};
 
 impl std::fmt::Display for AddRandom {
@@ -141,14 +143,19 @@ impl std::fmt::Display for rr::Vessel {
 impl std::fmt::Display for rr::sisr::SlackInductionByStringRemoval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let config = &self.config;
-        let (epsilon_violation, epsilon_cost) = config.epsilon;
+        let Improvement {
+            warp,
+            approx_berth_violation,
+            violation,
+            loss,
+        } = config.epsilon;
         let first_n = config.first_n;
         let blink_rate = config.blink_rate;
         let alpha = config.alpha;
         let max_cardinality = config.max_cardinality;
         let average_removal = config.average_removal;
 
-        write!(f, "{epsilon_cost} {epsilon_violation} {first_n} {blink_rate} {alpha} {max_cardinality} {average_removal} sisr")
+        write!(f, "{loss} {violation} {approx_berth_violation} {warp} {first_n} {blink_rate} {alpha} {max_cardinality} {average_removal} sisr")
     }
 }
 
