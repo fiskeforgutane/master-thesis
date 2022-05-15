@@ -282,7 +282,7 @@ impl Initialization for GreedyWithBlinks {
 
 pub struct StartPopulation {}
 
-pub struct Empty {}
+pub struct Empty;
 
 impl Initialization for Empty {
     type Out = RoutingSolution;
