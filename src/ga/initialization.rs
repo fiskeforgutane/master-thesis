@@ -5,7 +5,7 @@ use std::{
 };
 
 use float_ord::FloatOrd;
-use log::{trace, debug};
+use log::{debug, trace};
 use rand::Rng;
 
 use crate::{
@@ -139,7 +139,10 @@ impl GreedyWithBlinks {
                 };
 
                 match occupied {
-                    true => None,
+                    true => {
+                        debug!("None should be occupied?");
+                        None
+                    }
                     false => Some(((v, visit), cost()?)),
                 }
             })
