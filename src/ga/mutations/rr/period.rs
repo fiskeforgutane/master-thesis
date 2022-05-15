@@ -34,9 +34,9 @@ impl Period {
             removal_rate,
             epsilon: Improvement {
                 warp: 0,
-                approx_berth_violation: todo!(),
-                violation: todo!(),
-                loss: todo!(),
+                approx_berth_violation: 0,
+                violation: 0.0,
+                loss: 1.0,
             },
             max_size,
             c,
