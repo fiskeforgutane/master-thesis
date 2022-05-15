@@ -2,13 +2,16 @@ use chrono::Local;
 use clap::{Parser, Subcommand};
 use env_logger::Builder;
 
+use float_ord::FloatOrd;
 use itertools::Itertools;
 use log::LevelFilter;
 
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::iter::once;
+use std::rc::Rc;
 use std::sync::Mutex;
 use std::{
     path::{Path, PathBuf},
@@ -26,7 +29,7 @@ pub mod utils;
 use crate::ga::{
     chromosome::InitRoutingSolution,
     fitness::{self},
-    initialization::{FromPopulation, Initialization},
+    initialization::{FromPopulation, Greedy, Improvement, Initialization},
     mutations::{
         rr, AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
         TimeSetter, Twerk, TwoOpt, TwoOptMode,
@@ -38,6 +41,7 @@ use crate::ga::{
 use crate::rolling_horizon::rolling_horizon::RollingHorizon;
 
 use crate::models::exact_model::model::ExactModelSolver;
+use crate::models::quantity::QuantityLp;
 use crate::problem::Problem;
 use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
@@ -588,6 +592,24 @@ enum Commands {
         checkpoints: Option<Vec<usize>>,
     },
     Exact,
+    Construction {
+        #[clap(long, default_value_t = 0.1)]
+        inter_blink_rate: f64,
+        #[clap(long, default_value_t = 0.1)]
+        intra_blink_rate: f64,
+        #[clap(long, default_value_t = 1)]
+        lookahead: usize,
+        #[clap(long, short, default_value_t = 3)]
+        range_max: usize,
+        #[clap(long, short, default_value_t = 0)]
+        epsilon_warp: isize,
+        #[clap(long, short, default_value_t = 0)]
+        epsilon_berth: isize,
+        #[clap(long, short, default_value_t = 10.0)]
+        epsilon_violation: f64,
+        #[clap(long, short, default_value_t = 10.0)]
+        epsilon_loss: f64,
+    },
 }
 
 fn enable_logger(level: LevelFilter) {
@@ -744,5 +766,38 @@ pub fn main() {
                 .unwrap_or(termination.clone()),
         ),
         Commands::Exact => run_exact_model(path, out, *termination),
+        Commands::Construction {
+            inter_blink_rate,
+            intra_blink_rate,
+            lookahead,
+            range_max,
+            epsilon_warp,
+            epsilon_berth,
+            epsilon_violation,
+            epsilon_loss,
+        } => {
+            let greedy = Greedy {
+                inter_blink_rate,
+                intra_blink_rate,
+                lookahead,
+                range_max,
+                epsilon: Improvement {
+                    warp: epsilon_warp,
+                    approx_berth_violation: epsilon_berth,
+                    violation: FloatOrd(epsilon_violation),
+                    loss: FloatOrd(epsilon_loss),
+                },
+            };
+
+            let problem = read_problem(path);
+            let mut quantities = Rc::new(RefCell::new(QuantityLp::new(&problem).unwrap()));
+
+            let new = greedy.new(problem, quantities);
+
+            out.push("greedy.json");
+            let file = std::fs::File::create(&out).unwrap();
+            out.pop();
+            serde_json::to_writer(file, &new.to_vec()).expect("writing failed");
+        }
     };
 }
