@@ -99,7 +99,7 @@ impl Mutation for Relocate {
         // create the visit to insert
         let to_insert = Visit {
             node: visit.node,
-            time: plan[idx - 1].time + 1,
+            time: plan[idx - 1].time,
         };
         plan.insert(idx, to_insert);
         // #help - use fix
