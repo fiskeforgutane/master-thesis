@@ -251,14 +251,14 @@ impl Mutation for SlackInductionByStringRemoval {
             FloatOrd(solution.cost() - solution.revenue()),
         );
 
-        trace!("SISR start = {:?}", solution.to_vec());
+        debug!("SISR start = {:?}", solution.to_vec());
         while let Some(((v, visit), obj)) = greedy.insert_best(
             solution,
             self.config.epsilon,
             &self.candidates(solution),
             best,
         ) {
-            trace!("\tinserting v = {v}: {visit:?}");
+            debug!("\tinserting v = {v}: {visit:?}");
             best = obj;
         }
     }
