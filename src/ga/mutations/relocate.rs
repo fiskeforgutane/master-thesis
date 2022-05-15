@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use itertools::Itertools;
 use log::trace;
 
@@ -31,7 +33,10 @@ impl Mutation for Relocate {
         }
         let vessel = &problem.vessels()[v];
 
-        let cost = |v1: &Visit, v2: &Visit, v3: &Visit| {
+        let cost = |v1: &Option<&Visit>, v2: &Option<&Visit>, v3: &Option<&Visit>| {
+            let v2 = v2.unwrap();
+            let v1 = v1.unwrap_or(v2);
+            let v3 = v3.unwrap_or(v2);
             let a = problem.travel_time(v1.node, v2.node, vessel);
             let b = problem.travel_time(v2.node, v3.node, vessel);
             let c = problem.travel_time(v1.node, v3.node, vessel);
@@ -39,15 +44,16 @@ impl Mutation for Relocate {
         };
 
         // find most expensive edge
-        let most_expensive = plan
-            .iter()
+        let most_expensive = once(None)
+            .chain(plan.iter().map(|v| Some(v)))
+            .chain(once(None))
             .tuple_windows()
             .enumerate()
             //.map(|(v1, v2, v3)| (v1, v2, v3))
             .max_by_key(|(_, (v1, v2, v3))| cost(v1, v2, v3));
 
-        let i = match most_expensive {
-            Some((i, _)) => i + 1,
+        let (i, visit) = match most_expensive {
+            Some((i, (_, v2, _))) => (i + 1, v2.unwrap()),
             None => return,
         };
 
@@ -56,10 +62,12 @@ impl Mutation for Relocate {
             .iter()
             .enumerate()
             .filter_map(|(plan_idx, p)| {
-                p.into_iter()
+                p.iter()
+                    .map(|v| Some(v))
+                    .chain(once(None))
                     .tuple_windows()
                     .enumerate()
-                    .map(|(i, (v1, v2, v3))| (plan_idx, i + 1, cost(v1, v2, v3)))
+                    .map(|(i, (v1, v2))| (plan_idx, i + 1, cost(&v1, &Some(visit), &v2)))
                     .min_by_key(|(_, _, c)| *c)
             })
             .min_by_key(|(_, _, c)| *c);
