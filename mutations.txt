@@ -1,12 +1,12 @@
-interswap 
-intraswap 
-10 redcost 
-twerk  
-2opt 
-0.5 time-setter
-0.1 replace-node
-3 bounce
-add-smart
-3 15 0.8 0.1 rr-period
-3 0.8 0.1 rr-vessel
-10 0.9 5 0.1 0 5 2 sisr
+10 0.9 0 0 2 0.1 0 5 2 sisr
+10 0.9 0 0 2 0.1 0 2 5 sisr
+10 0.9 0 0 2 0.1 0 3 4 sisr
+10 0.9 0 0 2 0.1 0 10 2 sisr
+2 4 0.8 0.05 rr-period
+2 2 0.8 0.10 rr-period
+2 4 0.8 0.10 rr-period
+2 6 0.8 0.10 rr-period
+2 8 0.8 0.10 rr-period
+2 0.9 0.05 rr-vessel
+3 0.9 0.05 rr-vessel
+3 0.9 0.1 rr-vessel
