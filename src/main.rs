@@ -29,7 +29,7 @@ pub mod utils;
 use crate::ga::{
     chromosome::InitRoutingSolution,
     fitness::{self, Weighted},
-    initialization::{FromPopulation, Initialization},
+    initialization::{Empty, FromPopulation, Initialization},
     mutations::{
         rr, AddRandom, AddSmart, Bounce, BounceMode, Dedup, DedupPolicy, InterSwap, IntraSwap,
         RedCost, RemoveRandom, ReplaceNode, SwapStar, TimeSetter, Twerk, TwoOpt, TwoOptMode,
@@ -197,7 +197,7 @@ pub fn run_unfixed_rolling_horizon(
     };
 
     let mut init: Arc<Mutex<dyn Initialization<Out = RoutingSolution> + Send>> =
-        Arc::new(Mutex::new(InitRoutingSolution));
+        Arc::new(Mutex::new(Empty));
 
     // The "normal" ends, i.e. (start, start + step, ...)
     let start = config.subproblem_size;
