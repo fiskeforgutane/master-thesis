@@ -215,11 +215,11 @@ where
             })
             .unwrap();
 
-        debug!("Lowest fitness: {:?}", fitness.of(problem, best));
-        debug!("Time warp: {:?}", best.warp());
-        debug!("Shortage: {:?}", best.violation());
-        debug!("Revenue: {:?}", best.revenue());
-        debug!("Cost: {:?}", best.cost());
+        trace!("Lowest fitness: {:?}", fitness.of(problem, best));
+        trace!("Time warp: {:?}", best.warp());
+        trace!("Shortage: {:?}", best.violation());
+        trace!("Revenue: {:?}", best.revenue());
+        trace!("Cost: {:?}", best.cost());
 
         trace!("End of epoch");
     }

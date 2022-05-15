@@ -5,7 +5,7 @@ use std::{
 };
 
 use float_ord::FloatOrd;
-use log::trace;
+use log::{trace, debug};
 use rand::Rng;
 
 use crate::{
@@ -203,6 +203,8 @@ impl GreedyWithBlinks {
             .and_then(|(idx, obj)| {
                 let dv = best.1 .0 - obj.1 .0;
                 let dl = best.2 .0 - obj.2 .0;
+
+                debug!("Best insertion is {idx:?} with obj {obj:?}");
 
                 if (dv, dl) <= epsilon || obj.0 > best.0 {
                     trace!("Iterative converge done");
