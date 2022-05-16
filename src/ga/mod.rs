@@ -180,9 +180,9 @@ where
                 trace!("Applying recombination");
                 self.config.recombination.apply(problem, left, right);
                 trace!("Applying mutation to left");
-                self.config.mutation.apply(problem, left);
+                self.config.mutation.apply(problem, left, fitness);
                 trace!("Applying mutation to right");
-                self.config.mutation.apply(problem, right);
+                self.config.mutation.apply(problem, right, fitness);
                 trace!("finished with recomb and mutations")
             }
         }

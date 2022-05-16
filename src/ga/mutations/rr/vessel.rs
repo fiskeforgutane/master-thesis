@@ -4,7 +4,7 @@ use rand::{
 };
 
 use crate::{
-    ga::{initialization::GreedyWithBlinks, Mutation},
+    ga::{initialization::GreedyWithBlinks, Mutation, Fitness},
     solution::routing::{Evaluation, Improvement},
 };
 
@@ -61,6 +61,7 @@ impl Mutation for Vessel {
         &mut self,
         problem: &crate::problem::Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
+        _: &dyn Fitness,
     ) {
         // Choose a random vessel index.
         let vessel = (0..problem.vessels().len()).choose(&mut self.rng).unwrap();

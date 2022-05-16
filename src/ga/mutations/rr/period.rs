@@ -4,7 +4,7 @@ use rand::{
 };
 
 use crate::{
-    ga::{initialization::GreedyWithBlinks, Mutation},
+    ga::{initialization::GreedyWithBlinks, Fitness, Mutation},
     problem::Vessel,
     solution::{
         routing::{Evaluation, Improvement, Plan},
@@ -47,6 +47,7 @@ impl Mutation for Period {
         &mut self,
         problem: &crate::problem::Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
+        _: &dyn Fitness,
     ) {
         let t = problem.timesteps();
         let half = self.max_size / 2;

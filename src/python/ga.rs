@@ -50,8 +50,8 @@ pub struct PyMut {
 }
 
 impl Mutation for PyMut {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        self.inner.lock().unwrap().apply(problem, solution)
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
+        self.inner.lock().unwrap().apply(problem, solution, fitness)
     }
 }
 
@@ -159,8 +159,8 @@ impl TimeSetterWrapper {
 unsafe impl Send for TimeSetterWrapper {}
 
 impl Mutation for TimeSetterWrapper {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        self.inner.lock().unwrap().apply(problem, solution)
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
+        self.inner.lock().unwrap().apply(problem, solution, fitness)
     }
 }
 

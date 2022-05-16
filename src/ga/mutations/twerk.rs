@@ -4,7 +4,11 @@ use log::{trace, warn};
 
 use rand::prelude::*;
 
-use crate::{ga::Mutation, problem::Problem, solution::Visit};
+use crate::{
+    ga::{Fitness, Mutation},
+    problem::Problem,
+    solution::Visit,
+};
 
 // How we're going to perform the twerking.
 #[derive(Debug, Clone, Copy)]
@@ -78,6 +82,7 @@ impl Mutation for Twerk {
         &mut self,
         problem: &crate::problem::Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
+        _: &dyn Fitness,
     ) {
         trace!("Applying Twerk({:?}) to {:?}", self.mode, solution);
         let rng = &mut self.rng;

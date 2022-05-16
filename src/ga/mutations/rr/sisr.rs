@@ -11,7 +11,7 @@ use rand::{distributions::Uniform, Rng};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ga::{initialization::GreedyWithBlinks, Mutation},
+    ga::{initialization::GreedyWithBlinks, Fitness, Mutation},
     problem::{NodeIndex, Problem, TimeIndex, VesselIndex},
     solution::{
         routing::{Improvement, RoutingSolution},
@@ -243,7 +243,7 @@ impl SlackInductionByStringRemoval {
 }
 
 impl Mutation for SlackInductionByStringRemoval {
-    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         self.ruin(solution);
 
         let greedy = GreedyWithBlinks::new(self.config.blink_rate);

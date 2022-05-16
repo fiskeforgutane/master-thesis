@@ -1,7 +1,9 @@
 use log::trace;
 
 use crate::{
-    ga::Mutation, models::quantity_cont::QuantityLpCont, problem::Problem,
+    ga::{Fitness, Mutation},
+    models::quantity_cont::QuantityLpCont,
+    problem::Problem,
     solution::routing::RoutingSolution,
 };
 
@@ -30,7 +32,7 @@ impl TimeSetter {
 }
 
 impl Mutation for TimeSetter {
-    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         // solve the lp and retrieve the new time periods
         trace!("Applying TimeSetter to {:?}", solution);
 

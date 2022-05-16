@@ -3,7 +3,7 @@ use log::trace;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Mutation, Fitness},
     problem::Problem,
     solution::routing::RoutingSolution,
     utils::{GetPairMut, SwapNodes},
@@ -13,7 +13,7 @@ use crate::{
 pub struct IntraSwap;
 
 impl Mutation for IntraSwap {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         trace!("Applying IntraSwap to {:?}", solution);
         let mut rand = rand::thread_rng();
         // get random plan where a swap should be performed

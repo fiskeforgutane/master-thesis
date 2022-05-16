@@ -1,5 +1,5 @@
 use crate::{
-    ga::Mutation,
+    ga::{Mutation, Fitness},
     problem::Problem,
     solution::routing::{Plan, RoutingSolution},
 };
@@ -13,7 +13,7 @@ pub enum DedupPolicy {
 pub struct Dedup(pub DedupPolicy);
 
 impl Mutation for Dedup {
-    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         let mut mutator = solution.mutate();
 
         for mut plan in mutator.iter_mut().map(Plan::mutate) {

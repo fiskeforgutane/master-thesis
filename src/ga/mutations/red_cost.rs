@@ -6,7 +6,7 @@ use log::trace;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Fitness, Mutation},
     problem::Problem,
     solution::routing::{Plan, RoutingSolution},
 };
@@ -293,7 +293,7 @@ impl RedCost {
 }
 
 impl Mutation for RedCost {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         // check that status is optimal and do nothing if semi-cont has been enabled
         let status = solution
             .quantities()
