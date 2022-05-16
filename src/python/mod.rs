@@ -1,7 +1,9 @@
 pub mod distributed;
 pub mod ga;
 
+use crate::ga::mutations::Split;
 use crate::ga::mutations::SwapStar;
+use crate::ga::Mutation;
 use crate::models::quantity::F64Variables;
 use crate::models::quantity::QuantityLp;
 use crate::problem::Compartment;
@@ -305,6 +307,18 @@ pub fn solve_multiple_quantities(
     }
 
     Ok(results)
+}
+
+#[pyfunction]
+pub fn test_split(problem: Problem, routes: Vec<Vec<Visit>>) -> Vec<Vec<Visit>> {
+    let arc = Arc::new(problem);
+    let mut solution = RoutingSolution::new(arc.clone(), routes);
+    let mut split = Split;
+    split.apply(&arc, &mut solution);
+    solution
+        .iter()
+        .map(|plan| plan.iter().cloned().collect())
+        .collect()
 }
 
 #[pyfunction]
