@@ -76,12 +76,7 @@ pub fn std_mutation() -> Box<dyn RPNMutation> {
                 alpha: 0.0,
                 blink_rate: 0.1,
                 first_n: 5,
-                epsilon: Improvement {
-                    warp: 0,
-                    approx_berth_violation: 0,
-                    violation: 0.9,
-                    loss: 10.0,
-                },
+                epsilon: 1e-7,
             })
         )
     ))
@@ -161,12 +156,7 @@ impl<'s> TryFrom<&'s str> for Box<dyn RPNMutation> {
                     alpha: float(&mut stack)?,
                     blink_rate: float(&mut stack)?,
                     first_n: int(&mut stack)?.try_into().unwrap(),
-                    epsilon: Improvement {
-                        warp: int(&mut stack)?.try_into().unwrap(),
-                        approx_berth_violation: int(&mut stack)?.try_into().unwrap(),
-                        violation: float(&mut stack)?,
-                        loss: float(&mut stack)?,
-                    },
+                    epsilon: float(&mut stack)?,
                 }))),
                 "?" => Arg::Mut(Box::new(Stochastic::new(
                     float(&mut stack)?,

@@ -143,19 +143,17 @@ impl std::fmt::Display for rr::Vessel {
 impl std::fmt::Display for rr::sisr::SlackInductionByStringRemoval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let config = &self.config;
-        let Improvement {
-            warp,
-            approx_berth_violation,
-            violation,
-            loss,
-        } = config.epsilon;
+        let epsilon = config.epsilon;
         let first_n = config.first_n;
         let blink_rate = config.blink_rate;
         let alpha = config.alpha;
         let max_cardinality = config.max_cardinality;
         let average_removal = config.average_removal;
 
-        write!(f, "{loss} {violation} {approx_berth_violation} {warp} {first_n} {blink_rate} {alpha} {max_cardinality} {average_removal} sisr")
+        write!(
+            f,
+            "{epsilon} {first_n} {blink_rate} {alpha} {max_cardinality} {average_removal} sisr"
+        )
     }
 }
 

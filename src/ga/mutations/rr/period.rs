@@ -19,7 +19,7 @@ pub struct Period {
     rng: StdRng,
     pub blink_rate: f64,
     pub removal_rate: f64,
-    pub epsilon: Improvement,
+    pub epsilon: f64,
     pub max_size: usize,
     pub c: usize,
 }
@@ -30,12 +30,7 @@ impl Period {
             rng: StdRng::from_entropy(),
             blink_rate,
             removal_rate,
-            epsilon: Improvement {
-                warp: 0,
-                approx_berth_violation: 0,
-                violation: 0.0,
-                loss: 1.0,
-            },
+            epsilon: 1e-7,
             max_size,
             c,
         }
@@ -47,7 +42,7 @@ impl Mutation for Period {
         &mut self,
         problem: &crate::problem::Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
-        _: &dyn Fitness,
+        fitness: &dyn Fitness,
     ) {
         let t = problem.timesteps();
         let half = self.max_size / 2;
@@ -64,7 +59,7 @@ impl Mutation for Period {
             }
         }
 
-        let mut best = Evaluation::bad();
+        let mut best = f64::INFINITY;
 
         // The indices of the last visit evaluated in every plan
         let mut indices = problem
@@ -99,6 +94,7 @@ impl Mutation for Period {
             self.epsilon,
             &candidates.iter().flatten().cloned().collect(),
             best,
+            fitness,
         ) {
             best = obj;
             indices[idx.0] += 1;

@@ -4,7 +4,7 @@ use rand::{
 };
 
 use crate::{
-    ga::{initialization::GreedyWithBlinks, Mutation, Fitness},
+    ga::{initialization::GreedyWithBlinks, Fitness, Mutation},
     solution::routing::{Evaluation, Improvement},
 };
 
@@ -33,7 +33,7 @@ pub struct Vessel {
     rng: StdRng,
     pub blink_rate: f64,
     pub removal_rate: f64,
-    pub epsilon: Improvement,
+    pub epsilon: f64,
     /// The number of candidates generated for one node out from the previous, typically set to 2-4.
     pub c: usize,
 }
@@ -45,12 +45,7 @@ impl Vessel {
             blink_rate,
             removal_rate,
             // Note: was previously (1.0, 1.0) for violation and loss
-            epsilon: Improvement {
-                warp: 0,
-                approx_berth_violation: 0,
-                violation: 0.0,
-                loss: 1.0,
-            },
+            epsilon: 1e-7,
             c,
         }
     }
@@ -61,7 +56,7 @@ impl Mutation for Vessel {
         &mut self,
         problem: &crate::problem::Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
-        _: &dyn Fitness,
+        fitness: &dyn Fitness,
     ) {
         // Choose a random vessel index.
         let vessel = (0..problem.vessels().len()).choose(&mut self.rng).unwrap();
@@ -73,12 +68,14 @@ impl Mutation for Vessel {
             plan.dropout(|x| x != origin, self.removal_rate);
         }
 
-        let mut best = Evaluation::bad();
+        let mut best = fitness.of(solution.problem(), solution);
         let mut idx = 0;
         // Gredily construct a new vessel plan based on greedy insertion with blinks
         let greedy = GreedyWithBlinks::new(self.blink_rate);
         let mut candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
-        while let Some((_, obj)) = greedy.insert_best(solution, self.epsilon, &candidates, best) {
+        while let Some((_, obj)) =
+            greedy.insert_best(solution, self.epsilon, &candidates, best, fitness)
+        {
             best = obj;
             idx += 1;
             candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();

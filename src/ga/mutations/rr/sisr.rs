@@ -39,7 +39,7 @@ pub struct Config {
     /// We only consider the first `n` times in each continuous range of insertion points
     pub first_n: usize,
     /// The epsilon used for insertions
-    pub epsilon: Improvement,
+    pub epsilon: f64,
     // The initial temperature
     // pub t0: f64,
     // The end temperature
@@ -243,19 +243,19 @@ impl SlackInductionByStringRemoval {
 }
 
 impl Mutation for SlackInductionByStringRemoval {
-    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
         self.ruin(solution);
 
         let greedy = GreedyWithBlinks::new(self.config.blink_rate);
 
-        let mut best = solution.evaluation();
+        let mut best = fitness.of(solution.problem(), solution);
 
         debug!("SISR start = {:?}", solution.to_vec());
         loop {
             let candidates = self.candidates(solution);
             debug!("\t#Candidates = {}", candidates.len());
 
-            match greedy.insert_best(solution, self.config.epsilon, &candidates, best) {
+            match greedy.insert_best(solution, self.config.epsilon, &candidates, best, fitness) {
                 Some(((v, visit), obj)) => {
                     debug!("\tinserted v = {v}: {visit:?}");
                     best = obj;
