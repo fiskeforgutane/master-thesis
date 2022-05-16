@@ -96,6 +96,7 @@ impl Mutation for Split {
             Some((i, (_, v2, _))) => (i, v2.unwrap()),
             None => return,
         };
+        trace!("most expensive edge found is edge to node {i} in plan {v}");
 
         let visits = &plan[i..];
 
@@ -118,6 +119,8 @@ impl Mutation for Split {
             Some((plan_idx, i, _)) => (plan_idx, i),
             None => return,
         };
+
+        trace!("Inserting nodes on in plan {plan_idx} from index {idx}");
 
         let mut removed = plan[i..].iter().cloned().collect::<Vec<_>>();
         let mut mutator = solution.mutate();
