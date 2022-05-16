@@ -7,6 +7,7 @@ use log::{info, LevelFilter};
 
 use std::io::Write;
 use std::iter::once;
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::{path::PathBuf, sync::Arc};
 
@@ -21,7 +22,7 @@ pub mod termination;
 pub mod utils;
 
 use crate::ga::{
-    fitness::Weighted,
+    fitness::{AtomicF64, AtomicWeighted, Weighted},
     initialization::{Empty, FromPopulation, Initialization},
     mutations::{
         rr, AddRandom, AddSmart, Bounce, BounceMode, Dedup, DedupPolicy, InterSwap, IntraSwap,
@@ -117,7 +118,17 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
     mut termination: Termination,
     config: &Config,
 ) -> (RoutingSolution, Vec<Vec<Vec<Vec<Visit>>>>) {
-    let fitness = weighted(&problem);
+    let fitness = Arc::new(AtomicWeighted {
+        warp: AtomicF64::new(0.0),
+        violation: AtomicF64::new(0.0),
+        revenue: AtomicF64::new(-1.0),
+        cost: AtomicF64::new(1.0),
+        approx_berth_violation: AtomicF64::new(0.0),
+        spot: AtomicF64::new(1.0),
+        offset: AtomicF64::new(problem.max_revenue() + 1.0),
+    });
+
+    let closure_fitness = fitness.clone();
     let closure_problem = problem.clone();
     let population = config.population;
     let children = config.children;
@@ -135,12 +146,13 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
             recombination: Stochastic::new(0.1, PIX),
             mutation: Box::<dyn RPNMutation>::try_from(mutation.as_str()).unwrap(),
             selection: Elite(1, Proportionate(|x| 1.0 / (1.0 + x))),
-            fitness,
+            fitness: closure_fitness.clone(),
         },
         threads,
     );
 
     let mut last_migration = 0;
+    let start = std::time::Instant::now();
     loop {
         let epochs = ga.epochs();
         let best = RoutingSolution::new(problem.clone(), ga.best().0.clone());
@@ -163,6 +175,15 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
             best.revenue(),
             best.cost(),
         );
+
+        // Update the weights
+        let elapsed = (std::time::Instant::now() - start).as_secs_f64();
+        let d = elapsed.min(config.full_penalty_after) / config.full_penalty_after;
+        fitness
+            .approx_berth_violation
+            .store(d * 1e8, Ordering::Relaxed);
+        fitness.warp.store(d * 1e8, Ordering::Relaxed);
+        fitness.violation.store(d * 1e4, Ordering::Relaxed);
 
         if termination.should_terminate(epochs, &best, fitness.of(&problem, &best)) {
             return (best, ga.populations());
@@ -284,6 +305,7 @@ pub struct Config {
     pub migrate_every: u64,
     pub loop_delay: u64,
     pub threads: usize,
+    pub full_penalty_after: f64,
 }
 
 #[derive(Subcommand)]
@@ -317,6 +339,8 @@ enum Commands {
         migrate_every: u64,
         #[clap(long, default_value_t = -2)]
         threads: i64,
+        #[clap(long, default_value_t = 0)]
+        full_penalty_after: f64,
     },
     Exact,
 }
@@ -395,6 +419,7 @@ pub fn main() {
             mutation,
             loop_delay,
             threads,
+            full_penalty_after,
         } => {
             let threads = match threads {
                 -2 => std::thread::available_parallelism().unwrap().get() / 2,
@@ -417,6 +442,7 @@ pub fn main() {
                 migrate_every,
                 loop_delay,
                 threads,
+                full_penalty_after,
             };
             run_unfixed_rolling_horizon(Arc::new(problem), out, termination.clone(), config);
         }

@@ -66,15 +66,14 @@ impl AtomicF64 {
 
 /// A version of `Weighted` with atomic weights. Meant to be used as a shared fitness objective
 /// between multiple islands in an islanding GA.
-#[derive(Clone)]
 pub struct AtomicWeighted {
-    pub warp: Arc<AtomicF64>,
-    pub violation: Arc<AtomicF64>,
-    pub revenue: Arc<AtomicF64>,
-    pub cost: Arc<AtomicF64>,
-    pub approx_berth_violation: Arc<AtomicF64>,
-    pub spot: Arc<AtomicF64>,
-    pub offset: Arc<AtomicF64>,
+    pub warp: AtomicF64,
+    pub violation: AtomicF64,
+    pub revenue: AtomicF64,
+    pub cost: AtomicF64,
+    pub approx_berth_violation: AtomicF64,
+    pub spot: AtomicF64,
+    pub offset: AtomicF64,
 }
 
 impl Fitness for AtomicWeighted {
@@ -89,5 +88,12 @@ impl Fitness for AtomicWeighted {
             offset: self.offset.load(Ordering::Relaxed),
         }
         .of(problem, solution)
+    }
+}
+
+impl<F: Fitness> Fitness for Arc<F> {
+    fn of(&self, problem: &Problem, solution: &RoutingSolution) -> f64 {
+        let inner: &F = &(*self);
+        inner.of(problem, solution)
     }
 }
