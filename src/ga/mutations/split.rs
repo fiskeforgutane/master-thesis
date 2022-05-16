@@ -78,7 +78,7 @@ impl Mutation for Split {
             let v1 = v1.unwrap_or(&v2[0]);
             let v3 = v3.unwrap_or(&v2[v2.len() - 1]);
             let a = problem.travel_time(v1.node, v2[0].node, vessel);
-            let b = problem.travel_time(v2[v2.len()].node, v3.node, vessel);
+            let b = problem.travel_time(v2[v2.len()-1].node, v3.node, vessel);
             let c = problem.travel_time(v1.node, v3.node, vessel);
             a + b - c
         };
@@ -97,7 +97,16 @@ impl Mutation for Split {
             None => return,
         };
 
-        let visits = &plan[i..];
+        let mut visits =plan[i..].iter().cloned().collect::<Vec<_>>();
+
+        
+        
+        {
+            let mut mutator = solution.mutate();
+            // remove most the most expensive nodes
+            let mut plan = mutator[v].mutate();
+            plan.split(i);
+        }
 
         // find the vessel where it is cheapest to insert the node
         let a = solution
@@ -109,7 +118,7 @@ impl Mutation for Split {
                     .chain(once(None))
                     .tuple_windows()
                     .enumerate()
-                    .map(|(i, (v1, v2))| (plan_idx, i + 1, insert_cost(&v1, &Some(visits), &v2)))
+                    .map(|(i, (v1, v2))| (plan_idx, i + 1, insert_cost(&v1, &Some(visits.as_slice()), &v2)))
                     .min_by_key(|(_, _, c)| *c)
             })
             .min_by_key(|(_, _, c)| *c);
@@ -119,28 +128,22 @@ impl Mutation for Split {
             None => return,
         };
 
-        let mut removed = plan[i..].iter().cloned().collect::<Vec<_>>();
+        
         let mut mutator = solution.mutate();
-        {
-            // remove most the most expensive nodes
-            let mut plan = mutator[v].mutate();
-            plan.split(i);
-        }
-
         // get the plan of the vessel where the removed vists will be inserted
         let mut plan = mutator[plan_idx].mutate();
 
-        removed[0].time = usize::min(plan[idx - 1].time + 1, problem.timesteps() - 1);
+        visits[0].time = usize::min(plan[idx - 1].time + 1, problem.timesteps() - 1);
         // modify the visits to insert
-        for j in 1..removed.len() {
+        for j in 1..visits.len() {
             let i = j - 1;
-            let mut visit = plan[j];
-            visit.time = plan[i].time + 1;
+            let mut visit = visits[j];
+            visit.time = visits[i].time + 1;
         }
 
         // insert the visits
         let mut i = idx;
-        for v in removed {
+        for v in visits {
             plan.insert(i, v);
             i += 1;
         }

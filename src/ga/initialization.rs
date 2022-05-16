@@ -282,6 +282,7 @@ impl Initialization for GreedyWithBlinks {
 
 pub struct StartPopulation {}
 
+#[derive(Clone)]
 pub struct Empty;
 
 impl Initialization for Empty {

@@ -90,7 +90,7 @@ impl Mutation for Relocate {
             let visit1 = plan[i];
             let visit2 = &mut plan[i + 1];
 
-            if visit1.time != visit2.time {
+            if visit2.time - visit1.time>1 {
                 break;
             }
             visit2.time += 1;

@@ -5,6 +5,8 @@ use env_logger::Builder;
 use itertools::Itertools;
 use log::LevelFilter;
 
+
+
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -26,10 +28,10 @@ pub mod utils;
 use crate::ga::{
     chromosome::InitRoutingSolution,
     fitness::{self},
-    initialization::{FromPopulation, Initialization},
+    initialization::{FromPopulation, Initialization, Empty},
     mutations::{
         rr, AddRandom, AddSmart, Bounce, BounceMode, InterSwap, IntraSwap, RedCost, RemoveRandom,
-        Split, TimeSetter, Twerk, TwoOpt, TwoOptMode,
+        TimeSetter, Twerk, TwoOpt, TwoOptMode,Relocate, Split
     },
     parent_selection,
     recombinations::PIX,
@@ -62,6 +64,7 @@ pub struct Config {
     pub rr_vessel: (f64, f64, f64, usize),
     pub rr_sisr: (f64, rr::sisr::Config),
     pub split: f64,
+    pub relocate: f64,
     pub pix: f64,
     pub threads: usize,
     pub migrate_every: u64,
@@ -70,8 +73,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            population: 100,
-            children: 100,
+            population: 3,
+            children: 3,
             pix: 0.10,
             threads: 8,
             add_random: 0.03,
@@ -102,6 +105,7 @@ impl Default for Config {
 
             migrate_every: 500,
             split: 0.05,
+            relocate: 0.08,
         }
     }
 }
@@ -124,13 +128,13 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
     let closure_problem = problem.clone();
     let fitness = fitness::Weighted {
         warp: 1e8,
-        violation: 1e4,
-        revenue: -1.0,
+        violation: 1e6,
+        revenue: -0.0,
         cost: 1.0,
         approx_berth_violation: 1e8,
-        spot: 1.0,
-        travel_empty: 1e5,
-        travel_at_cap: 1e5,
+        spot: 1e6,
+        travel_empty: 0.0,
+        travel_at_cap: 0.0,
         offset: problem.max_revenue() + 1.0,
     };
 
@@ -179,7 +183,14 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
                 conf.rr_sisr.0,
                 rr::sisr::SlackInductionByStringRemoval::new(conf.rr_sisr.1)
             ),
-            Stochastic::new(conf.split, Split)
+            Stochastic::new(
+                conf.relocate,
+                Relocate
+            ), 
+            Stochastic::new(
+                conf.split,
+                Split
+            )
         ),
         selection: survival_selection::Elite(
             1,
