@@ -155,7 +155,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
     let start = std::time::Instant::now();
     loop {
         let epochs = ga.epochs();
-        let best = RoutingSolution::new(problem.clone(), ga.best().0.clone());
+        let best = RoutingSolution::new(problem.clone(), ga.best().clone());
 
         if epochs - last_migration > config.migrate_every {
             info!("Migrating...");
@@ -339,7 +339,7 @@ enum Commands {
         migrate_every: u64,
         #[clap(long, default_value_t = -2)]
         threads: i64,
-        #[clap(long, default_value_t = 0)]
+        #[clap(long, default_value_t = 1.0)]
         full_penalty_after: f64,
     },
     Exact,
