@@ -11,7 +11,9 @@ use crate::ga::mutations::DistanceReductionMode;
 use crate::ga::mutations::InterSwap;
 use crate::ga::mutations::IntraSwap;
 use crate::ga::mutations::RedCost;
+use crate::ga::mutations::Relocate;
 use crate::ga::mutations::RemoveRandom;
+use crate::ga::mutations::Split;
 use crate::ga::mutations::SwapStar;
 use crate::ga::mutations::TimeSetter;
 use crate::ga::mutations::Twerk;
@@ -182,6 +184,20 @@ pub fn add_smart() -> PyMut {
 pub fn swap_star() -> PyMut {
     PyMut {
         inner: Arc::new(Mutex::new(SwapStar {})),
+    }
+}
+
+#[pyfunction]
+pub fn split() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(Split {})),
+    }
+}
+
+#[pyfunction]
+pub fn relocate() -> PyMut {
+    PyMut {
+        inner: Arc::new(Mutex::new(Relocate {})),
     }
 }
 

@@ -96,6 +96,7 @@ impl Mutation for Split {
             Some((i, (_, v2, _))) => (i, v2.unwrap()),
             None => return,
         };
+        trace!("most expensive edge found is edge to node {i} in plan {v}");
 
         let mut visits =plan[i..].iter().cloned().collect::<Vec<_>>();
 
@@ -128,7 +129,8 @@ impl Mutation for Split {
             None => return,
         };
 
-        
+        trace!("Inserting nodes on in plan {plan_idx} from index {idx}");
+
         let mut mutator = solution.mutate();
         // get the plan of the vessel where the removed vists will be inserted
         let mut plan = mutator[plan_idx].mutate();
