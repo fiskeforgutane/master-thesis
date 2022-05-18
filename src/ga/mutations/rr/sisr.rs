@@ -122,7 +122,7 @@ impl SlackInductionByStringRemoval {
         let problem = solution.problem();
 
         let ls_max = (config.max_cardinality as f64).min(Self::average_tour_cardinality(solution));
-        let ks_max = (4.0 * config.average_removal as f64) / (1.0 + ls_max) - 1.0;
+        let ks_max = ((4.0 * config.average_removal as f64) / (1.0 + ls_max) - 1.0).max(0.0);
         // The number of strings that will be removed.
         let k_s = Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rng) as usize;
 
