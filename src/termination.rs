@@ -6,6 +6,8 @@ pub enum Termination {
     Epochs(u64),
     /// Terminate upon finding a solution with no violation
     NoViolation,
+    /// Terminate upon finding a solution with that adheres to travel at capacity / travel empty
+    TravelFullEmptyValid,
     /// Terminate if there has been no improvement for the given amount of time
     NoImprovement(std::time::Instant, std::time::Duration, f64),
     /// Maximum running time from `Instant`
@@ -30,6 +32,9 @@ impl Termination {
             Termination::Timeout(from, duration) => (std::time::Instant::now() - *from) > *duration,
             Termination::Epochs(e) => *e > epoch,
             Termination::NoViolation => solution.warp() == 0 && solution.violation() < 1e-3,
+            Termination::TravelFullEmptyValid => {
+                solution.travel_at_cap() < 1e-3 && solution.travel_empty() < 1e-3
+            }
             Termination::Never => false,
             Termination::Any(one, two) => {
                 one.should_terminate(epoch, solution, fitness)
@@ -57,6 +62,7 @@ impl std::fmt::Display for Termination {
         match self {
             Termination::Epochs(e) => write!(f, "{e} epochs"),
             Termination::NoViolation => write!(f, "no-violation"),
+            Termination::TravelFullEmptyValid => write!(f, "full-empty-valid"),
             Termination::NoImprovement(_, dur, _) => write!(f, "{} no-improvement", dur.as_secs()),
             Termination::Timeout(_, dur) => write!(f, "{} timeout", dur.as_secs()),
             Termination::Never => write!(f, "never"),

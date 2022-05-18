@@ -230,6 +230,7 @@ impl<'s> std::convert::TryFrom<&'s str> for Termination {
             let new = match token {
                 "never" => Arg::Term(Box::new(Termination::Never)),
                 "epochs" => Arg::Term(Box::new(Termination::Epochs(int(&mut stack)?))),
+                "full-empty-valid" => Arg::Term(Box::new(Termination::TravelFullEmptyValid)),
                 "timeout" => Arg::Term(Box::new(Termination::Timeout(
                     std::time::Instant::now(),
                     std::time::Duration::from_secs(int(&mut stack)?),
