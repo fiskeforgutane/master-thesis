@@ -65,17 +65,17 @@ pub fn std_mutation() -> Box<dyn RPNMutation> {
         Stochastic::new(0.01, Bounce::new(3, BounceMode::All)),
         Stochastic::new(0.01, Bounce::new(3, BounceMode::Random)),
         Stochastic::new(0.01, AddSmart),
-        Stochastic::new(0.01, rr::Period::new(0.1, 0.8, 15, 3)),
-        Stochastic::new(0.01, rr::Vessel::new(0.1, 0.8, 3)),
+        Stochastic::new(0.10, rr::Period::new(0.05, 0.8, 6, 2)),
+        Stochastic::new(0.05, rr::Vessel::new(0.05, 0.8, 3)),
         Stochastic::new(
-            0.01,
+            0.02,
             rr::sisr::SlackInductionByStringRemoval::new(rr::sisr::Config {
                 average_removal: 2,
-                max_cardinality: 5,
+                max_cardinality: 10,
                 alpha: 0.0,
-                blink_rate: 0.1,
-                first_n: 5,
-                epsilon: 1e-7,
+                blink_rate: 0.05,
+                first_n: 2,
+                epsilon: 0.00000001,
             })
         )
     ))
