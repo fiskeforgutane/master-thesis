@@ -108,7 +108,7 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
             last_migration = epochs;
         }
 
-        println!(
+        info!(
             "{:>010}: F = {}. warp = {}, apx berth = {}, violation = {}, spot: {}, obj = {}, revenue = {}, cost = {}, travel empty: {}, travel at cap: {}",
             epochs,
             fitness.of(&problem, &best),
@@ -132,6 +132,8 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
             .store(d * 1e8, Ordering::Relaxed);
         fitness.warp.store(d * 1e8, Ordering::Relaxed);
         fitness.violation.store(d * 1e4, Ordering::Relaxed);
+        fitness.travel_at_cap.store(d * 1e4, Ordering::Relaxed);
+        fitness.travel_empty.store(d * 1e4, Ordering::Relaxed);
 
         if termination.should_terminate(epochs, &best, fitness.of(&problem, &best)) {
             return (best, ga.populations());
