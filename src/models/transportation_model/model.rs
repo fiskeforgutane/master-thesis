@@ -2,7 +2,7 @@ use crate::models::utils::{AddVars, ConvertVars};
 use crate::problem::{NodeIndex, ProductIndex};
 use grb::prelude::*;
 use itertools::iproduct;
-use log::{info, trace};
+use log::{debug, trace};
 
 use super::sets_and_parameters::{Parameters, Sets};
 
@@ -16,10 +16,10 @@ impl TransportationSolver {
         parameters: &Parameters,
         product: usize,
     ) -> grb::Result<(Model, Variables)> {
-        info!("Building transportation model for product {}", product);
+        debug!("Building transportation model for product {}", product);
 
-        trace!("sets: {:#?}",sets);
-        trace!("params: {:#?}",parameters);
+        trace!("sets: {:#?}", sets);
+        trace!("params: {:#?}", parameters);
 
         let mut model = Model::new(&format!("transport_model_{}", product))?;
         model.set_param(grb::param::OutputFlag, 0)?;
@@ -104,10 +104,6 @@ impl TransportationSolver {
 
         model.update()?;
 
-        info!(
-            "Successfully built transportation model for product {}",
-            product
-        );
         Ok((model, Variables::new(x, y)))
     }
 

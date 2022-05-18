@@ -6,7 +6,7 @@ use log::trace;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Fitness, Mutation},
     problem::Problem,
     solution::routing::{Plan, RoutingSolution},
 };
@@ -23,8 +23,8 @@ pub enum RedCostMode {
 /// This mutation exploits the dual solution of the quantities LP to direct the search towards a hopefulle better solution.
 #[derive(Debug, Clone)]
 pub struct RedCost {
-    mode: RedCostMode,
-    max_visits: usize,
+    pub mode: RedCostMode,
+    pub max_visits: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -293,7 +293,7 @@ impl RedCost {
 }
 
 impl Mutation for RedCost {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         // check that status is optimal and do nothing if semi-cont has been enabled
         let status = solution
             .quantities()

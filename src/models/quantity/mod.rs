@@ -379,7 +379,7 @@ impl QuantityLp {
         model.add_constr("travel_empty", c!(travel_empty_expr == travel_empty))?;
         model.add_constr(
             "travel_at_cap",
-            c!(travel_at_capacity_expr==travel_at_cap ),
+            c!(travel_at_capacity_expr == travel_at_cap),
         )?;
 
         let obj = violation + 0.5_f64 * spot - 1e-6_f64 * revenue
@@ -387,7 +387,7 @@ impl QuantityLp {
             + travel_empty
             + travel_at_cap;
         model.set_objective(obj, grb::ModelSense::Minimize)?;
-       
+
         Ok(QuantityLp {
             model,
             vars: Variables {
@@ -640,7 +640,6 @@ impl QuantityLp {
             .map(|(t, v)| (self.vars.cap_violation[t][v], travel_at_cap_constr, 1.0));
 
         model.set_coeffs(a.chain(b))?;
-       
 
         Ok(())
     }

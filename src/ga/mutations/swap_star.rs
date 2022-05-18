@@ -6,7 +6,7 @@ use log::trace;
 use num_complex::Complex;
 
 use crate::{
-    ga::Mutation,
+    ga::{Fitness, Mutation},
     problem::Problem,
     solution::{
         routing::{Plan, RoutingSolution},
@@ -374,7 +374,7 @@ impl SwapStar {
 }
 
 impl Mutation for SwapStar {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         let routes = Self::swap_star_plans(problem, solution).collect::<Vec<_>>();
         for (r1, r2) in routes {
             let swap = Self::best_swap(&solution[r1], &solution[r2], problem);

@@ -2,7 +2,7 @@ use log::trace;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Fitness, Mutation},
     problem::{Problem, Vessel},
     solution::routing::RoutingSolution,
 };
@@ -21,7 +21,7 @@ impl RemoveRandom {
 }
 
 impl Mutation for RemoveRandom {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         trace!("Applying RemoveRandom to {:?}", solution);
         // Note: there always be at least one vessel in a `Problem`, and
         // 0..=x is always non-empty when x is an unsigned type

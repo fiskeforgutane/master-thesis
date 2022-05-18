@@ -1,13 +1,16 @@
 use log::trace;
 
 use crate::{
-    ga::Mutation, models::quantity_cont::QuantityLpCont, problem::Problem,
+    ga::{Fitness, Mutation},
+    models::quantity_cont::QuantityLpCont,
+    problem::Problem,
     solution::routing::RoutingSolution,
 };
 
 /// Solves a linear program to decide quantities and arrival times at each node
 pub struct TimeSetter {
     quants_lp: QuantityLpCont,
+    delay: f64,
 }
 
 impl TimeSetter {
@@ -19,12 +22,17 @@ impl TimeSetter {
     pub fn new(delay: f64) -> grb::Result<TimeSetter> {
         trace!("Creating time setter mutation");
         let quants_lp = QuantityLpCont::new(delay)?;
-        Ok(TimeSetter { quants_lp })
+        Ok(TimeSetter { quants_lp, delay })
+    }
+
+    /// The delay added between visits
+    pub fn delay(&self) -> f64 {
+        self.delay
     }
 }
 
 impl Mutation for TimeSetter {
-    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         // solve the lp and retrieve the new time periods
         trace!("Applying TimeSetter to {:?}", solution);
 

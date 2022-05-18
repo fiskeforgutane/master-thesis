@@ -12,7 +12,7 @@ pub mod traits;
 
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use log::{info, trace};
+use log::trace;
 pub use traits::*;
 
 use crate::{models::quantity::QuantityLp, problem::Problem, solution::routing::RoutingSolution};
@@ -180,9 +180,9 @@ where
                 trace!("Applying recombination");
                 self.config.recombination.apply(problem, left, right);
                 trace!("Applying mutation to left");
-                self.config.mutation.apply(problem, left);
+                self.config.mutation.apply(problem, left, fitness);
                 trace!("Applying mutation to right");
-                self.config.mutation.apply(problem, right);
+                self.config.mutation.apply(problem, right, fitness);
                 trace!("finished with recomb and mutations")
             }
         }
@@ -215,11 +215,11 @@ where
             })
             .unwrap();
 
-        info!("Lowest fitness: {:?}", fitness.of(problem, best));
-        info!("Time warp: {:?}", best.warp());
-        info!("Shortage: {:?}", best.violation());
-        info!("Revenue: {:?}", best.revenue());
-        info!("Cost: {:?}", best.cost());
+        trace!("Lowest fitness: {:?}", fitness.of(problem, best));
+        trace!("Time warp: {:?}", best.warp());
+        trace!("Shortage: {:?}", best.violation());
+        trace!("Revenue: {:?}", best.revenue());
+        trace!("Cost: {:?}", best.cost());
 
         trace!("End of epoch");
     }

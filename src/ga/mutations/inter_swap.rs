@@ -3,7 +3,7 @@ use log::trace;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Mutation, Fitness},
     problem::Problem,
     solution::routing::RoutingSolution,
     utils::{GetPairMut, SwapNodes},
@@ -14,7 +14,7 @@ use crate::{
 pub struct InterSwap;
 
 impl Mutation for InterSwap {
-    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         trace!("Applying InterSwap to {:?}", solution);
         let mut rand = rand::thread_rng();
         // select two random vessels participate in the swap

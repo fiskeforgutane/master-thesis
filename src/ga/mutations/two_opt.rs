@@ -5,7 +5,7 @@ use log::trace;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Fitness, Mutation},
     problem::{NodeType, Problem},
     solution::routing::{Plan, RoutingSolution},
     utils::{GetPairMut, SwapNodes},
@@ -174,7 +174,7 @@ impl TwoOpt {
 }
 
 impl Mutation for TwoOpt {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         match self.mode {
             TwoOptMode::LocalSerach(time_limit, epsilon) => {
                 let mutator = &mut solution.mutate();

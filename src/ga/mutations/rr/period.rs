@@ -1,12 +1,10 @@
-use float_ord::FloatOrd;
-
 use rand::{
     prelude::{IteratorRandom, StdRng},
     SeedableRng,
 };
 
 use crate::{
-    ga::{initialization::GreedyWithBlinks, Mutation},
+    ga::{initialization::GreedyWithBlinks, Fitness, Mutation},
     problem::Vessel,
     solution::{routing::Plan, Visit},
 };
@@ -16,11 +14,11 @@ use super::Dropout;
 /// A ruin and recreate method that removes visits within a random time period, and repairs the solution by greedily inserting visits using greedy insertion with blinks
 pub struct Period {
     rng: StdRng,
-    blink_rate: f64,
-    removal_rate: f64,
-    epsilon: (f64, f64),
-    max_size: usize,
-    c: usize,
+    pub blink_rate: f64,
+    pub removal_rate: f64,
+    pub epsilon: f64,
+    pub max_size: usize,
+    pub c: usize,
 }
 
 impl Period {
@@ -29,7 +27,7 @@ impl Period {
             rng: StdRng::from_entropy(),
             blink_rate,
             removal_rate,
-            epsilon: (1.0, 1.0),
+            epsilon: 1e-7,
             max_size,
             c,
         }
@@ -41,6 +39,7 @@ impl Mutation for Period {
         &mut self,
         problem: &crate::problem::Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
+        fitness: &dyn Fitness,
     ) {
         let t = problem.timesteps();
         let half = self.max_size / 2;
@@ -57,11 +56,7 @@ impl Mutation for Period {
             }
         }
 
-        let mut best = (
-            solution.warp(),
-            FloatOrd(solution.violation()),
-            FloatOrd(solution.cost() - solution.revenue()),
-        );
+        let mut best = f64::INFINITY;
 
         // The indices of the last visit evaluated in every plan
         let mut indices = problem
@@ -96,6 +91,7 @@ impl Mutation for Period {
             self.epsilon,
             &candidates.iter().flatten().cloned().collect(),
             best,
+            fitness,
         ) {
             best = obj;
             indices[idx.0] += 1;

@@ -2,7 +2,7 @@ use log::trace;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Mutation, Fitness},
     problem::{Node, Problem, Vessel},
     solution::{routing::RoutingSolution, Visit},
 };
@@ -21,7 +21,7 @@ impl AddRandom {
 }
 
 impl Mutation for AddRandom {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         trace!("Applying AddRandom to {:?}", solution);
         // The number of timesteps
         let t = problem.timesteps();

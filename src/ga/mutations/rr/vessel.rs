@@ -1,10 +1,9 @@
-use float_ord::FloatOrd;
 use rand::{
     prelude::{IteratorRandom, StdRng},
     Rng, SeedableRng,
 };
 
-use crate::ga::{initialization::GreedyWithBlinks, Mutation};
+use crate::ga::{initialization::GreedyWithBlinks, Fitness, Mutation};
 
 pub trait Dropout<T> {
     fn dropout<F: Fn(T) -> bool>(&mut self, eligible: F, removal_rate: f64);
@@ -29,11 +28,11 @@ where
 /// A ruin and recreate method that removes a single vessel's path, and inserts in in a greedily using greedy insertion with blinks
 pub struct Vessel {
     rng: StdRng,
-    blink_rate: f64,
-    removal_rate: f64,
-    epsilon: (f64, f64),
+    pub blink_rate: f64,
+    pub removal_rate: f64,
+    pub epsilon: f64,
     /// The number of candidates generated for one node out from the previous, typically set to 2-4.
-    c: usize,
+    pub c: usize,
 }
 
 impl Vessel {
@@ -42,7 +41,8 @@ impl Vessel {
             rng: StdRng::from_entropy(),
             blink_rate,
             removal_rate,
-            epsilon: (1.0, 1.0),
+            // Note: was previously (1.0, 1.0) for violation and loss
+            epsilon: 1e-7,
             c,
         }
     }
@@ -53,6 +53,7 @@ impl Mutation for Vessel {
         &mut self,
         problem: &crate::problem::Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
+        fitness: &dyn Fitness,
     ) {
         // Choose a random vessel index.
         let vessel = (0..problem.vessels().len()).choose(&mut self.rng).unwrap();
@@ -64,16 +65,14 @@ impl Mutation for Vessel {
             plan.dropout(|x| x != origin, self.removal_rate);
         }
 
-        let mut best = (
-            solution.warp(),
-            FloatOrd(solution.violation()),
-            FloatOrd(solution.cost() - solution.revenue()),
-        );
+        let mut best = fitness.of(solution.problem(), solution);
         let mut idx = 0;
         // Gredily construct a new vessel plan based on greedy insertion with blinks
         let greedy = GreedyWithBlinks::new(self.blink_rate);
         let mut candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
-        while let Some((_, obj)) = greedy.insert_best(solution, self.epsilon, &candidates, best) {
+        while let Some((_, obj)) =
+            greedy.insert_best(solution, self.epsilon, &candidates, best, fitness)
+        {
             best = obj;
             idx += 1;
             candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();

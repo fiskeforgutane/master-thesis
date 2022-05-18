@@ -3,7 +3,7 @@ use float_ord::FloatOrd;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Fitness, Mutation},
     problem::{Problem, Vessel},
     solution::routing::RoutingSolution,
 };
@@ -14,7 +14,7 @@ use crate::{
 /// the same kind as `b`.
 pub struct ReplaceNode {
     rng: StdRng,
-    blink_rate: f64,
+    pub blink_rate: f64,
 }
 
 impl ReplaceNode {
@@ -27,7 +27,7 @@ impl ReplaceNode {
 }
 
 impl Mutation for ReplaceNode {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         let mut solution = solution.mutate();
         // Choose a random vessel's plan
         let v = problem.indices::<Vessel>().choose(&mut self.rng).unwrap();

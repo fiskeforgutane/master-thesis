@@ -4,7 +4,7 @@ use log::trace;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Mutation, Fitness},
     problem::Problem,
     solution::routing::{PlanMut, RoutingSolution},
 };
@@ -16,7 +16,7 @@ pub struct BestMove {
 }
 
 impl Mutation for BestMove {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         trace!("Applying BestMove to {:?}", solution);
         // Select a random vessel
         let vessel = self.rand.gen_range(0..solution.len());

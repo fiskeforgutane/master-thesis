@@ -5,14 +5,19 @@ use std::{
 };
 
 use float_ord::FloatOrd;
-use log::trace;
+use log::{debug, trace};
 use rand::Rng;
 
 use crate::{
     models::quantity::QuantityLp,
     problem::{Node, Problem, Vessel},
-    solution::{routing::RoutingSolution, Visit},
+    solution::{
+        routing::{RoutingSolution},
+        Visit,
+    },
 };
+
+use super::{fitness::Weighted, Fitness};
 
 pub trait Initialization {
     type Out;
@@ -82,7 +87,8 @@ impl GreedyWithBlinks {
         insertion: Visit,
         solution: &mut RoutingSolution,
         baseline_warp: usize,
-    ) -> Option<(usize, FloatOrd<f64>, FloatOrd<f64>)> {
+        fitness: &dyn Fitness,
+    ) -> Option<f64> {
         // Insert the visit
         {
             let mut solution = solution.mutate();
@@ -93,11 +99,7 @@ impl GreedyWithBlinks {
         // We will only evaluate those that have no warp, as an optimization
         let warp = solution.warp();
         let obj = match warp > baseline_warp {
-            false => Some((
-                warp,
-                FloatOrd(solution.violation()),
-                FloatOrd(solution.cost() - solution.revenue()),
-            )),
+            false => Some(fitness.of(solution.problem(), solution)),
             true => None,
         };
 
@@ -118,7 +120,8 @@ impl GreedyWithBlinks {
         &self,
         solution: &mut RoutingSolution,
         candidates: I,
-    ) -> Option<((usize, Visit), (usize, FloatOrd<f64>, FloatOrd<f64>))>
+        fitness: &dyn Fitness,
+    ) -> Option<((usize, Visit), f64)>
     where
         I: Iterator<Item = (usize, Visit)>,
     {
@@ -131,54 +134,51 @@ impl GreedyWithBlinks {
                 let occupied = solution[v]
                     .binary_search_by_key(&visit.time, |v| v.time)
                     .is_ok();
-                let bad = (usize::MAX, FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
 
                 let mut cost = || match blink {
-                    true => Some(bad),
-                    false => Some(Self::evaluate(v, visit, solution, baseline_warp)?),
+                    true => Some(f64::INFINITY),
+                    false => Some(Self::evaluate(v, visit, solution, baseline_warp, fitness)?),
                 };
 
                 match occupied {
-                    true => None,
+                    true => {
+                        debug!("None should be occupied?");
+                        None
+                    }
                     false => Some(((v, visit), cost()?)),
                 }
             })
-            .min_by_key(|(_, cost)| *cost)
+            .min_by_key(|(_, cost)| FloatOrd(*cost))
     }
 
-    pub fn choose<I>(&self, solution: &mut RoutingSolution, candidates: I) -> Option<(usize, Visit)>
+    pub fn choose<I>(
+        &self,
+        solution: &mut RoutingSolution,
+        candidates: I,
+        fitness: &dyn Fitness,
+    ) -> Option<(usize, Visit)>
     where
         I: Iterator<Item = (usize, Visit)>,
     {
-        self.choose_inc_obj(solution, candidates).map(|t| t.0)
+        self.choose_inc_obj(solution, candidates, fitness)
+            .map(|t| t.0)
     }
 
     // Repeatedly insert at the best position according to greedy with blinks while improvements are > epsilon.
     pub fn converge(
         &self,
         solution: &mut RoutingSolution,
-        epsilon: (f64, f64),
+        epsilon: f64,
         candidates: Vec<(usize, Visit)>,
+        fitness: &dyn Fitness,
     ) {
-        let mut best = (
-            solution.warp(),
-            FloatOrd(solution.violation()),
-            FloatOrd(solution.cost() - solution.revenue()),
-        );
+        let mut best = fitness.of(solution.problem(), solution);
 
         trace!("start converge.");
-        while let Some((idx, obj)) = self.choose_inc_obj(solution, candidates.iter().cloned()) {
-            let dv = best.1 .0 - obj.1 .0;
-            let dl = best.2 .0 - obj.2 .0;
-            trace!(
-                "\tconverge: z = {:?}, dv = {}, dl = {}, idx = {:?}",
-                obj,
-                dv,
-                dl,
-                idx
-            );
-
-            if (dv, dl) <= epsilon || obj.0 > best.0 {
+        while let Some((idx, obj)) =
+            self.choose_inc_obj(solution, candidates.iter().cloned(), fitness)
+        {
+            if obj - best < epsilon {
                 trace!("converge done.");
                 return;
             }
@@ -193,18 +193,18 @@ impl GreedyWithBlinks {
     pub fn insert_best(
         &self,
         solution: &mut RoutingSolution,
-        epsilon: (f64, f64),
+        epsilon: f64,
         candidates: &Vec<(usize, Visit)>,
-        best: (usize, FloatOrd<f64>, FloatOrd<f64>),
-    ) -> Option<((usize, Visit), (usize, FloatOrd<f64>, FloatOrd<f64>))> {
+        best: f64,
+        fitness: &dyn Fitness,
+    ) -> Option<((usize, Visit), f64)> {
         // choose the best among the candidates
 
-        self.choose_inc_obj(solution, candidates.into_iter().cloned())
+        self.choose_inc_obj(solution, candidates.into_iter().cloned(), fitness)
             .and_then(|(idx, obj)| {
-                let dv = best.1 .0 - obj.1 .0;
-                let dl = best.2 .0 - obj.2 .0;
-
-                if (dv, dl) <= epsilon || obj.0 > best.0 {
+                //let improvement = Improvement::between(best, obj);
+                debug!("Best insertion is {idx:?} with obj {obj:?}");
+                if best - obj <= epsilon {
                     trace!("Iterative converge done");
                     return None;
                 }
@@ -228,7 +228,18 @@ impl Initialization for GreedyWithBlinks {
             quantities.clone(),
         );
 
-        let mut best = (usize::MAX, FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
+        let mut best = f64::INFINITY;
+        let fitness: &dyn Fitness = &Weighted {
+            warp: 1e8,
+            violation: 1e4,
+            revenue: -1.0,
+            cost: 1.0,
+            approx_berth_violation: 1e8,
+            spot: 1.0,
+            offset: problem.max_revenue() + 1.0,
+            travel_empty: 1e5,
+            travel_at_cap: 1e5,
+        };
 
         loop {
             let s = &solution;
@@ -249,22 +260,22 @@ impl Initialization for GreedyWithBlinks {
 
             let (v, node, time, cost) = candidates
                 .into_iter()
-                .map(|(v, node, time)| {
-                    let bad = (usize::MAX, FloatOrd(f64::INFINITY), FloatOrd(f64::INFINITY));
-                    match rand::thread_rng().gen_bool(self.blink_rate) {
-                        true => (v, node, time, bad),
+                .map(
+                    |(v, node, time)| match rand::thread_rng().gen_bool(self.blink_rate) {
+                        true => (v, node, time, f64::INFINITY),
                         false => {
                             let cost = Self::evaluate(
                                 v,
                                 Visit { node, time },
                                 &mut solution,
                                 baseline_warp,
+                                fitness,
                             );
-                            (v, node, time, cost.unwrap_or(bad))
+                            (v, node, time, cost.unwrap_or(f64::INFINITY))
                         }
-                    }
-                })
-                .min_by_key(|t| t.3)
+                    },
+                )
+                .min_by_key(|t| FloatOrd(t.3))
                 .unwrap();
 
             if cost >= best {

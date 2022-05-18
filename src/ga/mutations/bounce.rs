@@ -3,7 +3,7 @@ use pyo3::pyclass;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Fitness, Mutation},
     problem::{Problem, VesselIndex},
     solution::routing::RoutingSolution,
 };
@@ -20,7 +20,7 @@ pub enum BounceMode {
 /// in such a way that they (hopefully) get enought space to become travel time feasible.
 pub struct Bounce {
     rng: rand::rngs::StdRng,
-    passes: usize,
+    pub passes: usize,
     mode: BounceMode,
 }
 
@@ -93,6 +93,7 @@ impl Mutation for Bounce {
         &mut self,
         problem: &Problem,
         solution: &mut crate::solution::routing::RoutingSolution,
+        _: &dyn Fitness,
     ) {
         trace!("Applying Bounce({:?}) to {:?}", self.mode, solution);
         for _ in 0..self.passes {

@@ -8,7 +8,7 @@ use rand::prelude::*;
 use crate::{
     ga::{
         mutations::{Bounce, BounceMode},
-        Mutation,
+        Fitness, Mutation,
     },
     problem::Problem,
     solution::{routing::RoutingSolution, Visit},
@@ -18,7 +18,7 @@ use crate::{
 pub struct Relocate;
 
 impl Mutation for Relocate {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
         trace!("Applying Relocate to {:?}", solution);
         let mut rand = rand::thread_rng();
         // get random plan to get a node from
@@ -109,6 +109,6 @@ impl Mutation for Relocate {
         let mut bounce = Bounce::new(25, BounceMode::All);
         drop(plan);
         drop(mutator);
-        bounce.apply(problem, solution);
+        bounce.apply(problem, solution, fitness);
     }
 }

@@ -11,7 +11,7 @@ use rand::{distributions::Uniform, Rng};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ga::{initialization::GreedyWithBlinks, Mutation},
+    ga::{initialization::GreedyWithBlinks, Fitness, Mutation},
     problem::{NodeIndex, Problem, TimeIndex, VesselIndex},
     solution::{routing::RoutingSolution, Visit},
 };
@@ -19,7 +19,7 @@ use crate::{
 /// G. V. Berge adapted for use in a VRP variant with MIRP-style time windows.
 pub struct SlackInductionByStringRemoval {
     /// The configuration of the SISRs algorithm
-    config: Config,
+    pub config: Config,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -35,8 +35,8 @@ pub struct Config {
     pub blink_rate: f64,
     /// We only consider the first `n` times in each continuous range of insertion points
     pub first_n: usize,
-    /// The epsilon for (violation, cost)
-    pub epsilon: (f64, f64),
+    /// The epsilon used for insertions
+    pub epsilon: f64,
     // The initial temperature
     // pub t0: f64,
     // The end temperature
@@ -119,7 +119,7 @@ impl SlackInductionByStringRemoval {
         let problem = solution.problem();
 
         let ls_max = (config.max_cardinality as f64).min(Self::average_tour_cardinality(solution));
-        let ks_max = (4.0 * config.average_removal as f64) / (1.0 + ls_max) - 1.0;
+        let ks_max = ((4.0 * config.average_removal as f64) / (1.0 + ls_max) - 1.0).max(0.0);
         // The number of strings that will be removed.
         let k_s = Uniform::new_inclusive(1.0, ks_max + 1.0).sample(&mut rng) as usize;
 
@@ -240,26 +240,29 @@ impl SlackInductionByStringRemoval {
 }
 
 impl Mutation for SlackInductionByStringRemoval {
-    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
         self.ruin(solution);
 
         let greedy = GreedyWithBlinks::new(self.config.blink_rate);
 
-        let mut best = (
-            solution.warp(),
-            FloatOrd(solution.violation()),
-            FloatOrd(solution.cost() - solution.revenue()),
-        );
+        let mut best = fitness.of(solution.problem(), solution);
 
-        trace!("SISR start = {:?}", solution.to_vec());
-        while let Some(((v, visit), obj)) = greedy.insert_best(
-            solution,
-            self.config.epsilon,
-            &self.candidates(solution),
-            best,
-        ) {
-            trace!("\tinserting v = {v}: {visit:?}");
-            best = obj;
+        debug!("SISR start = {:?}", solution.to_vec());
+        loop {
+            let candidates = self.candidates(solution);
+            debug!("\t#Candidates = {}", candidates.len());
+
+            match greedy.insert_best(solution, self.config.epsilon, &candidates, best, fitness) {
+                Some(((v, visit), obj)) => {
+                    debug!("\tinserted v = {v}: {visit:?}");
+                    best = obj;
+                }
+                None => {
+                    debug!("\tno viable insertion");
+                    break;
+                }
+            }
         }
+        debug!("SISR end");
     }
 }

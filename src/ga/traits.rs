@@ -14,23 +14,18 @@ pub trait ParentSelection {
 
 pub trait Recombination {
     fn apply(&mut self, problem: &Problem, left: &mut RoutingSolution, right: &mut RoutingSolution);
-
-    fn with_probability(self, p: f64) -> Stochastic<Self>
-    where
-        Self: Sized,
-    {
-        Stochastic::new(p, self)
-    }
 }
 
 pub trait Mutation {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution);
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness);
+}
 
-    fn with_probability(self, p: f64) -> Stochastic<Self>
-    where
-        Self: Sized,
-    {
-        Stochastic::new(p, self)
+impl<M> Mutation for Box<M>
+where
+    M: Mutation + ?Sized,
+{
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
+        M::apply(self, problem, solution, fitness)
     }
 }
 
@@ -76,9 +71,9 @@ where
     A: Mutation,
     B: Mutation,
 {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        self.0.apply(problem, solution);
-        self.1.apply(problem, solution);
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
+        self.0.apply(problem, solution, fitness);
+        self.1.apply(problem, solution, fitness);
     }
 }
 
@@ -112,9 +107,9 @@ impl<M> Mutation for Stochastic<M>
 where
     M: Mutation,
 {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
         if self.2.gen_range(0.0..1.0) < self.0 {
-            self.1.apply(problem, solution);
+            self.1.apply(problem, solution, fitness);
         }
     }
 }
@@ -143,7 +138,7 @@ impl Recombination for Nop {
 }
 
 impl Mutation for Nop {
-    fn apply(&mut self, _: &Problem, _: &mut RoutingSolution) {}
+    fn apply(&mut self, _: &Problem, _: &mut RoutingSolution, _: &dyn Fitness) {}
 }
 
 impl Penalty for Nop {
@@ -157,9 +152,9 @@ impl<M> Mutation for Vec<M>
 where
     M: Mutation,
 {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
         let mutation = self.choose_mut(&mut rand::thread_rng()).unwrap();
-        mutation.apply(problem, solution)
+        mutation.apply(problem, solution, fitness)
     }
 }
 
@@ -168,11 +163,11 @@ impl<M> Mutation for Vec<(M, f64)>
 where
     M: Mutation,
 {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
         let (mutation, _) = self
             .choose_weighted_mut(&mut rand::thread_rng(), |(_, w)| *w)
             .unwrap();
-        mutation.apply(problem, solution)
+        mutation.apply(problem, solution, fitness)
     }
 }
 
@@ -217,9 +212,14 @@ macro_rules! impl_array_choice {
         where
             M: Mutation,
         {
-            fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+            fn apply(
+                &mut self,
+                problem: &Problem,
+                solution: &mut RoutingSolution,
+                fitness: &dyn Fitness,
+            ) {
                 let mutation = self.choose_mut(&mut rand::thread_rng()).unwrap();
-                mutation.apply(problem, solution)
+                mutation.apply(problem, solution, fitness)
             }
         }
 

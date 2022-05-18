@@ -5,7 +5,7 @@ use pyo3::pyclass;
 use rand::prelude::*;
 
 use crate::{
-    ga::Mutation,
+    ga::{Mutation, Fitness},
     problem::Problem,
     solution::routing::{PlanMut, RoutingSolution},
 };
@@ -99,7 +99,7 @@ impl DistanceReduction {
 }
 
 impl Mutation for DistanceReduction {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
         trace!("DistanceReduction({:?}): {:?}", self.mode, solution);
         match self.mode {
             DistanceReductionMode::All => {

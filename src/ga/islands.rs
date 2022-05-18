@@ -46,7 +46,7 @@ pub struct IslandGA<PS, R, M, S, F> {
     /// Receiver-end of the transmitter channel which each spawned thread has available.
     rx: std::sync::mpsc::Receiver<Stm>,
     /// The best individual ever recorded across all islands.
-    best: Arc<Mutex<(ThinSolution, f64)>>,
+    best: Arc<Mutex<ThinSolution>>,
     /// The total number of epochs done across all islands
     total_epochs: Arc<AtomicU64>,
     // TODO:
@@ -82,10 +82,7 @@ where
         let total_epochs = Arc::new(AtomicU64::new(0));
         let problem = config.clone()().problem;
 
-        let best = Arc::new(Mutex::new((
-            RoutingSolution::empty(problem.clone()).to_vec(),
-            std::f64::INFINITY,
-        )));
+        let best = Arc::new(Mutex::new(RoutingSolution::empty(problem.clone()).to_vec()));
 
         for i in 0..count {
             let (init, stm) = (init.clone(), tx.clone());
@@ -138,10 +135,14 @@ where
                     let island_best = ga.best_individual();
                     let island_fitness = fitness.of(&problem, island_best);
                     let mut best = mutex.lock().unwrap();
+                    // Not ideal.
+                    let best_fitness = fitness.of(
+                        &problem,
+                        &RoutingSolution::new(problem.clone(), best.clone()),
+                    );
 
-                    if island_fitness <= best.1 {
-                        best.0.clone_from_slice(&island_best.to_vec());
-                        best.1 = island_fitness;
+                    if island_fitness <= best_fitness {
+                        best.clone_from_slice(&island_best.to_vec());
                     }
                 }
             }));
@@ -165,7 +166,7 @@ where
     }
 
     /// Returns the current best solution
-    pub fn best(&self) -> MutexGuard<(ThinSolution, f64)> {
+    pub fn best(&self) -> MutexGuard<ThinSolution> {
         self.best.lock().unwrap()
     }
 

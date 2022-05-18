@@ -3,7 +3,7 @@ use itertools::Itertools;
 use log::warn;
 
 use crate::{
-    ga::Mutation,
+    ga::{Mutation, Fitness},
     models::quantity::QuantityLp,
     problem::{NodeIndex, Problem, ProductIndex, TimeIndex, VesselIndex},
     solution::{routing::RoutingSolution, Visit},
@@ -20,7 +20,9 @@ impl AddSmart {
     ///
     /// # Arguments
     /// * `solution` - The routing solution that should be investigated
-    pub fn most_significant_violation(solution: &RoutingSolution) -> Option<(NodeIndex, TimeIndex)> {
+    pub fn most_significant_violation(
+        solution: &RoutingSolution,
+    ) -> Option<(NodeIndex, TimeIndex)> {
         let lp = solution.quantities();
         let w = &lp.vars.w;
 
@@ -101,8 +103,8 @@ impl AddSmart {
 }
 
 impl Mutation for AddSmart {
-    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution) {
-        let (node, time) = match  Self::most_significant_violation(solution) {
+    fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
+        let (node, time) = match Self::most_significant_violation(solution) {
             Some(x) => x,
             None => return,
         };
