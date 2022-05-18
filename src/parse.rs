@@ -20,7 +20,6 @@ use crate::{
         Chain, Mutation, Nop, Stochastic,
     },
     problem::Problem,
-    solution::routing::Improvement,
     termination::Termination,
 };
 use derive_more::Display;

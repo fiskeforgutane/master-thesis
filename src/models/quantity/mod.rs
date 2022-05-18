@@ -24,6 +24,8 @@ pub struct Variables {
     pub spot: Var,
     pub revenue: Var,
     pub timing: Var,
+    pub travel_empty: Var,
+    pub travel_at_cap: Var,
 }
 
 #[pyclass]
@@ -48,6 +50,10 @@ pub struct F64Variables {
     pub a: Vec<Vec<Vec<f64>>>,
     #[pyo3(get)]
     pub cap_violation: Vec<Vec<f64>>,
+    #[pyo3(get)]
+    pub travel_empty: f64,
+    #[pyo3(get)]
+    pub travel_at_cap: f64,
 }
 
 pub struct QuantityLp {
@@ -324,6 +330,8 @@ impl QuantityLp {
         let timing = add_ctsvar!(model, name: "timinig", bounds: 0.0..)?;
         let spot = add_ctsvar!(model, name: "spot", bounds: 0.0..)?;
         let violation = add_ctsvar!(model, name: "violation", bounds: 0.0..)?;
+        let travel_empty = add_ctsvar!(model, name: "travel_empty", bounds: 0.0..)?;
+        let travel_at_cap = add_ctsvar!(model, name: "travel_at_cap", bounds: 0.0..)?;
 
         // Add constraints for node inventory, vessel load, and loading/unloading rate
         QuantityLp::inventory_constraints(&mut model, problem, &s, &w, &x, &a, t, n, v, p)?;
@@ -355,12 +363,29 @@ impl QuantityLp {
             .map(|(t, n, v, p)| x[t][n][v][p] * t as i32)
             .grb_sum();
 
+        // set the travel empty variable equal to all load variables - the weights will be modified in configure
+        let travel_empty_expr = iproduct!(0..t, 0..v, 0..p)
+            .map(|(t, v, p)| l[t][v][p])
+            .grb_sum();
+        // do the same with travel at capacity
+        let travel_at_capacity_expr = iproduct!(0..t, 0..v)
+            .map(|(t, v)| cap_violation[t][v])
+            .grb_sum();
+
         model.add_constr("spot", c!(spot == spot_expr))?;
         model.add_constr("revenue", c!(revenue == revenue_expr))?;
         model.add_constr("violation", c!(violation == violation_expr))?;
         model.add_constr("timing", c!(timing == timing_expr))?;
+        model.add_constr("travel_empty", c!(travel_empty_expr == travel_empty))?;
+        model.add_constr(
+            "travel_at_cap",
+            c!(travel_at_capacity_expr == travel_at_cap),
+        )?;
 
-        let obj = violation + 0.5_f64 * spot - 1e-6_f64 * revenue + 1e-12_f64 * timing;
+        let obj = violation + 0.5_f64 * spot - 1e-6_f64 * revenue
+            + 1e-12_f64 * timing
+            + travel_empty
+            + travel_at_cap;
         model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         Ok(QuantityLp {
@@ -377,6 +402,8 @@ impl QuantityLp {
                 spot,
                 revenue,
                 timing,
+                travel_empty,
+                travel_at_cap,
             },
             semicont: false,
             berth: false,
@@ -469,7 +496,6 @@ impl QuantityLp {
         solution: &RoutingSolution,
         semicont: bool,
         berth: bool,
-        _load_restrictions: bool,
         tight: bool,
     ) -> grb::Result<()> {
         self.semicont = semicont;
@@ -495,25 +521,6 @@ impl QuantityLp {
                 xs.iter()
                     .flat_map(|xs| xs.iter().flat_map(|xs| xs.iter().map(|x| (*x, 0.0))))
             }),
-        )?;
-
-        let indices = iproduct!(
-            0..solution.problem().vessels().len(),
-            0..solution.problem().timesteps()
-        );
-
-        // Disable all obj-coefficients for travel empty and travel at cap
-        model.set_obj_attr_batch(
-            grb::attr::Obj,
-            indices
-                .clone()
-                .map(|(v, t)| (self.vars.cap_violation[t][v], 0.0)),
-        )?;
-
-        let l = &self.vars.l;
-        model.set_obj_attr_batch(
-            grb::attr::Obj,
-            indices.flat_map(|(v, t)| (0..problem.products()).map(move |p| (l[t][v][p], 0.0))),
         )?;
 
         let lower = |n: usize| match self.semicont {
@@ -556,6 +563,16 @@ impl QuantityLp {
                 .map(|(t, n, v, p)| (self.vars.x[t][n][v][p], f64::INFINITY)),
         )?;
 
+        self.configure_travel_constraints(solution)?;
+
+        Ok(())
+    }
+
+    /// Configure the travel at cap and travel at capacity constraints
+    fn configure_travel_constraints(&mut self, solution: &RoutingSolution) -> grb::Result<()> {
+        let model = &mut self.model;
+        let problem = solution.problem();
+
         let kind = |n: usize| solution.problem().nodes()[n].r#type();
 
         let iterator = solution.iter().enumerate().flat_map(|(v, plan)| {
@@ -592,17 +609,37 @@ impl QuantityLp {
             }
         });
 
-        // set objective coefficient for production arrivals
-        let l = &self.vars.l;
+        // Disable all coeffiecients in the travel empty and travel at cap constraints
+        let travel_empty_constr = model.get_constr_by_name(&"travel_empty")?.unwrap();
+        let travel_at_cap_constr = model.get_constr_by_name(&"travel_at_cap")?.unwrap();
+        let a = self
+            .vars
+            .l
+            .iter()
+            .flatten()
+            .flatten()
+            .map(|var| (*var, travel_empty_constr, 0.0));
+        let b = self
+            .vars
+            .cap_violation
+            .iter()
+            .flatten()
+            .map(|var| (*var, travel_at_cap_constr, 0.0));
 
-        let a = prod_arrivals
-            .clone()
-            .flat_map(|(t, v)| (0..problem.products()).map(move |p| (l[t][v][p], 1.0)));
+        model.set_coeffs(a.chain(b))?;
+
+        // set the correct coefficients of the travel empty and travel at capacity restricitons to 1
+        let l = &self.vars.l;
+        // var, constr, coeff for travel emtpy
+        let a = prod_arrivals.clone().flat_map(|(t, v)| {
+            (0..problem.products()).map(move |p| (l[t][v][p], travel_empty_constr, 1.0))
+        });
+        // var, constr, coeff for travel at capacity
         let b = cons_arrivals
             .clone()
-            .map(|(t, v)| (self.vars.cap_violation[t][v], 1.0));
+            .map(|(t, v)| (self.vars.cap_violation[t][v], travel_at_cap_constr, 1.0));
 
-        model.set_obj_attr_batch(grb::attr::Obj, a.chain(b))?;
+        model.set_coeffs(a.chain(b))?;
 
         Ok(())
     }
@@ -630,6 +667,8 @@ impl QuantityLp {
         let spot = self.vars.spot.convert(&self.model)?;
         let a = self.vars.a.convert(&self.model)?;
         let cap_violation = self.vars.cap_violation.convert(&self.model)?;
+        let travel_empty = self.vars.travel_empty.convert(&self.model)?;
+        let travel_at_cap = self.vars.travel_at_cap.convert(&self.model)?;
 
         let v = F64Variables {
             w,
@@ -642,6 +681,8 @@ impl QuantityLp {
             timing,
             a,
             cap_violation,
+            travel_empty,
+            travel_at_cap,
         };
         Ok(v)
     }

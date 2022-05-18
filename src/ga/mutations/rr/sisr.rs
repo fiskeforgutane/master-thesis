@@ -13,10 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ga::{initialization::GreedyWithBlinks, Fitness, Mutation},
     problem::{NodeIndex, Problem, TimeIndex, VesselIndex},
-    solution::{
-        routing::{Improvement, RoutingSolution},
-        Visit,
-    },
+    solution::{routing::RoutingSolution, Visit},
 };
 /// Implements a variant of the SISRs R&R algorithm presented by J. Christiaens and
 /// G. V. Berge adapted for use in a VRP variant with MIRP-style time windows.

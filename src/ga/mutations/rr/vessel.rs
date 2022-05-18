@@ -3,10 +3,7 @@ use rand::{
     Rng, SeedableRng,
 };
 
-use crate::{
-    ga::{initialization::GreedyWithBlinks, Fitness, Mutation},
-    solution::routing::{Evaluation, Improvement},
-};
+use crate::ga::{initialization::GreedyWithBlinks, Fitness, Mutation};
 
 pub trait Dropout<T> {
     fn dropout<F: Fn(T) -> bool>(&mut self, eligible: F, removal_rate: f64);

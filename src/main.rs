@@ -24,10 +24,6 @@ pub mod utils;
 use crate::ga::{
     fitness::{AtomicF64, AtomicWeighted, Weighted},
     initialization::{Empty, FromPopulation, Initialization},
-    mutations::{
-        rr, AddRandom, AddSmart, Bounce, BounceMode, Dedup, DedupPolicy, InterSwap, IntraSwap,
-        RedCost, RemoveRandom, ReplaceNode, SwapStar, TimeSetter, Twerk, TwoOpt, TwoOptMode,
-    },
     parent_selection::Tournament,
     recombinations::PIX,
     survival_selection::{Elite, Proportionate},
@@ -35,11 +31,11 @@ use crate::ga::{
 };
 use crate::rolling_horizon::rolling_horizon::RollingHorizon;
 
-use crate::ga::{Fitness, Mutation, ParentSelection, Recombination, SurvivalSelection};
+use crate::ga::Fitness;
 use crate::models::exact_model::model::ExactModelSolver;
 use crate::parse::*;
 use crate::problem::Problem;
-use crate::solution::routing::{Improvement, RoutingSolution};
+use crate::solution::routing::RoutingSolution;
 use crate::solution::Visit;
 use crate::termination::Termination;
 
@@ -51,6 +47,8 @@ pub fn weighted(problem: &Problem) -> Weighted {
         cost: 1.0,
         approx_berth_violation: 1e8,
         spot: 1.0,
+        travel_empty: 1e5,
+        travel_at_cap: 1e5,
         offset: problem.max_revenue() + 1.0,
     }
 }
@@ -70,6 +68,8 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         approx_berth_violation: AtomicF64::new(0.0),
         spot: AtomicF64::new(1.0),
         offset: AtomicF64::new(problem.max_revenue() + 1.0),
+        travel_empty: AtomicF64::new(0.0),
+        travel_at_cap: AtomicF64::new(0.0),
     });
 
     let closure_fitness = fitness.clone();
@@ -108,16 +108,20 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
             last_migration = epochs;
         }
 
-        info!(
-            "{:>010}: F = {}. warp = {}, apx berth = {}, violation = {}, obj = {}, revenue = {}, cost = {}",
+        println!(
+            "{:>010}: F = {}. warp = {}, apx berth = {}, violation = {}, spot: {}, obj = {}, revenue = {}, cost = {}, travel empty: {}, travel at cap: {}",
             epochs,
             fitness.of(&problem, &best),
             best.warp(),
             best.approx_berth_violation(),
             best.violation(),
+            best.spot_cost(),
             best.cost() + best.spot_cost() - best.revenue(),
             best.revenue(),
             best.cost(),
+            best.travel_empty(),
+            best.travel_at_cap(),
+
         );
 
         // Update the weights

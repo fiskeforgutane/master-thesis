@@ -110,6 +110,8 @@ impl ComputeNode {
                 cost: 1.0,
                 approx_berth_violation: 1e8,
                 spot: 1.0,
+                travel_empty: 1e5,
+                travel_at_cap: 1e5,
                 offset: max_revenue + 1.0,
             },
         };

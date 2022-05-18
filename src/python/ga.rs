@@ -325,6 +325,8 @@ pub fn weighted(
     cost: f64,
     berth: f64,
     spot: f64,
+    travel_empty: f64,
+    travel_at_cap: f64,
     offset: f64,
 ) -> Weighted {
     Weighted {
@@ -334,6 +336,8 @@ pub fn weighted(
         cost,
         approx_berth_violation: berth,
         spot,
+        travel_empty,
+        travel_at_cap,
         offset,
     }
 }
@@ -403,6 +407,8 @@ impl PyGA {
                 let timing = lp.vars.timing.convert(&lp.model).unwrap();
                 let a = lp.vars.a.convert(&lp.model).unwrap();
                 let cap_violation = lp.vars.cap_violation.convert(&lp.model).unwrap();
+                let travel_empty = lp.vars.travel_empty.convert(&lp.model).unwrap();
+                let travel_at_cap = lp.vars.travel_at_cap.convert(&lp.model).unwrap();
 
                 let v = F64Variables {
                     w,
@@ -415,6 +421,8 @@ impl PyGA {
                     timing,
                     a,
                     cap_violation,
+                    travel_empty,
+                    travel_at_cap,
                 };
 
                 let obj = (

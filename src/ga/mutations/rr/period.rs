@@ -6,10 +6,7 @@ use rand::{
 use crate::{
     ga::{initialization::GreedyWithBlinks, Fitness, Mutation},
     problem::Vessel,
-    solution::{
-        routing::{Evaluation, Improvement, Plan},
-        Visit,
-    },
+    solution::{routing::Plan, Visit},
 };
 
 use super::Dropout;
