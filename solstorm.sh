@@ -1,1 +1,1 @@
-find ~/mirplib/$1/*.json | xargs -I file ./master --problem file --config config37.json --stuck-timeout 7200 all --write
+find ~/mirplib/t45/*.json | xargs -I file ./master --problem file --log info --termination "7200 timeout 1800 no-improvement no-violation full-empty-valid & & |" rolling-horizon --full-penalty-after 3600000 --population 3 --children 3 --tournament 2 --subproblem-size --mutation "std" 2>> log-$(hostname).txt
