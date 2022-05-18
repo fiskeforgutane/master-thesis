@@ -4,6 +4,7 @@ use env_logger::Builder;
 
 use itertools::Itertools;
 use log::{info, LevelFilter};
+use uuid::Uuid;
 
 use std::io::Write;
 use std::iter::once;
@@ -159,6 +160,7 @@ pub fn run_unfixed_rolling_horizon(
     config: Config,
 ) {
     let rh = RollingHorizon::new(problem.clone());
+    let uuid = config.uuid.hyphenated().to_string();
     // Default to the normal termination
     let checkpoint_termination = match &config.checkpoint_termination {
         Some(x) => x.clone(),
@@ -206,7 +208,7 @@ pub fn run_unfixed_rolling_horizon(
         )));
 
         // Write the best at the end of the solve of the subproblem
-        out.push(&format!("{end}.json"));
+        out.push(&format!("{uuid}-{end}.json"));
         let file = std::fs::File::create(&out).unwrap();
         serde_json::to_writer(file, &best.to_vec()).expect("writing failed");
         out.pop();
@@ -256,6 +258,7 @@ pub struct Config {
     pub loop_delay: u64,
     pub threads: usize,
     pub full_penalty_after: f64,
+    pub uuid: Uuid,
 }
 
 #[derive(Subcommand)]
@@ -325,6 +328,10 @@ pub fn main() {
         problem,
     } = problem;
 
+    // Create a UUID identifying this run
+    // This is used to bind together the log entry and the solution
+    let uuid = Uuid::new_v4();
+
     // Convert the log level to a LevelFilter
     let level = match log.as_str() {
         "debug" => LevelFilter::Debug,
@@ -341,6 +348,7 @@ pub fn main() {
 
     info!("-------- NEW RUN --------");
     info!("{:?}", std::env::args());
+    info!("uuid: {}", uuid.hyphenated().to_string());
     info!("logger level: {level:?}");
     info!("problem: {name}");
     info!("timesteps: {timesteps}");
@@ -393,6 +401,7 @@ pub fn main() {
                 loop_delay,
                 threads,
                 full_penalty_after,
+                uuid,
             };
             run_unfixed_rolling_horizon(Arc::new(problem), out, termination.clone(), config);
         }
