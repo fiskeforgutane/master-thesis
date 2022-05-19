@@ -1,7 +1,7 @@
 cd ~/master-thesis && cargo build --release
 
-i=0
-pids=""
+export i=0;
+export pids="";
 for file in $(find ~/master-playground/mirplib-rs/t45/*.json)
 do
     echo "Starting run on $file"
@@ -10,7 +10,8 @@ do
     i=$((i + 1))
 
     if [ $i -eq $1 ]; then
-        wait "$pid"
+        wait "$pids"
         i=$((0))
+        pids=""
     fi
 done
