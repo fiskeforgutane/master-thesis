@@ -31,10 +31,7 @@ impl ExactModelSolver {
         let timesteps = sets.T.len();
         let num_compartments = |v: usize| problem.vessels()[v].compartments().len();
 
-        for v in sets.V.iter() {
-            println!("Vessel: {} Number of arcs: {}", v, sets.Av[*v].len());
-            println!("Vessel: {} Forward star: {:?}", v, sets.Fs[*v]);
-        }
+       
 
         // 1 if the vessel traverses the arc, 0 otherwise
         let x: Vec<Vec<Var>> = (&sets.A, vessels).binary(&mut model, &"x_")?;
@@ -127,10 +124,7 @@ impl ExactModelSolver {
 
         // initial port storage
         for (i, p) in iproduct!(&sets.I, &sets.P) {
-            println!(
-                "node {i} consumption: {:?}",
-                parameters.consumption[*i][0][*p]
-            );
+           
             let lhs = s_port[*i][0][*p]
                 - parameters.initial_port_inventory[*i][*p]
                 - parameters.port_type[*i]
@@ -258,9 +252,7 @@ impl ExactModelSolver {
         // ensure that all vessels that deliver something to a node are located at that node
         for (n, v) in iproduct!(&sets.N, &sets.V) {
             let lhs = z[n.index()][*v];
-            if n.index() == 30 && v == &5 {
-                println!("node: {:?}", n);
-            }
+            
 
             let rhs = sets.Rs[*v][n.index()].iter().map(|a| x[*a][*v]).grb_sum();
 
@@ -372,7 +364,6 @@ impl ExactModelSolver {
 
     pub fn build_and_write(problem: &Problem, path: &str) -> grb::Result<()> {
         let sets = Sets::new(problem);
-        println!("Timesteps: {} Ports: {}", sets.T.len(), sets.I.len());
         let parameters = Parameters::new(problem, &sets);
         let (model, _) = ExactModelSolver::build(&problem, &sets, &parameters)?;
         model.write(path)?;
