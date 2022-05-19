@@ -5,7 +5,7 @@ export pids="";
 for file in $(find ~/master-playground/mirplib-rs/t$1/*.json)
 do
     echo "i=$i: Starting run on $file"
-    ~/master-thesis/target/release/master --problem $file --log info --termination "120 no-violation" --checkpoint-termination "10800 timeout 1800 no-improvement no-violation full-empty-valid & & |" rolling-horizon --threads 1 --full-penalty-after 3600000 --population 3 --children 3 --tournament 2 --subproblem-size 45 --step-length 2 --checkpoints $1 --mutation "std" 2>> log-$(hostname)-$i.txt &
+    ~/master-thesis/target/release/master --problem $file --log info --termination "120 no-improvement" --checkpoint-termination "10800 timeout 1800 no-improvement no-violation full-empty-valid & & |" rolling-horizon --threads 1 --full-penalty-after 3600000 --population 3 --children 3 --tournament 2 --subproblem-size 45 --step-length 2 --checkpoints $1 --mutation "std" 2>> log-$(hostname)-$i.txt &
     pids="$pids $!"
     i=$((i + 1))
 
@@ -15,3 +15,5 @@ do
         pids=""
     fi
 done
+
+wait $pids
