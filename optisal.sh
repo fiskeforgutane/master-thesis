@@ -1,3 +1,5 @@
+cd ~/master-thesis && cargo build --release
+
 i=0
 pids=""
 for file in $(find ~/master-playground/mirplib-rs/t45/*.json)
