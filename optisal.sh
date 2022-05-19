@@ -10,7 +10,7 @@ do
     i=$((i + 1))
 
     if [ $i -eq $1 ]; then
-        wait "$pids"
+        wait $pids
         i=$((0))
         pids=""
     fi
