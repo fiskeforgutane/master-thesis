@@ -9,6 +9,7 @@ use crate::{problem::Problem, solution::routing::RoutingSolution};
 
 use super::Fitness;
 
+/// A fitness function that uses a weighted linear sum of the different solution aspects.
 #[pyclass]
 #[derive(Clone, Copy)]
 pub struct Weighted {
@@ -72,7 +73,7 @@ impl AtomicF64 {
 }
 
 /// A version of `Weighted` with atomic weights. Meant to be used as a shared fitness objective
-/// between multiple islands in an islanding GA.
+/// between multiple islands in an islanding GA. Allows us to e.g. gradually increase penalty weights over time.
 pub struct AtomicWeighted {
     pub warp: AtomicF64,
     pub violation: AtomicF64,
