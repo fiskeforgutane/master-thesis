@@ -298,8 +298,11 @@ impl Clone for RoutingSolution {
         self.cache.violation = source.cache.violation.clone();
         self.cache.cost = source.cache.cost.clone();
         self.cache.revenue = source.cache.revenue.clone();
+        self.cache.timing = source.cache.timing.clone();
         self.cache.spot = source.cache.spot.clone();
         self.cache.approx_berth_violation = source.cache.approx_berth_violation.clone();
+        self.cache.travel_empty = source.cache.travel_empty.clone();
+        self.cache.travel_at_cap = source.cache.travel_at_cap.clone();
     }
 }
 
