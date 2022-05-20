@@ -1,7 +1,7 @@
 use crate::ga;
 
-use crate::ga::chromosome::InitRoutingSolution;
 use crate::ga::fitness::Weighted;
+use crate::ga::initialization::InitRoutingSolution;
 use crate::ga::mutations::AddRandom;
 use crate::ga::mutations::AddSmart;
 use crate::ga::mutations::Bounce;

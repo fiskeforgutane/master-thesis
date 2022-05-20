@@ -1,6 +1,5 @@
 #[macro_use]
 pub mod mutations;
-pub mod chromosome;
 pub mod fitness;
 pub mod initialization;
 pub mod islands;
