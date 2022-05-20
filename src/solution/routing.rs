@@ -451,8 +451,6 @@ impl RoutingSolution {
         self.cache.quantity.borrow()
     }
 
-    /// Force an evaluation for the quantites delivered using the inexact model.
-
     /// Retrieve the amount of time warp in this solution. Time warp occurs when two visits at different nodes are
     /// too close apart in time, such that it is impossible to go from one of them to the other in time.
     pub fn warp(&self) -> usize {
