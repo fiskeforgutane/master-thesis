@@ -130,11 +130,17 @@ pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + '
         let d = elapsed.min(config.full_penalty_after) / config.full_penalty_after;
         fitness
             .approx_berth_violation
-            .store(d * 1e8, Ordering::Relaxed);
-        fitness.warp.store(d * 1e8, Ordering::Relaxed);
-        fitness.violation.store(d * 1e4, Ordering::Relaxed);
-        fitness.travel_at_cap.store(d * 1e4, Ordering::Relaxed);
-        fitness.travel_empty.store(d * 1e4, Ordering::Relaxed);
+            .store(d * config.approx_berth_violation, Ordering::Relaxed);
+        fitness.warp.store(d * config.warp, Ordering::Relaxed);
+        fitness
+            .violation
+            .store(d * config.violation, Ordering::Relaxed);
+        fitness
+            .travel_at_cap
+            .store(d * config.travel_at_cap, Ordering::Relaxed);
+        fitness
+            .travel_empty
+            .store(d * config.travel_empty, Ordering::Relaxed);
 
         if termination.should_terminate(epochs, &best, fitness.of(&problem, &best)) {
             return (best, ga.populations());
@@ -259,6 +265,11 @@ pub struct Config {
     pub threads: usize,
     pub full_penalty_after: f64,
     pub uuid: Uuid,
+    pub approx_berth_violation: f64,
+    pub warp: f64,
+    pub violation: f64,
+    pub travel_at_cap: f64,
+    pub travel_empty: f64,
 }
 
 #[derive(Subcommand)]
@@ -292,8 +303,18 @@ enum Commands {
         migrate_every: u64,
         #[clap(long, default_value_t = -2)]
         threads: i64,
-        #[clap(long, default_value_t = 1.0)]
+        #[clap(long, default_value_t = -1.0)]
         full_penalty_after: f64,
+        #[clap(long, default_value_t = 1e8)]
+        approx_berth_violation: f64,
+        #[clap(long, default_value_t = 1e8)]
+        warp: f64,
+        #[clap(long, default_value_t = 1e4)]
+        violation: f64,
+        #[clap(long, default_value_t = 1e4)]
+        travel_at_cap: f64,
+        #[clap(long, default_value_t = 1e4)]
+        travel_empty: f64,
     },
     Exact,
 }
@@ -378,6 +399,11 @@ pub fn main() {
             loop_delay,
             threads,
             full_penalty_after,
+            approx_berth_violation,
+            warp,
+            violation,
+            travel_at_cap,
+            travel_empty,
         } => {
             let threads = match threads {
                 -2 => std::thread::available_parallelism().unwrap().get() / 2,
@@ -402,6 +428,11 @@ pub fn main() {
                 threads,
                 full_penalty_after,
                 uuid,
+                approx_berth_violation,
+                warp,
+                violation,
+                travel_at_cap,
+                travel_empty,
             };
             run_unfixed_rolling_horizon(Arc::new(problem), out, termination.clone(), config);
         }
