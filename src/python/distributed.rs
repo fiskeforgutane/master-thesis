@@ -6,8 +6,8 @@ use crate::{
     chain,
     ga::{
         self,
-        initialization::InitRoutingSolution,
         fitness::Weighted,
+        initialization::InitRoutingSolution,
         islands::IslandGA,
         mutations::{
             AddRandom, AddSmart, Bounce, BounceMode, Dedup, DedupPolicy, InterSwap, IntraSwap,
@@ -38,7 +38,7 @@ where
     R: Recombination,
     M: Mutation,
     S: SurvivalSelection,
-    F: Fitness + Clone,
+    F: Fitness + Clone + Send + 'static,
 {
     fn intra_migration(&mut self, count: usize) {
         self.migrate(count)

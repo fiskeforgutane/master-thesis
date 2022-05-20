@@ -14,13 +14,15 @@ use super::{
 };
 
 /// Master-to-slave message
-pub enum Mts {
+pub enum Mts<F> {
     /// Tell the slave to terminate
     Terminate,
     /// Ask for the current population from the slave
     GetPopulation,
     /// A migration of individuals that should be included in the slave's population
     Migration(Vec<ThinSolution>),
+    /// Tell the slave to update its fitness function
+    SetFitness(F),
 }
 /// Slave-to-master message
 pub struct Stm {
@@ -42,7 +44,7 @@ pub struct IslandGA<PS, R, M, S, F> {
     /// The handle of each spawned thread
     handles: Vec<JoinHandle<()>>,
     /// Transmitter-end of channels to each spawned thread
-    txs: Vec<std::sync::mpsc::Sender<Mts>>,
+    txs: Vec<std::sync::mpsc::Sender<Mts<F>>>,
     /// Receiver-end of the transmitter channel which each spawned thread has available.
     rx: std::sync::mpsc::Receiver<Stm>,
     /// The best individual ever recorded across all islands.
@@ -60,7 +62,7 @@ where
     R: Recombination,
     M: Mutation,
     S: SurvivalSelection,
-    F: Fitness + Clone,
+    F: Fitness + Clone + Send + 'static,
 {
     /// The number of islands
     pub fn island_count(&self) -> usize {
@@ -86,7 +88,7 @@ where
 
         for i in 0..count {
             let (init, stm) = (init.clone(), tx.clone());
-            let (tx, rx) = std::sync::mpsc::channel::<Mts>();
+            let (tx, rx) = std::sync::mpsc::channel::<Mts<F>>();
             let total_epochs = total_epochs.clone();
             let mutex = best.clone();
             let config = config.clone();
@@ -94,13 +96,14 @@ where
             handles.push(std::thread::spawn(move || {
                 let config = config();
                 let problem = config.problem.clone();
-                let fitness = config.fitness.clone();
+                let mut fitness = config.fitness.clone();
                 let mut ga = GeneticAlgorithm::new(init, config);
 
                 loop {
                     match rx.try_recv() {
                         // TODO: do something
                         Ok(Mts::Terminate) => return (),
+                        Ok(Mts::SetFitness(f)) => fitness = f,
                         Ok(Mts::GetPopulation) => stm
                             .send(Stm {
                                 slave: i,
@@ -168,6 +171,13 @@ where
     /// Returns the current best solution
     pub fn best(&self) -> MutexGuard<ThinSolution> {
         self.best.lock().unwrap()
+    }
+
+    /// Tell each island to replace their fitness function
+    pub fn set_fitness(&self, fitness: F) {
+        for tx in &self.txs {
+            tx.send(Mts::SetFitness(fitness.clone())).unwrap();
+        }
     }
 
     /// Get the population of each island
