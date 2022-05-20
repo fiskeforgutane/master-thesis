@@ -61,17 +61,17 @@ pub fn run_island_on<I: Initialization + Clone + Send + 'static>(
     mut termination: Termination,
     config: &Config,
 ) -> (RoutingSolution, Vec<Vec<Vec<Vec<Visit>>>>) {
-    let fitness = Arc::new(AtomicWeighted {
-        warp: AtomicF64::new(0.0),
-        violation: AtomicF64::new(0.0),
-        revenue: AtomicF64::new(-1.0),
-        cost: AtomicF64::new(1.0),
-        approx_berth_violation: AtomicF64::new(0.0),
-        spot: AtomicF64::new(1.0),
-        offset: AtomicF64::new(problem.max_revenue() + 1.0),
-        travel_empty: AtomicF64::new(0.0),
-        travel_at_cap: AtomicF64::new(0.0),
-    });
+    let mut fitness = Weighted {
+        warp: 0.0,
+        violation: 0.0,
+        revenue: -1.0,
+        cost: 1.0,
+        approx_berth_violation: 0.0,
+        spot: 1.0,
+        offset: problem.max_revenue() + 1.0,
+        travel_empty: 0.0,
+        travel_at_cap: 0.0,
+    };
 
     let closure_fitness = fitness.clone();
     let closure_problem = problem.clone();
@@ -128,19 +128,13 @@ pub fn run_island_on<I: Initialization + Clone + Send + 'static>(
         // Update the weights
         let elapsed = (std::time::Instant::now() - start).as_secs_f64();
         let d = elapsed.min(config.full_penalty_after) / config.full_penalty_after;
-        fitness
-            .approx_berth_violation
-            .store(d * config.approx_berth_violation, Ordering::Relaxed);
-        fitness.warp.store(d * config.warp, Ordering::Relaxed);
-        fitness
-            .violation
-            .store(d * config.violation, Ordering::Relaxed);
-        fitness
-            .travel_at_cap
-            .store(d * config.travel_at_cap, Ordering::Relaxed);
-        fitness
-            .travel_empty
-            .store(d * config.travel_empty, Ordering::Relaxed);
+        fitness.approx_berth_violation = d * config.approx_berth_violation;
+        fitness.warp = d * config.warp;
+        fitness.violation = d * config.violation;
+        fitness.travel_at_cap = d * config.travel_at_cap;
+        fitness.travel_empty = d * config.travel_empty;
+        // Update the fitness functions of the islands
+        ga.set_fitness(fitness.clone());
 
         if termination.should_terminate(epochs, &best, fitness.of(&problem, &best)) {
             return (best, ga.populations());
