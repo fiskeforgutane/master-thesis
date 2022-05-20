@@ -11,33 +11,17 @@ use rand::Rng;
 use crate::{
     models::quantity::QuantityLp,
     problem::{Node, Problem, Vessel},
-    solution::{
-        routing::{RoutingSolution},
-        Visit,
-    },
+    solution::{routing::RoutingSolution, Visit},
 };
 
 use super::{fitness::Weighted, Fitness};
 
 pub trait Initialization {
-    type Out;
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out;
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> RoutingSolution;
 }
 
-/* impl<F, O> Initialization for F
-where
-    F: Fn(Arc<Problem>, Rc<RefCell<QuantityLp>>) -> O,
-{
-    type Out = O;
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
-        self(problem, quantities)
-    }
-}
- */
-impl Initialization for Arc<Mutex<dyn Initialization<Out = RoutingSolution> + Send>> {
-    type Out = RoutingSolution;
-
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+impl Initialization for Arc<Mutex<dyn Initialization + Send>> {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> RoutingSolution {
         let inner = (*self).lock().unwrap();
         inner.new(problem, quantities)
     }
@@ -57,9 +41,7 @@ impl FromPopulation {
 }
 
 impl Initialization for FromPopulation {
-    type Out = RoutingSolution;
-
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> RoutingSolution {
         let mut population = self.population.lock().unwrap();
         let solution = population.pop().expect("should not be empty");
         drop(population);
@@ -217,9 +199,7 @@ impl GreedyWithBlinks {
 }
 
 impl Initialization for GreedyWithBlinks {
-    type Out = RoutingSolution;
-
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> RoutingSolution {
         let t = problem.timesteps();
         // We start with an empty solution
         let mut solution = RoutingSolution::new_with_model(
@@ -296,9 +276,7 @@ pub struct StartPopulation {}
 pub struct Empty;
 
 impl Initialization for Empty {
-    type Out = RoutingSolution;
-
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> RoutingSolution {
         let vessels = problem.count::<Vessel>();
         RoutingSolution::new_with_model(problem, vec![Vec::new(); vessels], quantities)
     }

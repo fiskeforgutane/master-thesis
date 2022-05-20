@@ -101,7 +101,7 @@ where
     /// Constructs a new GeneticAlgorithm with the given configuration.
     pub fn new<I>(initialization: I, config: Config<PS, R, M, S, F>) -> Self
     where
-        I: Initialization<Out = RoutingSolution>,
+        I: Initialization,
     {
         trace!("Initializing population");
         // Gurobi doesn't seem to like having many models, so we will

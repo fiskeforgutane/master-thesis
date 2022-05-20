@@ -18,9 +18,7 @@ use super::initialization::Initialization;
 pub struct InitRoutingSolution;
 
 impl Initialization for InitRoutingSolution {
-    type Out = RoutingSolution;
-
-    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> Self::Out {
+    fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> RoutingSolution {
         let routes = Self::routes(&problem).unwrap();
         RoutingSolution::new_with_model(problem, routes, quantities)
     }

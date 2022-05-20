@@ -54,7 +54,7 @@ pub fn weighted(problem: &Problem) -> Weighted {
     }
 }
 
-pub fn run_island_on<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static>(
+pub fn run_island_on<I: Initialization + Clone + Send + 'static>(
     problem: Arc<Problem>,
     _output: PathBuf,
     init: I,
@@ -173,8 +173,7 @@ pub fn run_unfixed_rolling_horizon(
         None => termination.clone(),
     };
 
-    let mut init: Arc<Mutex<dyn Initialization<Out = RoutingSolution> + Send>> =
-        Arc::new(Mutex::new(Empty));
+    let mut init: Arc<Mutex<dyn Initialization + Send>> = Arc::new(Mutex::new(Empty));
 
     // The "normal" ends, i.e. (start, start + step, ...)
     let start = config.subproblem_size;

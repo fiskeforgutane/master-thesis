@@ -68,7 +68,7 @@ where
     }
 
     /// Construct and start a new island GA.
-    pub fn new<I: Initialization<Out = RoutingSolution> + Clone + Send + 'static, Func>(
+    pub fn new<I: Initialization + Clone + Send + 'static, Func>(
         init: I,
         config: Func,
         count: usize,
