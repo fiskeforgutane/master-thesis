@@ -4,7 +4,6 @@ pub mod fitness;
 pub mod initialization;
 pub mod islands;
 pub mod parent_selection;
-pub mod penalizers;
 pub mod recombinations;
 pub mod survival_selection;
 pub mod traits;
