@@ -16,6 +16,7 @@ use crate::{
 
 use super::{fitness::Weighted, Fitness};
 
+/// A trait for solution initialization. This can be used to construct initial solutions for the GA.
 pub trait Initialization {
     fn new(&self, problem: Arc<Problem>, quantities: Rc<RefCell<QuantityLp>>) -> RoutingSolution;
 }
@@ -27,6 +28,8 @@ impl Initialization for Arc<Mutex<dyn Initialization + Send>> {
     }
 }
 
+/// A "warm-starting" initialization. An individual will be popped
+/// from the population and returned each time `Initialization::new` is called
 #[derive(Clone)]
 pub struct FromPopulation {
     population: Arc<Mutex<Vec<Vec<Vec<Visit>>>>>,
@@ -133,6 +136,7 @@ impl GreedyWithBlinks {
             .min_by_key(|(_, cost)| FloatOrd(*cost))
     }
 
+    /// Choose the optimal insertion according to `GreedyWithBlinks`
     pub fn choose<I>(
         &self,
         solution: &mut RoutingSolution,
@@ -172,6 +176,8 @@ impl GreedyWithBlinks {
         }
     }
 
+    /// Insert the visit that is best according to `GreedyWithBlinks`,
+    /// returning the visit that was inserted and the objective of the new solution
     pub fn insert_best(
         &self,
         solution: &mut RoutingSolution,
@@ -271,8 +277,7 @@ impl Initialization for GreedyWithBlinks {
     }
 }
 
-pub struct StartPopulation {}
-
+/// An initialization that simply initializes each solution as "empty", i.e. with no visits.
 pub struct Empty;
 
 impl Initialization for Empty {
