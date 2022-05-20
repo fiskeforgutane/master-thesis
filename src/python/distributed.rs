@@ -6,7 +6,7 @@ use crate::{
     chain,
     ga::{
         self,
-        chromosome::InitRoutingSolution,
+        initialization::InitRoutingSolution,
         fitness::Weighted,
         islands::IslandGA,
         mutations::{

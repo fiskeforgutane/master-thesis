@@ -1,11 +1,9 @@
 #[macro_use]
 pub mod mutations;
-pub mod chromosome;
 pub mod fitness;
 pub mod initialization;
 pub mod islands;
 pub mod parent_selection;
-pub mod penalizers;
 pub mod recombinations;
 pub mod survival_selection;
 pub mod traits;
@@ -101,7 +99,7 @@ where
     /// Constructs a new GeneticAlgorithm with the given configuration.
     pub fn new<I>(initialization: I, config: Config<PS, R, M, S, F>) -> Self
     where
-        I: Initialization<Out = RoutingSolution>,
+        I: Initialization,
     {
         trace!("Initializing population");
         // Gurobi doesn't seem to like having many models, so we will

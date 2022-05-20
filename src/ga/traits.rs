@@ -6,16 +6,19 @@ use rand::{
 
 use crate::{problem::Problem, solution::routing::RoutingSolution};
 
+/// A trait for enabling parent selection based on a set of fitness values.
 pub trait ParentSelection {
     fn init(&mut self, fitness_values: Vec<f64>);
 
     fn sample(&mut self) -> usize;
 }
 
+/// Recombination of two individuals
 pub trait Recombination {
     fn apply(&mut self, problem: &Problem, left: &mut RoutingSolution, right: &mut RoutingSolution);
 }
 
+/// Mutation of an individual
 pub trait Mutation {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness);
 }
@@ -41,17 +44,12 @@ pub trait SurvivalSelection {
         F: Fn(&RoutingSolution) -> f64;
 }
 
-pub trait Penalty {
-    fn penalty(&self, problem: &Problem, solution: &RoutingSolution) -> f64;
-}
-
+/// A trait for calculating fitness
 pub trait Fitness {
     fn of(&self, problem: &Problem, solution: &RoutingSolution) -> f64;
 }
 
-// Some actual implemtations
-
-/// Applies both mutations
+/// Applies both mutations in order
 pub struct Chain<A, B>(pub A, pub B);
 
 #[macro_export]
@@ -130,6 +128,7 @@ where
     }
 }
 
+/// A "no operation" mutation/recombination. Does absolutely nothing.
 #[pyclass]
 pub struct Nop;
 
@@ -139,12 +138,6 @@ impl Recombination for Nop {
 
 impl Mutation for Nop {
     fn apply(&mut self, _: &Problem, _: &mut RoutingSolution, _: &dyn Fitness) {}
-}
-
-impl Penalty for Nop {
-    fn penalty(&self, _: &Problem, _: &RoutingSolution) -> f64 {
-        0.0
-    }
 }
 
 /// Vectors are used for "choice", i.e. choose one of (unweighted)

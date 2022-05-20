@@ -298,8 +298,11 @@ impl Clone for RoutingSolution {
         self.cache.violation = source.cache.violation.clone();
         self.cache.cost = source.cache.cost.clone();
         self.cache.revenue = source.cache.revenue.clone();
+        self.cache.timing = source.cache.timing.clone();
         self.cache.spot = source.cache.spot.clone();
         self.cache.approx_berth_violation = source.cache.approx_berth_violation.clone();
+        self.cache.travel_empty = source.cache.travel_empty.clone();
+        self.cache.travel_at_cap = source.cache.travel_at_cap.clone();
     }
 }
 
@@ -447,8 +450,6 @@ impl RoutingSolution {
         let _ = self.exact_mut();
         self.cache.quantity.borrow()
     }
-
-    /// Force an evaluation for the quantites delivered using the inexact model.
 
     /// Retrieve the amount of time warp in this solution. Time warp occurs when two visits at different nodes are
     /// too close apart in time, such that it is impossible to go from one of them to the other in time.
