@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use std::io::Write;
 use std::iter::once;
-use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::{path::PathBuf, sync::Arc};
 
@@ -23,7 +22,7 @@ pub mod termination;
 pub mod utils;
 
 use crate::ga::{
-    fitness::{AtomicF64, AtomicWeighted, Weighted},
+    fitness::Weighted,
     initialization::{Empty, FromPopulation, Initialization},
     parent_selection::Tournament,
     recombinations::PIX,
