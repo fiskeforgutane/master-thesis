@@ -81,6 +81,40 @@ pub fn std_mutation() -> Box<dyn RPNMutation> {
     ))
 }
 
+// The "standard lite" mutation
+pub fn std_lite_mutation() -> Box<dyn RPNMutation> {
+    Box::new(chain!(
+        Stochastic::new(0.01, AddRandom::new()),
+        Stochastic::new(0.01, RemoveRandom::new()),
+        Stochastic::new(0.01, InterSwap),
+        Stochastic::new(0.01, IntraSwap),
+        //Stochastic::new(0.01, RedCost::red_cost_mutation(10)),
+        //Stochastic::new(0.01, Twerk::everybody()),
+        //Stochastic::new(0.01, Twerk::some_random_person()),
+        Stochastic::new(0.01, TwoOpt::new(TwoOptMode::IntraRandom)),
+        // Stochastic::new(0.01, TimeSetter::new(0.5).unwrap()),
+        // Stochastic::new(0.01, ReplaceNode::new(0.1)),
+        // Stochastic::new(0.01, SwapStar), <- crashes
+        Dedup(DedupPolicy::KeepFirst),
+        Stochastic::new(0.01, Bounce::new(5, BounceMode::All)),
+        // Stochastic::new(0.01, Bounce::new(3, BounceMode::Random)),
+        // Stochastic::new(0.01, AddSmart),
+        Stochastic::new(0.10, rr::Period::new(0.05, 0.8, 6, 2)),
+        Stochastic::new(0.05, rr::Vessel::new(0.05, 0.8, 3)),
+        Stochastic::new(
+            0.02,
+            rr::sisr::SlackInductionByStringRemoval::new(rr::sisr::Config {
+                average_removal: 2,
+                max_cardinality: 10,
+                alpha: 0.0,
+                blink_rate: 0.05,
+                first_n: 2,
+                epsilon: 0.00000001,
+            })
+        )
+    ))
+}
+
 impl<'s> TryFrom<&'s str> for Box<dyn RPNMutation> {
     type Error = ParseMutationError;
 
@@ -119,6 +153,7 @@ impl<'s> TryFrom<&'s str> for Box<dyn RPNMutation> {
             debug!("token = {token}");
             let new = match token {
                 "nop" => Arg::Mut(Box::new(Nop)),
+                "lite" => Arg::Mut(std_lite_mutation()),
                 "std" => Arg::Mut(std_mutation()),
                 "add-random" => Arg::Mut(Box::new(AddRandom::new())),
                 "remove-random" => Arg::Mut(Box::new(RemoveRandom::new())),
