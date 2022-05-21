@@ -96,14 +96,15 @@ where
             handles.push(std::thread::spawn(move || {
                 let config = config();
                 let problem = config.problem.clone();
-                let mut fitness = config.fitness.clone();
                 let mut ga = GeneticAlgorithm::new(init, config);
 
                 loop {
                     match rx.try_recv() {
                         // TODO: do something
                         Ok(Mts::Terminate) => return (),
-                        Ok(Mts::SetFitness(f)) => fitness = f,
+                        Ok(Mts::SetFitness(f)) => {
+                            ga.config.fitness = f;
+                        }
                         Ok(Mts::GetPopulation) => stm
                             .send(Stm {
                                 slave: i,
@@ -135,6 +136,7 @@ where
                     total_epochs.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
                     // Update the best individual, if a new best is found.
+                    let fitness = &ga.config.fitness;
                     let island_best = ga.best_individual();
                     let island_fitness = fitness.of(&problem, island_best);
                     let mut best = mutex.lock().unwrap();
