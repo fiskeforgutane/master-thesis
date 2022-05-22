@@ -373,8 +373,12 @@ pub fn write_model(
     semicont: bool,
     berth: bool,
     tight: bool,
+    assignment: bool,
 ) -> PyResult<()> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    if assignment {
+        lp.add_compartment_constraints(&problem).map_err(pyerr)?;
+    }
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     lp.configure(&solution, semicont, berth, tight)
         .map_err(pyerr)?;
