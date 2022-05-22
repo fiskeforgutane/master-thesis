@@ -341,9 +341,14 @@ pub fn objective_terms(
     semicont: bool,
     berth: bool,
     tight: bool,
+    assignment: bool,
 ) -> PyResult<ObjectiveTerms> {
     let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    if assignment {
+        lp.add_compartment_constraints(&problem).map_err(pyerr)?;
+    }
     let solution = RoutingSolution::new(Arc::new(problem), routes);
+
     lp.configure(&solution, semicont, berth, tight)
         .map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
