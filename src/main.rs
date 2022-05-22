@@ -99,7 +99,7 @@ pub fn run_island_on<I: Initialization + Clone + Send + 'static>(
     let start = std::time::Instant::now();
     loop {
         let epochs = ga.epochs();
-        let best = RoutingSolution::new(problem.clone(), ga.best().clone());
+        let best = ga.best();
 
         if epochs - last_migration > config.migrate_every {
             info!("Migrating...");

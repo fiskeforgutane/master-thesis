@@ -1,5 +1,5 @@
 use std::{
-    sync::{atomic::AtomicU64, mpsc::TryRecvError, Arc, Mutex, MutexGuard},
+    sync::{atomic::AtomicU64, mpsc::TryRecvError, Arc},
     thread::JoinHandle,
 };
 
@@ -23,6 +23,8 @@ pub enum Mts<F> {
     Migration(Vec<ThinSolution>),
     /// Tell the slave to update its fitness function
     SetFitness(F),
+    /// Ask the slave for its best individual
+    GetBest,
 }
 /// Slave-to-master message
 pub struct Stm {
@@ -33,6 +35,8 @@ pub struct Stm {
 pub enum StmMessage {
     /// The current population of the GA
     Population(Vec<ThinSolution>),
+    /// The best individual in the population
+    Best(ThinSolution),
 }
 
 /// A set of plans without the reference to GRBEnv. GRBEnv makes it impossible to send RoutingSolutions between threads
@@ -47,8 +51,6 @@ pub struct IslandGA<PS, R, M, S, F> {
     txs: Vec<std::sync::mpsc::Sender<Mts<F>>>,
     /// Receiver-end of the transmitter channel which each spawned thread has available.
     rx: std::sync::mpsc::Receiver<Stm>,
-    /// The best individual ever recorded across all islands.
-    best: Arc<Mutex<ThinSolution>>,
     /// The total number of epochs done across all islands
     total_epochs: Arc<AtomicU64>,
     // TODO:
@@ -82,15 +84,11 @@ where
         let mut handles = Vec::with_capacity(count);
         let mut txs = Vec::with_capacity(count);
         let total_epochs = Arc::new(AtomicU64::new(0));
-        let problem = config.clone()().problem;
-
-        let best = Arc::new(Mutex::new(RoutingSolution::empty(problem.clone()).to_vec()));
 
         for i in 0..count {
             let (init, stm) = (init.clone(), tx.clone());
             let (tx, rx) = std::sync::mpsc::channel::<Mts<F>>();
             let total_epochs = total_epochs.clone();
-            let mutex = best.clone();
             let config = config.clone();
 
             handles.push(std::thread::spawn(move || {
@@ -102,6 +100,12 @@ where
                     match rx.try_recv() {
                         // TODO: do something
                         Ok(Mts::Terminate) => return (),
+                        Ok(Mts::GetBest) => stm
+                            .send(Stm {
+                                slave: i,
+                                message: StmMessage::Best(ga.best_individual().to_vec()),
+                            })
+                            .unwrap(),
                         Ok(Mts::SetFitness(f)) => {
                             ga.config.fitness = f;
                         }
@@ -134,21 +138,6 @@ where
                     ga.epoch();
                     // Increment the number of epochs done
                     total_epochs.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
-                    // Update the best individual, if a new best is found.
-                    let fitness = &ga.config.fitness;
-                    let island_best = ga.best_individual();
-                    let island_fitness = fitness.of(&problem, island_best);
-                    let mut best = mutex.lock().unwrap();
-                    // Not ideal.
-                    let best_fitness = fitness.of(
-                        &problem,
-                        &RoutingSolution::new(problem.clone(), best.clone()),
-                    );
-
-                    if island_fitness <= best_fitness {
-                        best.clone_from_slice(&island_best.to_vec());
-                    }
                 }
             }));
 
@@ -160,7 +149,6 @@ where
             handles,
             txs,
             rx,
-            best,
             total_epochs,
         }
     }
@@ -171,15 +159,43 @@ where
     }
 
     /// Returns the current best solution
-    pub fn best(&self) -> MutexGuard<ThinSolution> {
-        self.best.lock().unwrap()
+    pub fn best(&self) -> RoutingSolution {
+        for tx in &self.txs {
+            tx.send(Mts::GetBest).unwrap();
+        }
+
+        let mut best = RoutingSolution::empty(self.config.problem.clone());
+        let mut best_fitness = f64::INFINITY;
+
+        let fitness = &self.config.fitness;
+        let problem = self.config.problem.as_ref();
+
+        for _ in 0..self.island_count() {
+            let solution = match self.rx.recv().unwrap() {
+                Stm {
+                    message: StmMessage::Best(solution),
+                    ..
+                } => RoutingSolution::new(self.config.problem.clone(), solution),
+                _ => panic!("unexpected response"),
+            };
+
+            let solution_fitness = fitness.of(problem, &solution);
+            if solution_fitness < best_fitness {
+                best = solution;
+                best_fitness = solution_fitness;
+            }
+        }
+
+        best
     }
 
     /// Tell each island to replace their fitness function
-    pub fn set_fitness(&self, fitness: F) {
+    pub fn set_fitness(&mut self, fitness: F) {
         for tx in &self.txs {
             tx.send(Mts::SetFitness(fitness.clone())).unwrap();
         }
+
+        self.config.fitness = fitness;
     }
 
     /// Get the population of each island
@@ -201,6 +217,7 @@ where
                         .map(|x| x.into_iter().map(|x| x[..].to_vec()).collect())
                         .collect()
                 }
+                StmMessage::Best(_) => panic!("expected population message"),
             }
         }
 
@@ -221,6 +238,7 @@ where
 
             match message {
                 StmMessage::Population(population) => populations[slave] = population,
+                StmMessage::Best(_) => panic!("expected population message"),
             }
         }
 
