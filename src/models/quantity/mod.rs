@@ -419,7 +419,7 @@ impl QuantityLp {
             let c = vessel.compartments().len();
             let assigned = (t, p, c).binary(model, &format!("compartment_{v}"))?;
             // Product must be carried in compartments
-            for t in 0..t {
+            for t in 1..t {
                 // Each product must have enough assigned silos to cover their quantity.
                 for p in 0..p {
                     let lhs = self.vars.l[t][v][p];
