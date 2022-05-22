@@ -439,6 +439,7 @@ impl QuantityLp {
                 }
             }
         }
+        model.update()?;
 
         Ok(())
     }
