@@ -6,7 +6,7 @@ from tqdm import tqdm
 def mowi_instances():
     result = subprocess.run('find ~/mowilib/real/t*/*/*.json', capture_output=True, shell=True)
     assert result.returncode == 0
-    return result.stdout.split_lines()
+    return result.stdout.splitlines()
 
 def mirplib_instances(max_t = 180):
     result = subprocess.run('find ~/mirplib/t*/*.json', capture_output=True, shell=True)
