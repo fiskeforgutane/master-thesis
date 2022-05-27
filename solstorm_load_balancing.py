@@ -6,12 +6,12 @@ from tqdm import tqdm
 def mowi_instances():
     result = subprocess.run('find ~/mowilib/real/t*/*/*.json', capture_output=True, shell=True)
     assert result.returncode == 0
-    return result.stdout.splitlines()
+    return [path.decode() for path in result.stdout.splitlines()]
 
 def mirplib_instances(max_t = 180):
     result = subprocess.run('find ~/mirplib/t*/*.json', capture_output=True, shell=True)
     assert result.returncode == 0
-    return [path for path in result.stdout.splitlines() if planning_horizon(path) <= max_t]
+    return [path.decode() for path in result.stdout.splitlines() if planning_horizon(path) <= max_t]
 
 def planning_horizon(path):
     return next(int(x[1:]) for x in path.split('/') if x[:1] == 't' and x[1:].isdigit())
