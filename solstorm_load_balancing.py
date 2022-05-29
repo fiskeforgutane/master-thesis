@@ -25,7 +25,7 @@ def remote_solve(host, path):
 
 def solve(hosts, paths, f = lambda host, path: time.sleep(1)):
     lock = threading.Lock()
-    progress = tqdm(total=len(paths))
+    progress = tqdm(total=len(paths), ascii=True)
 
     def worker(host):
         def inner():
@@ -55,3 +55,8 @@ def solve(hosts, paths, f = lambda host, path: time.sleep(1)):
         thread.join()
 
     progress.close()
+
+free_hosts = [
+    *[f'compute-4-{i}' for i in range(5, 23)],
+    *[f'compute-4-{i}' for i in range(25, 50)],
+]
