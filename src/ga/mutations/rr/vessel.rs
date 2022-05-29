@@ -57,6 +57,7 @@ impl Mutation for Vessel {
     ) {
         // Choose a random vessel index.
         let vessel = (0..problem.vessels().len()).choose(&mut self.rng).unwrap();
+        let length = solution[vessel].len();
         // Ruin it by removing a part of the vessel's plan
         {
             let mut mutator = solution.mutate();
@@ -70,12 +71,17 @@ impl Mutation for Vessel {
         // Gredily construct a new vessel plan based on greedy insertion with blinks
         let greedy = GreedyWithBlinks::new(self.blink_rate);
         let mut candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
-        while let Some((_, obj)) =
-            greedy.insert_best(solution, self.epsilon, &candidates, best, fitness)
-        {
-            best = obj;
-            idx += 1;
-            candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
+
+        // Do at most 2 * (expected removal + 1) insertions
+        for _ in 0..2 * ((length as f64 * self.removal_rate) as usize + 1) {
+            match greedy.insert_best(solution, self.epsilon, &candidates, best, fitness) {
+                Some((_, obj)) => {
+                    best = obj;
+                    idx += 1;
+                    candidates = solution.candidates(idx, vessel, self.c).collect::<Vec<_>>();
+                }
+                None => return,
+            }
         }
     }
 }
