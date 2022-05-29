@@ -21,6 +21,10 @@ def remote_solve(host, path):
     smolt = f'~/master-thesis/target/release/master --problem {path} --log info --termination "1800 no-improvement no-violation & 10800 timeout |" rolling-horizon --full-penalty-after 360000 --population 3 --children 3 --tournament 2 --step-length 2 --subproblem-size {timesteps} --mutation "lite" --travel-at-cap 0 --travel-empty 0 2>> log-$(hostname).txt'
     command = f"ssh -t {host} 'module load gurobi Python && cd /storage/users/akselbor/ && {smolt}'"
     result = subprocess.run(command, shell=True, capture_output=True)
+
+    if result.returncode != 0:
+        print(f'FAILED: {result.stderr}')
+        
     assert result.returncode == 0
 
 def solve(hosts, paths, f = lambda host, path: time.sleep(1)):
