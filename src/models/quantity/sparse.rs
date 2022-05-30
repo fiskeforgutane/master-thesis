@@ -375,7 +375,7 @@ impl QuantityLp {
 
             for (&t1, &t2) in timeline
                 .iter()
-                .zip(timeline[1..].iter().chain(std::iter::once(&t)))
+                .zip(timeline[1..])
             {
                 for p in 0..p {
                     let external = (0..v).filter_map(|v| x.get(&(t1, n, v, p))).grb_sum();
