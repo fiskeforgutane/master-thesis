@@ -100,7 +100,7 @@ impl QuantityLp {
                         // let rate = problem.nodes()[v1.node].min_unloading_amount();
                         //let max_loading_time = (vessel.capacity() / rate).ceil() as usize;
 
-                        let period = v1.time..=departure_time.min(v1.time);
+                        let period = v1.time..=departure_time;
 
                         (v1.node, period)
                     }),
