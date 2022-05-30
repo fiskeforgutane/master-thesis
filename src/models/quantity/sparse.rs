@@ -109,7 +109,7 @@ impl QuantityLp {
     }
 
     fn clear(&mut self) -> grb::Result<()> {
-        /* if let Some(vars) = self.vars.take() {
+        if let Some(vars) = self.vars.take() {
             let Variables {
                 w,
                 x,
@@ -150,18 +150,18 @@ impl QuantityLp {
 
         for constr in constrs {
             self.model.remove(constr)?;
-        } */
+        }
+        /*
+                self.model = Model::new("blah")?;
+                self.vars = None;
 
-        self.model = Model::new("blah")?;
-        self.vars = None;
-
-        // Disable output logging.
-        self.model.set_param(grb::param::OutputFlag, 0)?;
-        // Use primal simplex, instead of the default concurrent solver. Reason: we will use multiple concurrent GAs
-        self.model.set_param(grb::param::Method, 0)?;
-        // Restrict to one thread. Also due to using concurrent GAs.
-        self.model.set_param(grb::param::Threads, 1)?;
-
+                // Disable output logging.
+                self.model.set_param(grb::param::OutputFlag, 0)?;
+                // Use primal simplex, instead of the default concurrent solver. Reason: we will use multiple concurrent GAs
+                self.model.set_param(grb::param::Method, 0)?;
+                // Restrict to one thread. Also due to using concurrent GAs.
+                self.model.set_param(grb::param::Threads, 1)?;
+        */
         Ok(())
     }
 
@@ -184,11 +184,11 @@ impl QuantityLp {
 
         /// To avoid construction of format strings for variable and constraint names, while
         /// making it easy to remove it (by commenting out this)
-        /* macro_rules! format {
+        macro_rules! format {
             ($x:expr $(, $xs:expr)*) => {
                 ""
             };
-        } */
+        }
 
         macro_rules! insert {
             ($m: expr, $k: expr, $b: expr) => {{
@@ -235,9 +235,9 @@ impl QuantityLp {
                     t_n[n].insert(t);
                 }
 
-                /*                 // Some other code relies on the loading being defined at each visit.
+                // Some other code relies on the loading being defined at each visit.
                 // Not strictly needed for the sparse model.
-                t_v[v].insert(*times.start()); */
+                t_v[v].insert(*times.start());
                 let end = *times.end();
 
                 for t in times {
@@ -468,27 +468,6 @@ impl QuantityLp {
                 panic!();
             }
         }
-
-        /* //debug!("{:?}", self.vars);
-        let vars = self.vars.as_ref().unwrap();
-
-        for (vs, name) in [(&vars.a, "a"), (&vars.l, "l"), (&vars.s, "s")] {
-            let keys = vs.keys().sorted();
-
-            for k in keys {
-                let value = self.model.get_obj_attr(grb::attr::X, &vs[k])?;
-                println!("{name}_{k:?} = {value}");
-            }
-        }
-
-        let keys = vars.x.keys().sorted();
-
-        for k in keys {
-            let value = self.model.get_obj_attr(grb::attr::X, &vars.x[k])?;
-            println!("x_{k:?} = {value}");
-        } */
-
-        self.model.write("sparse.lp");
 
         Ok(self.vars.as_ref().expect("should exist"))
     }
