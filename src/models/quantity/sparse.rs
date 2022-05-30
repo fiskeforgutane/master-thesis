@@ -107,7 +107,7 @@ impl QuantityLp {
     }
 
     fn clear(&mut self) -> grb::Result<()> {
-        if let Some(vars) = self.vars.take() {
+        /* if let Some(vars) = self.vars.take() {
             let Variables {
                 w,
                 x,
@@ -148,7 +148,17 @@ impl QuantityLp {
 
         for constr in constrs {
             self.model.remove(constr)?;
-        }
+        } */
+
+        self.model = Model::new("blah")?;
+        self.vars = None;
+
+        // Disable output logging.
+        self.model.set_param(grb::param::OutputFlag, 0)?;
+        // Use primal simplex, instead of the default concurrent solver. Reason: we will use multiple concurrent GAs
+        self.model.set_param(grb::param::Method, 0)?;
+        // Restrict to one thread. Also due to using concurrent GAs.
+        self.model.set_param(grb::param::Threads, 1)?;
 
         Ok(())
     }
@@ -372,6 +382,16 @@ impl QuantityLp {
             }
         }
 
+        let spot_expr = a
+            .iter()
+            .map(|(&(t, n, p), var)| {
+                let node = &problem.nodes()[n];
+                let unit_price = node.spot_market_unit_price();
+                let discount = node.spot_market_discount_factor().powi(t as i32);
+                (*var) * unit_price * discount
+            })
+            .grb_sum();
+
         let revenue = add_ctsvar!(model, name: "revenue", bounds: 0.0..)?;
         let violation = add_ctsvar!(model, name: "violation", bounds: 0.0..)?;
         let spot = add_ctsvar!(model, name: "spot", bounds: 0.0..)?;
@@ -379,7 +399,7 @@ impl QuantityLp {
 
         model.add_constr("c_revenue", c!(revenue == revenue_expr))?;
         model.add_constr("c_violation", c!(violation == w.values().grb_sum()))?;
-        model.add_constr("c_spot", c!(spot == a.values().grb_sum()))?;
+        model.add_constr("c_spot", c!(spot == spot_expr))?;
         model.add_constr("c_timing", c!(timing == 0.0_f64))?;
 
         // Note: these aren't really used here, but we'll just force them to 0 so that other
@@ -388,6 +408,13 @@ impl QuantityLp {
         let travel_at_cap = add_ctsvar!(model, name: "travel_at_cap", bounds: 0.0..)?;
         model.add_constr("c_travel_empty", c!(travel_empty == 0.0_f64))?;
         model.add_constr("c_travel_at_cap", c!(travel_at_cap == 0.0_f64))?;
+
+        let obj = 1.0e0_f64 * violation + 0.5_f64 * spot - 1e-6_f64 * revenue
+            + 1e-12_f64 * timing
+            + travel_empty
+            + travel_at_cap;
+
+        model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         self.vars = Some(Variables {
             w,
