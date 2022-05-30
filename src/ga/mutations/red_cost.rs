@@ -49,6 +49,7 @@ impl RedCost {
         RedCost { mode, max_visits }
     }
 
+    /*
     /// Returns an iterator with all the x-variable indices that can have the upper bound increased
     pub fn mutable_indices<'a>(
         v: usize,
@@ -290,11 +291,13 @@ impl RedCost {
                 .collect::<Vec<_>>()
         )
     }
+    */
 }
 
 impl Mutation for RedCost {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
-        // check that status is optimal and do nothing if semi-cont has been enabled
+        todo!();
+        /* // check that status is optimal and do nothing if semi-cont has been enabled
         let status = solution
             .quantities()
             .model
@@ -323,6 +326,6 @@ impl Mutation for RedCost {
                 }
             }
         }
-        trace!("FINISHED RED COST MUTATION")
+        trace!("FINISHED RED COST MUTATION") */
     }
 }
