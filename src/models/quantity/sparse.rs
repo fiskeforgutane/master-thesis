@@ -467,7 +467,7 @@ impl QuantityLp {
             }
         }
 
-        //debug!("{:?}", self.vars);
+        /* //debug!("{:?}", self.vars);
         let vars = self.vars.as_ref().unwrap();
 
         for (vs, name) in [(&vars.a, "a"), (&vars.l, "l"), (&vars.s, "s")] {
@@ -484,9 +484,7 @@ impl QuantityLp {
         for k in keys {
             let value = self.model.get_obj_attr(grb::attr::X, &vars.x[k])?;
             println!("x_{k:?} = {value}");
-        }
-
-        panic!();
+        } */
 
         Ok(self.vars.as_ref().expect("should exist"))
     }
