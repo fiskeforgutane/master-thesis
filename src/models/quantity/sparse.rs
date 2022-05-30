@@ -486,6 +486,8 @@ impl QuantityLp {
             println!("x_{k:?} = {value}");
         } */
 
+        self.model.write("sparse.ilp");
+
         Ok(self.vars.as_ref().expect("should exist"))
     }
 }
