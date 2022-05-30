@@ -207,11 +207,11 @@ impl QuantityLp {
         // The timelines for each node and each vessel (when stuff happens)
         // Note that to ensure inventory is not violated, we will define t_n for [0, t] as well.
         // We also add the `available_from` of each vessel.
-        let mut t_n = vec![[0, t - 1].into_iter().collect::<HashSet<_>>(); problem.nodes().len()];
+        let mut t_n = vec![[0, t].into_iter().collect::<HashSet<_>>(); problem.nodes().len()];
         let mut t_v = problem
             .vessels()
             .iter()
-            .map(|v| std::iter::once(v.available_from()).collect::<HashSet<_>>())
+            .map(|v| [v.available_from(), t].into_iter().collect::<HashSet<_>>())
             .collect::<Vec<_>>();
 
         // The loading/unloading variables
@@ -238,6 +238,7 @@ impl QuantityLp {
                 /*                 // Some other code relies on the loading being defined at each visit.
                 // Not strictly needed for the sparse model.
                 t_v[v].insert(*times.start()); */
+                let end = *times.end();
 
                 for t in times {
                     t_v[v].insert(t);
@@ -250,8 +251,8 @@ impl QuantityLp {
                 }
 
                 // The vessel an port inventory needs to be defined for one additional timestep, to avoid "cheating" the inventory
-                t_v[v].insert(times.end() + 1);
-                t_n[n].insert(times.end() + 1);
+                t_v[v].insert(end + 1);
+                t_n[n].insert(end + 1);
             }
         }
 
