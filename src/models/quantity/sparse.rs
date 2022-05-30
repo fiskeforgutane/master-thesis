@@ -413,7 +413,7 @@ impl QuantityLp {
         model.add_constr("c_travel_empty", c!(travel_empty == 0.0_f64))?;
         model.add_constr("c_travel_at_cap", c!(travel_at_cap == 0.0_f64))?;
 
-        let obj = 1.0e8_f64 * violation + 0.5_f64 * spot - 1e-6_f64 * revenue
+        let obj = 1.0e12_f64 * violation + 0.5_f64 * spot - 1e-6_f64 * revenue
             + 1e-12_f64 * timing
             + travel_empty
             + travel_at_cap;
