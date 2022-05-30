@@ -23,6 +23,8 @@ pub struct Variables {
     pub spot: Var,
     pub revenue: Var,
     pub timing: Var,
+    pub travel_empty: Var,
+    pub travel_at_cap: Var,
 }
 
 pub struct QuantityLp {
@@ -116,6 +118,8 @@ impl QuantityLp {
                 spot,
                 revenue,
                 timing,
+                travel_empty,
+                travel_at_cap,
             } = vars;
 
             for &var in w
@@ -124,7 +128,17 @@ impl QuantityLp {
                 .chain(s.values())
                 .chain(l.values())
                 .chain(a.values())
-                .chain([violation, spot, revenue, timing].iter())
+                .chain(
+                    [
+                        violation,
+                        spot,
+                        revenue,
+                        timing,
+                        travel_empty,
+                        travel_at_cap,
+                    ]
+                    .iter(),
+                )
             {
                 self.model.remove(var)?;
             }
@@ -145,6 +159,7 @@ impl QuantityLp {
         solution: &RoutingSolution,
         _semicont: bool,
         _berth: bool,
+        _tight: bool,
     ) -> grb::Result<()> {
         // Some stuff that will be useful later
         self.clear()?;
@@ -367,6 +382,13 @@ impl QuantityLp {
         model.add_constr("c_spot", c!(spot == a.values().grb_sum()))?;
         model.add_constr("c_timing", c!(timing == 0.0_f64))?;
 
+        // Note: these aren't really used here, but we'll just force them to 0 so that other
+        // code can rely on there being variables with these names.
+        let travel_empty = add_ctsvar!(model, name: "travel_empty", bounds: 0.0..)?;
+        let travel_at_cap = add_ctsvar!(model, name: "travel_at_cap", bounds: 0.0..)?;
+        model.add_constr("c_travel_empty", c!(travel_empty == 0.0_f64))?;
+        model.add_constr("c_travel_at_cap", c!(travel_at_cap == 0.0_f64))?;
+
         self.vars = Some(Variables {
             w,
             x,
@@ -377,6 +399,8 @@ impl QuantityLp {
             spot,
             revenue,
             timing,
+            travel_empty,
+            travel_at_cap,
         });
 
         Ok(())

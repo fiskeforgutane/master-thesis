@@ -593,9 +593,10 @@ impl RoutingSolution {
 
     fn update_travel_empty(&self, quantities: &QuantityLp) -> f64 {
         let lp = quantities;
+        let vars = lp.vars.as_ref().unwrap();
         let travel_empty_violation = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.travel_empty)
+            .get_obj_attr(grb::attr::X, &vars.travel_empty)
             .expect("failed to retrieve variable");
         self.cache.travel_empty.set(Some(travel_empty_violation));
         travel_empty_violation
@@ -603,9 +604,10 @@ impl RoutingSolution {
 
     fn update_travel_at_capacity(&self, quantities: &QuantityLp) -> f64 {
         let lp = quantities;
+        let vars = lp.vars.as_ref().unwrap();
         let travel_at_cap_violation = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.travel_at_cap)
+            .get_obj_attr(grb::attr::X, &vars.travel_at_cap)
             .expect("failed to retrieve variable");
         self.cache.travel_at_cap.set(Some(travel_at_cap_violation));
         travel_at_cap_violation
@@ -613,9 +615,10 @@ impl RoutingSolution {
 
     fn update_violation(&self, quantities: &QuantityLp) -> f64 {
         let lp = quantities;
+        let vars = lp.vars.as_ref().unwrap();
         let violation = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.violation)
+            .get_obj_attr(grb::attr::X, &vars.violation)
             .expect("failed to retrieve variables");
         self.cache.violation.set(Some(violation));
         violation
@@ -623,9 +626,10 @@ impl RoutingSolution {
 
     fn update_timing(&self, quantities: &QuantityLp) -> f64 {
         let lp = quantities;
+        let vars = lp.vars.as_ref().unwrap();
         let timing = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.timing)
+            .get_obj_attr(grb::attr::X, &vars.timing)
             .expect("failed to retrieve variables");
         self.cache.timing.set(Some(timing));
         timing
@@ -634,7 +638,8 @@ impl RoutingSolution {
     fn update_cost(&self, quantities: &QuantityLp) -> f64 {
         let problem = self.problem();
         let lp = quantities;
-        let load = &lp.vars.l;
+        let vars = lp.vars.as_ref().unwrap();
+        let load = &vars.l;
         let p = problem.count::<Product>();
         let mut inventory = Inventory::zeroed(p).unwrap();
         let cost = self
@@ -650,8 +655,10 @@ impl RoutingSolution {
                             // NOTE2: might consider batching this Gurobi call.
                             let t = v2.time;
                             for p in 0..p {
-                                inventory[p] =
-                                    lp.model.get_obj_attr(grb::attr::X, &load[t][v][p]).unwrap();
+                                inventory[p] = lp
+                                    .model
+                                    .get_obj_attr(grb::attr::X, &load[&(t, v, p)])
+                                    .unwrap();
                             }
 
                             let travel = problem.travel_cost(v1.node, v2.node, v, &inventory);
@@ -675,9 +682,10 @@ impl RoutingSolution {
         // We need to retrieve the solution variables, and loop over the ones
         // that are non-zero to determine the revenue
         let lp = quantities;
+        let vars = lp.vars.as_ref().unwrap();
         let revenue = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.revenue)
+            .get_obj_attr(grb::attr::X, &vars.revenue)
             .expect("retrieving variable values failed");
 
         self.cache.revenue.set(Some(revenue));
@@ -686,9 +694,10 @@ impl RoutingSolution {
 
     fn update_spot(&self, quantities: &QuantityLp) {
         let lp = quantities;
+        let vars = lp.vars.as_ref().unwrap();
         let spot = lp
             .model
-            .get_obj_attr(grb::attr::X, &lp.vars.spot)
+            .get_obj_attr(grb::attr::X, &vars.spot)
             .expect("retrieving variable values failed");
 
         self.cache.spot.set(Some(spot));
@@ -783,6 +792,7 @@ impl RoutingSolution {
 
     pub fn duration(&self, plan_idx: usize, visit_idx: usize) -> usize {
         let lp = &self.quantities();
+        let vars = lp.vars.as_ref().unwrap();
         let visit = &self[plan_idx][visit_idx];
 
         let mut count = 0;
@@ -791,7 +801,7 @@ impl RoutingSolution {
                 .model
                 .get_obj_attr_batch(
                     grb::attr::X,
-                    (0..self.problem.products()).map(|p| lp.vars.x[t][visit.node][plan_idx][p]),
+                    (0..self.problem.products()).map(|p| vars.x[&(t, visit.node, plan_idx, p)]),
                 )
                 .expect("failed to retrieve variables")
                 .into_iter()
@@ -850,9 +860,10 @@ impl RoutingSolution {
     /// The load of the given vessel at the **beginning** of the given time period
     pub fn load_at(&self, vessel: VesselIndex, time: TimeIndex) -> FixedInventory {
         let lp = self.quantities();
+        let vars = lp.vars.as_ref().unwrap();
 
         let vars = iproduct!(0..self.problem().products())
-            .map(|p| lp.vars.l[time][vessel][p])
+            .map(|p| vars.l[&(time, vessel, p)])
             .collect::<Vec<_>>();
 
         let load = lp
@@ -866,9 +877,10 @@ impl RoutingSolution {
     /// The inventory at the given node at the **beginning** of the given time period
     pub fn inventory_at(&self, node: NodeIndex, time: TimeIndex) -> FixedInventory {
         let lp = self.quantities();
+        let vars = lp.vars.as_ref().unwrap();
 
         let vars = iproduct!(0..self.problem().products())
-            .map(|p| lp.vars.s[time][node][p])
+            .map(|p| vars.s[&(time, node, p)])
             .collect::<Vec<_>>();
 
         let inventory = lp

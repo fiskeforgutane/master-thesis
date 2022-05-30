@@ -277,7 +277,7 @@ pub fn solve_quantities(
     berth: bool,
     tight: bool,
 ) -> PyResult<F64Variables> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = crate::models::quantity::QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     lp.configure(&solution, semicont, berth, tight)
         .map_err(pyerr)?;
@@ -293,7 +293,7 @@ pub fn solve_multiple_quantities(
     berth: bool,
     tight: bool,
 ) -> PyResult<Vec<F64Variables>> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = crate::models::quantity::QuantityLp::new(&problem).map_err(pyerr)?;
 
     let mut results = Vec::new();
     let arc = Arc::new(problem);
@@ -343,7 +343,7 @@ pub fn objective_terms(
     tight: bool,
     assignment: bool,
 ) -> PyResult<ObjectiveTerms> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = crate::models::quantity::QuantityLp::new(&problem).map_err(pyerr)?;
     if assignment {
         lp.add_compartment_constraints(&problem).map_err(pyerr)?;
     }
@@ -375,7 +375,7 @@ pub fn write_model(
     tight: bool,
     assignment: bool,
 ) -> PyResult<()> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = crate::models::quantity::QuantityLp::new(&problem).map_err(pyerr)?;
     if assignment {
         lp.add_compartment_constraints(&problem).map_err(pyerr)?;
     }
