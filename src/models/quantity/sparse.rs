@@ -248,6 +248,10 @@ impl QuantityLp {
                         revenue_expr = revenue_expr + var * unit_revenue;
                     }
                 }
+
+                // The vessel an port inventory needs to be defined for one additional timestep, to avoid "cheating" the inventory
+                t_v[v].insert(times.end() + 1);
+                t_n[n].insert(times.end() + 1);
             }
         }
 
@@ -271,7 +275,7 @@ impl QuantityLp {
             for group in timeline.linear_group_by(|&a, &b| a + 1 == b) {
                 let first = *group.first().unwrap();
                 let last = *group.last().unwrap();
-                for t in first..=(last + 1).min(t) {
+                for t in first..=last.min(t) {
                     for p in 0..p {
                         insert!(l, (t, v, p), 0.0..cap)?;
                     }
@@ -300,7 +304,7 @@ impl QuantityLp {
                     }
                 }
 
-                // We need to observe whether violation occurs AFTER day `last` = `end - 1`
+                /* // We need to observe whether violation occurs AFTER day `last` = `end - 1`
                 let end = group.last().unwrap() + 1;
                 for p in 0..p {
                     match node.r#type() {
@@ -308,7 +312,7 @@ impl QuantityLp {
                         NodeType::Production => insert!(s, (end, n, p), 0.0..)?,
                     };
                     insert!(w, (end, n, p), 0.0..)?;
-                }
+                } */
             }
 
             // Total `a` can not exceed the limit
