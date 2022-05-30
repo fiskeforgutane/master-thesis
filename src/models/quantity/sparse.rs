@@ -373,10 +373,7 @@ impl QuantityLp {
             let node = &problem.nodes()[n];
             let i = Self::multiplier(node.r#type());
 
-            for (&t1, &t2) in timeline
-                .iter()
-                .zip(timeline[1..])
-            {
+            for (&t1, &t2) in timeline.iter().zip(&timeline[1..]) {
                 for p in 0..p {
                     let external = (0..v).filter_map(|v| x.get(&(t1, n, v, p))).grb_sum();
                     let internal = node.inventory_change(t1, t2 - 1, p);
