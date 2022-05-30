@@ -184,11 +184,11 @@ impl QuantityLp {
 
         /// To avoid construction of format strings for variable and constraint names, while
         /// making it easy to remove it (by commenting out this)
-        macro_rules! format {
+        /* macro_rules! format {
             ($x:expr $(, $xs:expr)*) => {
                 ""
             };
-        }
+        } */
 
         macro_rules! insert {
             ($m: expr, $k: expr, $b: expr) => {{
