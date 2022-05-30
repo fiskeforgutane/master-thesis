@@ -3,8 +3,8 @@ use itertools::Itertools;
 use log::warn;
 
 use crate::{
-    ga::{Mutation, Fitness},
-    models::quantity::QuantityLp,
+    ga::{Fitness, Mutation},
+    models::QuantityLp,
     problem::{NodeIndex, Problem, ProductIndex, TimeIndex, VesselIndex},
     solution::{routing::RoutingSolution, Visit},
 };

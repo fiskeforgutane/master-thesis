@@ -13,7 +13,7 @@ use rand::{
 };
 
 use crate::{
-    models::quantity::QuantityLp,
+    models::QuantityLp,
     problem::{Node, Problem, Vessel},
     solution::{routing::RoutingSolution, Visit},
 };

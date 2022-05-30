@@ -13,7 +13,7 @@ use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 use slice_group_by::GroupBy;
 
-use crate::models::quantity::QuantityLp;
+use crate::models::QuantityLp;
 use crate::problem::{
     Cost, FixedInventory, Inventory, NodeIndex, Problem, Product, Quantity, TimeIndex, VesselIndex,
 };

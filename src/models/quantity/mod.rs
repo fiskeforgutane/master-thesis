@@ -382,7 +382,7 @@ impl QuantityLp {
             c!(travel_at_capacity_expr == travel_at_cap),
         )?;
 
-        let obj = 1e8_f64 * violation + 0.5_f64 * spot - 1e-6_f64 * revenue
+        let obj = 1.0e8 * violation + 0.5_f64 * spot - 1e-6_f64 * revenue
             + 1e-12_f64 * timing
             + travel_empty
             + travel_at_cap;
