@@ -3,7 +3,7 @@ pub mod ga;
 
 use crate::ga::mutations::SwapStar;
 use crate::models::quantity::F64Variables;
-use crate::models::quantity::QuantityLp;
+use crate::models::QuantityLp;
 use crate::problem::Compartment;
 use crate::problem::Cost;
 use crate::problem::Distance;

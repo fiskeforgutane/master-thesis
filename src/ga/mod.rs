@@ -13,7 +13,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use log::trace;
 pub use traits::*;
 
-use crate::{models::quantity::QuantityLp, problem::Problem, solution::routing::RoutingSolution};
+use crate::{models::QuantityLp, problem::Problem, solution::routing::RoutingSolution};
 
 use self::initialization::Initialization;
 
