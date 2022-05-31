@@ -98,4 +98,5 @@ def solve(hosts, paths, f = lambda host, path: time.sleep(1)):
     progress.close()
 
 # These are the hosts we'll be using.
-free_hosts = [f'compute-4-{i}' for i in range(0, 16) if i not in [11, 18, 20, 21, 22, 23, 24, 26]]
+def rack4(n, occupied =[11, 20, 21, 22, 23, 24, 26]):
+    return [f'compute-4-{i}' for i in range(0, n) if i not in occupied]
