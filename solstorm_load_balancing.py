@@ -5,8 +5,12 @@ from tqdm import tqdm
 
 
 mowi_unsolved = [f'~/mowilib/real/{x}' for x in [
+    't235/easy/N60_V10_P6_T235_MA_S0.json',
+    't235/easy/N80_V10_P3_T235_MA_S0.json',
     't235/easy/N80_V10_P6_T235_MA_S0.json',
     't235/hard/N60_V10_P1_T235_MC_S0.json',
+    't235/hard/N80_V10_P3_T235_MC_S0.json',
+    't235/hard/N80_V10_P6_T235_MC_S0.json',
     't235/middle/N80_V10_P1_T235_MB_S0.json',
     't235/middle/N80_V10_P3_T235_MB_S0.json',
     't235/middle/N80_V10_P6_T235_MB_S0.json',
