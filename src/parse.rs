@@ -100,7 +100,7 @@ pub fn std_lite_mutation() -> Box<dyn RPNMutation> {
         // Stochastic::new(0.01, Bounce::new(3, BounceMode::Random)),
         // Stochastic::new(0.01, AddSmart),
         Stochastic::new(0.10, rr::Period::new(0.05, 0.8, 6, 2)),
-        Stochastic::new(0.05, rr::Vessel::new(0.05, 0.8, 3)),
+        // Stochastic::new(0.05, rr::Vessel::new(0.05, 0.8, 3)),
         Stochastic::new(
             0.02,
             rr::sisr::SlackInductionByStringRemoval::new(rr::sisr::Config {
