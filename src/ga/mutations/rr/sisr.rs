@@ -210,7 +210,7 @@ impl SlackInductionByStringRemoval {
         strings
     }
 
-    fn ruin(&self, solution: &mut RoutingSolution) {
+    fn ruin(&self, solution: &mut RoutingSolution) -> usize {
         // Select strings for removal, and create a new solution without them
         debug!("Ruining solution.");
         let strings = SlackInductionByStringRemoval::select_strings(&self.config, solution);
@@ -218,11 +218,15 @@ impl SlackInductionByStringRemoval {
         debug!("Dropping strings {:?}", &strings);
         // Note: since there is at most one string drawn from every vessel's tour, this is working as intended.
         // There can not occur any case where one range is "displaced" due to another range being removed from the same Vec.
+        let mut removed = 0;
         let mut solution = solution.mutate();
         for (vessel, range) in strings {
+            removed += range.len();
             let mut plan = solution[vessel].mutate();
             drop(plan.drain(range));
         }
+
+        removed
     }
 
     fn candidates(&self, solution: &RoutingSolution) -> Vec<(usize, Visit)> {
@@ -241,14 +245,15 @@ impl SlackInductionByStringRemoval {
 
 impl Mutation for SlackInductionByStringRemoval {
     fn apply(&mut self, _: &Problem, solution: &mut RoutingSolution, fitness: &dyn Fitness) {
-        self.ruin(solution);
+        let removed = self.ruin(solution);
 
         let greedy = GreedyWithBlinks::new(self.config.blink_rate);
 
         let mut best = fitness.of(solution.problem(), solution);
 
         debug!("SISR start = {:?}", solution.to_vec());
-        loop {
+
+        for _ in 0..(2 * (removed + 1)) {
             let candidates = self.candidates(solution);
             debug!("\t#Candidates = {}", candidates.len());
 

@@ -9,6 +9,8 @@ do
     pids="$pids $!"
     i=$((i + 1))
 
+    # Wait for all of the runs to complete before starting a new set.
+    # Could've done this better
     if [ $i -eq $2 ]; then
         wait $pids
         i=$((0))

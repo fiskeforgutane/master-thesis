@@ -3,8 +3,8 @@ use itertools::Itertools;
 use log::warn;
 
 use crate::{
-    ga::{Mutation, Fitness},
-    models::quantity::QuantityLp,
+    ga::{Fitness, Mutation},
+    models::QuantityLp,
     problem::{NodeIndex, Problem, ProductIndex, TimeIndex, VesselIndex},
     solution::{routing::RoutingSolution, Visit},
 };
@@ -14,7 +14,7 @@ use crate::{
 /// 2. Try to eliminate this shortage by adding a visit to this node prior to the shortage. To choose the vessel to perform the visit we select among those not visiting the node in the relevant
 /// time interval, and pick the one that is closest to the node.
 pub struct AddSmart;
-
+/*
 impl AddSmart {
     /// Returns the node experiencing the most significant violation throughout the time period, as well as the time period prior to when this violation started
     ///
@@ -101,10 +101,11 @@ impl AddSmart {
         closest.map(|(v, _)| *v)
     }
 }
-
+ */
 impl Mutation for AddSmart {
     fn apply(&mut self, problem: &Problem, solution: &mut RoutingSolution, _: &dyn Fitness) {
-        let (node, time) = match Self::most_significant_violation(solution) {
+        todo!();
+        /* let (node, time) = match Self::most_significant_violation(solution) {
             Some(x) => x,
             None => return,
         };
@@ -123,6 +124,6 @@ impl Mutation for AddSmart {
                 warn!("AddSmart found no closest vessel");
                 return;
             }
-        }
+        } */
     }
 }

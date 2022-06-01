@@ -6,9 +6,10 @@ use itertools::Itertools;
 use log::{info, LevelFilter};
 use uuid::Uuid;
 
+use std::cell::RefCell;
 use std::io::Write;
 use std::iter::once;
-use std::sync::atomic::Ordering;
+use std::rc::Rc;
 use std::sync::Mutex;
 use std::{path::PathBuf, sync::Arc};
 
@@ -23,7 +24,7 @@ pub mod termination;
 pub mod utils;
 
 use crate::ga::{
-    fitness::{AtomicF64, AtomicWeighted, Weighted},
+    fitness::Weighted,
     initialization::{Empty, FromPopulation, Initialization},
     parent_selection::Tournament,
     recombinations::PIX,
@@ -100,7 +101,7 @@ pub fn run_island_on<I: Initialization + Clone + Send + 'static>(
     let start = std::time::Instant::now();
     loop {
         let epochs = ga.epochs();
-        let best = RoutingSolution::new(problem.clone(), ga.best().clone());
+        let best = ga.best();
 
         if epochs - last_migration > config.migrate_every {
             info!("Migrating...");

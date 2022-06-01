@@ -3,7 +3,7 @@ pub mod ga;
 
 use crate::ga::mutations::SwapStar;
 use crate::models::quantity::F64Variables;
-use crate::models::quantity::QuantityLp;
+use crate::models::QuantityLp;
 use crate::problem::Compartment;
 use crate::problem::Cost;
 use crate::problem::Distance;
@@ -17,6 +17,7 @@ use crate::quants;
 use crate::quants::Order;
 use crate::quants::Quantities;
 use crate::solution::Visit;
+use grb::Var;
 use log::trace;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -277,7 +278,7 @@ pub fn solve_quantities(
     berth: bool,
     tight: bool,
 ) -> PyResult<F64Variables> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = crate::models::quantity::QuantityLp::new(&problem).map_err(pyerr)?;
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     lp.configure(&solution, semicont, berth, tight)
         .map_err(pyerr)?;
@@ -293,7 +294,7 @@ pub fn solve_multiple_quantities(
     berth: bool,
     tight: bool,
 ) -> PyResult<Vec<F64Variables>> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = crate::models::quantity::QuantityLp::new(&problem).map_err(pyerr)?;
 
     let mut results = Vec::new();
     let arc = Arc::new(problem);
@@ -341,9 +342,14 @@ pub fn objective_terms(
     semicont: bool,
     berth: bool,
     tight: bool,
+    assignment: bool,
 ) -> PyResult<ObjectiveTerms> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = crate::models::quantity::QuantityLp::new(&problem).map_err(pyerr)?;
+    if assignment {
+        lp.add_compartment_constraints(&problem).map_err(pyerr)?;
+    }
     let solution = RoutingSolution::new(Arc::new(problem), routes);
+
     lp.configure(&solution, semicont, berth, tight)
         .map_err(pyerr)?;
     let res = lp.solve_python().map_err(pyerr)?;
@@ -361,6 +367,33 @@ pub fn objective_terms(
 }
 
 #[pyfunction]
+pub fn objective_terms_sparse(
+    problem: Problem,
+    routes: Vec<Vec<Visit>>,
+) -> PyResult<ObjectiveTerms> {
+    let mut lp = crate::models::quantity::sparse::QuantityLp::new(&problem).map_err(pyerr)?;
+
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+
+    lp.configure(&solution, false, false, false);
+    lp.solve();
+    let res = lp.vars.unwrap();
+
+    let value = |x: Var| lp.model.get_obj_attr(grb::attr::X, &x).unwrap();
+
+    Ok(ObjectiveTerms {
+        revenue: value(res.revenue),
+        violation: value(res.violation),
+        spot: value(res.spot),
+        cost: solution.cost(),
+        timing: value(res.timing),
+        warp: solution.warp() as f64,
+        travel_empty: value(res.travel_empty),
+        travel_at_capacity: value(res.travel_at_cap),
+    })
+}
+
+#[pyfunction]
 pub fn write_model(
     filename: &str,
     problem: Problem,
@@ -368,8 +401,12 @@ pub fn write_model(
     semicont: bool,
     berth: bool,
     tight: bool,
+    assignment: bool,
 ) -> PyResult<()> {
-    let mut lp = QuantityLp::new(&problem).map_err(pyerr)?;
+    let mut lp = crate::models::quantity::QuantityLp::new(&problem).map_err(pyerr)?;
+    if assignment {
+        lp.add_compartment_constraints(&problem).map_err(pyerr)?;
+    }
     let solution = RoutingSolution::new(Arc::new(problem), routes);
     lp.configure(&solution, semicont, berth, tight)
         .map_err(pyerr)?;
@@ -377,7 +414,6 @@ pub fn write_model(
 
     Ok(())
 }
-
 #[pyclass]
 pub struct ObjectiveTerms {
     #[pyo3(get)]

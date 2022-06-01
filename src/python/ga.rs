@@ -396,6 +396,8 @@ impl PyGA {
                     .map(|it| it.collect::<Vec<_>>())
                     .collect::<Vec<_>>();
 
+                todo!();
+                /*
                 let lp = solution.quantities();
                 let x = lp.vars.x.convert(&lp.model).unwrap();
                 let s = lp.vars.s.convert(&lp.model).unwrap();
@@ -432,7 +434,7 @@ impl PyGA {
                     solution.cost(),
                 );
 
-                (routing, v, ga.config.fitness.of(problem, solution), obj)
+                (routing, v, ga.config.fitness.of(problem, solution), obj) */
             })
             .collect::<Vec<_>>()
     }

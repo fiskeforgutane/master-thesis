@@ -382,7 +382,7 @@ impl QuantityLp {
             c!(travel_at_capacity_expr == travel_at_cap),
         )?;
 
-        let obj = 1e10_f64 * violation + 0.5_f64 * spot - 1e-6_f64 * revenue
+        let obj = 1.0e8 * violation + 0.5_f64 * spot - 1e-6_f64 * revenue
             + 1e-12_f64 * timing
             + travel_empty
             + travel_at_cap;
@@ -419,7 +419,7 @@ impl QuantityLp {
             let c = vessel.compartments().len();
             let assigned = (t, p, c).binary(model, &format!("compartment_{v}"))?;
             // Product must be carried in compartments
-            for t in 0..t {
+            for t in 1..t {
                 // Each product must have enough assigned silos to cover their quantity.
                 for p in 0..p {
                     let lhs = self.vars.l[t][v][p];
@@ -439,6 +439,7 @@ impl QuantityLp {
                 }
             }
         }
+        model.update()?;
 
         Ok(())
     }

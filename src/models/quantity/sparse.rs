@@ -6,6 +6,7 @@ use std::{
 
 use grb::{add_ctsvar, c, expr::GurobiSum, Expr, Model, Var};
 use itertools::{iproduct, Itertools};
+use log::debug;
 use slice_group_by::GroupBy;
 
 use crate::{
@@ -13,6 +14,7 @@ use crate::{
     solution::routing::RoutingSolution,
 };
 
+#[derive(Debug)]
 pub struct Variables {
     pub w: HashMap<(TimeIndex, NodeIndex, ProductIndex), Var>,
     pub x: HashMap<(TimeIndex, NodeIndex, VesselIndex, ProductIndex), Var>,
@@ -23,6 +25,8 @@ pub struct Variables {
     pub spot: Var,
     pub revenue: Var,
     pub timing: Var,
+    pub travel_empty: Var,
+    pub travel_at_cap: Var,
 }
 
 pub struct QuantityLp {
@@ -93,10 +97,10 @@ impl QuantityLp {
                         let departure_time = v2.time - v2.time.min(travel_time);
                         // In addition, we can further restrict the active time periods by looking at the longest possible time
                         // the vessel can spend at the node doing constant loading/unloading.
-                        let rate = problem.nodes()[v1.node].min_unloading_amount();
-                        let max_loading_time = (vessel.capacity() / rate).ceil() as usize;
+                        // let rate = problem.nodes()[v1.node].min_unloading_amount();
+                        //let max_loading_time = (vessel.capacity() / rate).ceil() as usize;
 
-                        let period = v1.time..=departure_time.min(v1.time + max_loading_time);
+                        let period = v1.time..=departure_time;
 
                         (v1.node, period)
                     }),
@@ -116,6 +120,8 @@ impl QuantityLp {
                 spot,
                 revenue,
                 timing,
+                travel_empty,
+                travel_at_cap,
             } = vars;
 
             for &var in w
@@ -124,7 +130,17 @@ impl QuantityLp {
                 .chain(s.values())
                 .chain(l.values())
                 .chain(a.values())
-                .chain([violation, spot, revenue, timing].iter())
+                .chain(
+                    [
+                        violation,
+                        spot,
+                        revenue,
+                        timing,
+                        travel_empty,
+                        travel_at_cap,
+                    ]
+                    .iter(),
+                )
             {
                 self.model.remove(var)?;
             }
@@ -135,7 +151,17 @@ impl QuantityLp {
         for constr in constrs {
             self.model.remove(constr)?;
         }
+        /*
+                self.model = Model::new("blah")?;
+                self.vars = None;
 
+                // Disable output logging.
+                self.model.set_param(grb::param::OutputFlag, 0)?;
+                // Use primal simplex, instead of the default concurrent solver. Reason: we will use multiple concurrent GAs
+                self.model.set_param(grb::param::Method, 0)?;
+                // Restrict to one thread. Also due to using concurrent GAs.
+                self.model.set_param(grb::param::Threads, 1)?;
+        */
         Ok(())
     }
 
@@ -145,6 +171,7 @@ impl QuantityLp {
         solution: &RoutingSolution,
         _semicont: bool,
         _berth: bool,
+        _tight: bool,
     ) -> grb::Result<()> {
         // Some stuff that will be useful later
         self.clear()?;
@@ -180,11 +207,11 @@ impl QuantityLp {
         // The timelines for each node and each vessel (when stuff happens)
         // Note that to ensure inventory is not violated, we will define t_n for [0, t] as well.
         // We also add the `available_from` of each vessel.
-        let mut t_n = vec![[0, t - 1].into_iter().collect::<HashSet<_>>(); problem.nodes().len()];
+        let mut t_n = vec![[0, t].into_iter().collect::<HashSet<_>>(); problem.nodes().len()];
         let mut t_v = problem
             .vessels()
             .iter()
-            .map(|v| std::iter::once(v.available_from()).collect::<HashSet<_>>())
+            .map(|v| [v.available_from(), t].into_iter().collect::<HashSet<_>>())
             .collect::<Vec<_>>();
 
         // The loading/unloading variables
@@ -211,6 +238,7 @@ impl QuantityLp {
                 // Some other code relies on the loading being defined at each visit.
                 // Not strictly needed for the sparse model.
                 t_v[v].insert(*times.start());
+                let end = *times.end();
 
                 for t in times {
                     t_v[v].insert(t);
@@ -221,6 +249,10 @@ impl QuantityLp {
                         revenue_expr = revenue_expr + var * unit_revenue;
                     }
                 }
+
+                // The vessel an port inventory needs to be defined for one additional timestep, to avoid "cheating" the inventory
+                t_v[v].insert(end + 1);
+                t_n[n].insert(end + 1);
             }
         }
 
@@ -244,7 +276,7 @@ impl QuantityLp {
             for group in timeline.linear_group_by(|&a, &b| a + 1 == b) {
                 let first = *group.first().unwrap();
                 let last = *group.last().unwrap();
-                for t in first..=(last + 1).min(t) {
+                for t in first..=last.min(t) {
                     for p in 0..p {
                         insert!(l, (t, v, p), 0.0..cap)?;
                     }
@@ -273,7 +305,7 @@ impl QuantityLp {
                     }
                 }
 
-                // We need to observe whether violation occurs AFTER day `last` = `end - 1`
+                /* // We need to observe whether violation occurs AFTER day `last` = `end - 1`
                 let end = group.last().unwrap() + 1;
                 for p in 0..p {
                     match node.r#type() {
@@ -281,7 +313,7 @@ impl QuantityLp {
                         NodeType::Production => insert!(s, (end, n, p), 0.0..)?,
                     };
                     insert!(w, (end, n, p), 0.0..)?;
-                }
+                } */
             }
 
             // Total `a` can not exceed the limit
@@ -341,10 +373,7 @@ impl QuantityLp {
             let node = &problem.nodes()[n];
             let i = Self::multiplier(node.r#type());
 
-            for (&t1, &t2) in timeline
-                .iter()
-                .zip(timeline[1..].iter().chain(std::iter::once(&t)))
-            {
+            for (&t1, &t2) in timeline.iter().zip(&timeline[1..]) {
                 for p in 0..p {
                     let external = (0..v).filter_map(|v| x.get(&(t1, n, v, p))).grb_sum();
                     let internal = node.inventory_change(t1, t2 - 1, p);
@@ -357,6 +386,16 @@ impl QuantityLp {
             }
         }
 
+        let spot_expr = a
+            .iter()
+            .map(|(&(t, n, p), var)| {
+                let node = &problem.nodes()[n];
+                let unit_price = node.spot_market_unit_price();
+                let discount = node.spot_market_discount_factor().powi(t as i32);
+                (*var) * unit_price * discount
+            })
+            .grb_sum();
+
         let revenue = add_ctsvar!(model, name: "revenue", bounds: 0.0..)?;
         let violation = add_ctsvar!(model, name: "violation", bounds: 0.0..)?;
         let spot = add_ctsvar!(model, name: "spot", bounds: 0.0..)?;
@@ -364,8 +403,22 @@ impl QuantityLp {
 
         model.add_constr("c_revenue", c!(revenue == revenue_expr))?;
         model.add_constr("c_violation", c!(violation == w.values().grb_sum()))?;
-        model.add_constr("c_spot", c!(spot == a.values().grb_sum()))?;
+        model.add_constr("c_spot", c!(spot == spot_expr))?;
         model.add_constr("c_timing", c!(timing == 0.0_f64))?;
+
+        // Note: these aren't really used here, but we'll just force them to 0 so that other
+        // code can rely on there being variables with these names.
+        let travel_empty = add_ctsvar!(model, name: "travel_empty", bounds: 0.0..)?;
+        let travel_at_cap = add_ctsvar!(model, name: "travel_at_cap", bounds: 0.0..)?;
+        model.add_constr("c_travel_empty", c!(travel_empty == 0.0_f64))?;
+        model.add_constr("c_travel_at_cap", c!(travel_at_cap == 0.0_f64))?;
+
+        let obj = 1.0e12_f64 * violation + 0.5_f64 * spot - 1e-6_f64 * revenue
+            + 1e-12_f64 * timing
+            + travel_empty
+            + travel_at_cap;
+
+        model.set_objective(obj, grb::ModelSense::Minimize)?;
 
         self.vars = Some(Variables {
             w,
@@ -377,6 +430,8 @@ impl QuantityLp {
             spot,
             revenue,
             timing,
+            travel_empty,
+            travel_at_cap,
         });
 
         Ok(())
