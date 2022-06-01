@@ -363,6 +363,8 @@ pub fn objective_terms(
         warp: solution.warp() as f64,
         travel_empty: res.travel_empty,
         travel_at_capacity: res.travel_at_cap,
+        delivered_spot: res.a.iter().flatten().flatten().sum(),
+        delivered_ordinary: res.x.iter().flatten().flatten().flatten().sum(),
     })
 }
 
@@ -390,6 +392,8 @@ pub fn objective_terms_sparse(
         warp: solution.warp() as f64,
         travel_empty: value(res.travel_empty),
         travel_at_capacity: value(res.travel_at_cap),
+        delivered_spot: res.a.into_iter().map(|(_, v)| value(v)).sum(),
+        delivered_ordinary: res.x.into_iter().map(|(_, v)| value(v)).sum(),
     })
 }
 
@@ -432,4 +436,8 @@ pub struct ObjectiveTerms {
     pub travel_empty: f64,
     #[pyo3(get)]
     pub travel_at_capacity: f64,
+    #[pyo3(get)]
+    pub delivered_spot: f64,
+    #[pyo3(get)]
+    pub delivered_ordinary: f64,
 }
