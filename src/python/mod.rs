@@ -398,6 +398,12 @@ pub fn objective_terms_sparse(
 }
 
 #[pyfunction]
+pub fn solution_cost(problem: Problem, routes: Vec<Vec<Visit>>) -> PyResult<f64> {
+    let solution = RoutingSolution::new(Arc::new(problem), routes);
+    Ok(solution.cost())
+}
+
+#[pyfunction]
 pub fn write_model(
     filename: &str,
     problem: Problem,
