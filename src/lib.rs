@@ -66,6 +66,7 @@ fn ga(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(time_setter, m)?)?;
     m.add_function(wrap_pyfunction!(python::ga::swap_star, m)?)?;
     m.add_function(wrap_pyfunction!(write_model, m)?)?;
+    m.add_function(wrap_pyfunction!(solution_cost, m)?)?;
 
     // Mutation combinators
     m.add_function(wrap_pyfunction!(chain, m)?)?;
