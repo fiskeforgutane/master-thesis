@@ -215,7 +215,8 @@ impl ExactModelSolver {
         // there can be a maximum of one product type in each compartment at the same time
         for (v, t, p) in iproduct!(&sets.V, &sets.T, &sets.P) {
             for c in 0..num_compartments(*v) {
-                let lhs = sets.Ip.iter().map(|i| q[*i][*v][c][*t][*p]).grb_sum();
+                let lhs = s_vessel[*v][c][*t][*p];
+                // sets.Ip.iter().map(|i| q[*i][*v][c][*t][*p]).grb_sum();
 
                 let rhs = parameters.compartment_capacity[*v][c] * y[*v][c][*t][*p];
 
